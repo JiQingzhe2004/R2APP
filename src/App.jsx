@@ -9,6 +9,7 @@ import DashboardPage from './pages/Dashboard';
 import SettingsPage from './pages/Settings';
 import FilesPage from './pages/Files';
 import UploadsPage from './pages/Uploads';
+import DownloadsPage from './pages/Downloads';
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -31,6 +32,7 @@ function App() {
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/files" element={<FilesPage />} />
                 <Route path="/uploads" aname="uploads" element={<UploadsPage />} />
+                <Route path="/downloads" element={<DownloadsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
               </Routes>
             </main>

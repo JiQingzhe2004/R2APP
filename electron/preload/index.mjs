@@ -18,7 +18,30 @@ const api = {
       ipcRenderer.removeListener('upload-progress', handler);
     };
   },
-  downloadFile: (key) => ipcRenderer.invoke('r2-download-file', { key })
+  downloadFile: (key) => ipcRenderer.send('r2-download-file', { key }),
+  getAllDownloads: () => ipcRenderer.invoke('downloads-get-all'),
+  onDownloadUpdate: (callback) => {
+    const startHandler = (_event, task) => callback({ type: 'start', task });
+    const progressHandler = (_event, data) => callback({ type: 'progress', data });
+
+    ipcRenderer.on('download-start', startHandler);
+    ipcRenderer.on('download-progress', progressHandler);
+
+    return () => {
+      ipcRenderer.removeListener('download-start', startHandler);
+      ipcRenderer.removeListener('download-progress', progressHandler);
+    };
+  },
+  showItemInFolder: (filePath) => ipcRenderer.send('show-item-in-folder', filePath),
+  clearCompletedDownloads: () => ipcRenderer.send('downloads-clear-completed'),
+  deleteDownloadTask: (taskId) => ipcRenderer.send('downloads-delete-task', taskId),
+  onDownloadsCleared: (callback) => {
+    const handler = (_event, tasks) => callback(tasks);
+    ipcRenderer.on('downloads-cleared', handler);
+    return () => {
+      ipcRenderer.removeListener('downloads-cleared', handler);
+    };
+  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

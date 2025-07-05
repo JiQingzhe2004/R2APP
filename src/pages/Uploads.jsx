@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
 import { Progress } from '@/components/ui/Progress';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -39,7 +40,14 @@ export default function UploadsPage() {
   };
 
   useEffect(() => {
-    const removeProgressListener = window.api.onUploadProgress(({ key, percentage }) => {
+    const removeProgressListener = window.api.onUploadProgress(({ key, percentage, error }) => {
+      if (error) {
+        setUploadProgress(prev => ({
+          ...prev,
+          [key]: { ...prev[key], status: 'error', error: error }
+        }));
+        return;
+      }
       setUploadProgress(prev => ({
         ...prev,
         [key]: { ...prev[key], percentage, status: percentage === 100 ? 'completed' : 'uploading' }
@@ -85,16 +93,40 @@ export default function UploadsPage() {
 
   const handleUpload = async () => {
     setIsUploading(true);
+    let successCount = 0;
+    let errorCount = 0;
+
     for (const file of filesToUpload) {
       if (file.status === 'pending') {
         setUploadProgress(prev => ({ ...prev, [file.key]: { percentage: 0, status: 'uploading' } }));
         const result = await window.api.uploadFile(file.path, file.key);
-        if (!result.success) {
-          setUploadProgress(prev => ({ ...prev, [file.key]: { ...prev[file.key], status: 'error', error: result.error } }));
+        if (result.success) {
+          successCount++;
+        } else {
+          errorCount++;
+          // The main process will send a progress event with an error,
+          // so we don't need to set the error state here.
         }
       }
     }
+    
     setIsUploading(false);
+
+    if (errorCount > 0) {
+      toast.error(`${errorCount} 个文件上传失败。`);
+    } 
+    
+    if (successCount > 0) {
+       toast.success(`${successCount} 个文件上传成功！`);
+    }
+
+    if (errorCount === 0 && successCount > 0) {
+        // All files uploaded successfully
+        setTimeout(() => {
+            setFilesToUpload([]);
+            setUploadProgress({});
+        }, 2000); // 2-second delay to show completion status
+    }
   };
   
   const removeFile = (key) => {

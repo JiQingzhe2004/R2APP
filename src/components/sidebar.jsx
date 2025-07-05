@@ -10,7 +10,12 @@ import {
   PanelRightClose,
   PackageOpen,
   FolderUp,
-  FolderDown
+  FolderDown,
+  ChevronLeft,
+  ChevronRight,
+  LayoutDashboard,
+  Folder,
+  DownloadCloud
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useTheme } from "./theme-provider"
@@ -21,10 +26,10 @@ export function Sidebar({ isCollapsed, onToggle }) {
   const location = useLocation();
 
   const navItems = [
-    { id: 'dashboard', href: '/dashboard', icon: Home, label: '仪表盘' },
-    { id: 'files', href: '/files', icon: PackageOpen, label: '文件管理' },
-    { id: 'uploads', href: '/uploads', icon: FolderUp, label: '上传文件' },
-    { id: 'downloads', href: '#', icon: FolderDown, label: '下载管理', disabled: true },
+    { id: 'dashboard', href: '/dashboard', icon: LayoutDashboard, label: '仪表盘' },
+    { id: 'files', href: '/files', icon: Folder, label: '文件管理' },
+    { id: 'uploads', href: '/uploads', icon: Upload, label: '文件上传' },
+    { id: 'downloads', href: '/downloads', icon: DownloadCloud, label: '下载管理' },
     { id: 'settings', href: '/settings', icon: Settings, label: '设置' },
   ]
 

@@ -19,8 +19,10 @@
     "@aws-sdk/lib-storage": "^3.583.0",
     "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/utils": "^3.0.0",
+    "@radix-ui/react-alert-dialog": "^1.1.14",
     "@radix-ui/react-dropdown-menu": "^2.0.6",
     "@radix-ui/react-progress": "^1.0.3",
+    "@radix-ui/react-toggle-group": "^1.1.10",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "electron-log": "^5.4.1",
@@ -29,7 +31,8 @@
     "electron-updater": "^6.1.8",
     "lucide-react": "^0.378.0",
     "react-router-dom": "^7.6.3",
-    "sonner": "^2.0.6"
+    "sonner": "^2.0.6",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
     "@electron-toolkit/preload": "^3.0.0",

@@ -1,10 +1,11 @@
 import { app, shell, BrowserWindow, ipcMain, dialog, globalShortcut } from 'electron'
-import { join } from 'path'
+import { join, parse } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
 import Store from 'electron-store'
 import { S3Client, ListObjectsV2Command, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import { Upload } from "@aws-sdk/lib-storage";
 import fs from 'fs';
+import { v4 as uuidv4 } from 'uuid';
 import serve from 'electron-serve';
 
 // Enhanced debugging - Print app paths
@@ -251,50 +252,168 @@ ipcMain.handle('r2-upload-file', async (_, { filePath, key }) => {
         Key: key,
         Body: fileStream,
       },
+      queueSize: 4, // optional concurrency
+      partSize: 1024 * 1024 * 5, // optional size of each part
+      leavePartsOnError: false, // optional manually handle dropped parts
+    });
+
+    upload.on('httpUploadProgress', (progress) => {
+      if (progress.total) {
+        const percentage = Math.round((progress.loaded / progress.total) * 100);
+        mainWindow.webContents.send('upload-progress', { key, percentage });
+      }
     });
 
     await upload.done();
     return { success: true };
   } catch (error) {
+    mainWindow.webContents.send('upload-progress', { key, percentage: 0, error: error.message });
     return { success: false, error: `文件上传失败: ${error.message}` };
   }
 });
 
-ipcMain.handle('r2-download-file', async (_, { key }) => {
+const downloadTasks = store.get('downloads', {});
+
+// Function to update and save downloads
+function updateDownloads(newTasks) {
+  store.set('downloads', newTasks);
+}
+
+ipcMain.handle('downloads-get-all', () => {
+  return store.get('downloads', {});
+});
+
+ipcMain.on('r2-download-file', async (_, { key }) => {
   const s3Client = getS3Client();
   if (!s3Client) {
-    return { success: false, error: '请先在设置中配置您的存储桶。' };
+    // We can't return an error directly, but we can send an event
+    // For now, we'll rely on the settings being correct.
+    return;
   }
   const bucketName = store.get('settings').bucketName;
 
-  const { filePath } = await dialog.showSaveDialog(mainWindow, {
-    defaultPath: key
-  });
+  const downloadsPath = app.getPath('downloads');
+  let filePath = join(downloadsPath, key);
 
-  if (!filePath) {
-    return { success: false, error: '用户取消了下载。' };
+  if (fs.existsSync(filePath)) {
+    const timestamp = new Date().getTime();
+    const pathData = parse(filePath);
+    filePath = join(pathData.dir, `${pathData.name}-${timestamp}${pathData.ext}`);
   }
 
+  const taskId = uuidv4();
+  const task = {
+    id: taskId,
+    key,
+    filePath,
+    status: 'starting',
+    progress: 0,
+    total: 0,
+    downloaded: 0,
+    createdAt: new Date().toISOString()
+  };
+  
+  const currentTasks = store.get('downloads', {});
+  currentTasks[taskId] = task;
+  updateDownloads(currentTasks);
+
+  mainWindow.webContents.send('download-start', task);
+  
   try {
     const command = new GetObjectCommand({ Bucket: bucketName, Key: key });
-    const { Body } = await s3Client.send(command);
+    const { Body, ContentLength } = await s3Client.send(command);
     
-    if (!Body) {
-      return { success: false, error: '无法获取文件内容。' };
-    }
+    if (!Body) throw new Error('无法获取文件内容。');
 
+    task.status = 'downloading';
+    task.total = ContentLength;
+    
     const writeStream = fs.createWriteStream(filePath);
+    let lastProgressTime = Date.now();
+    let lastDownloaded = 0;
+
+    Body.on('data', (chunk) => {
+      task.downloaded += chunk.length;
+      if (task.total > 0) {
+        task.progress = Math.round((task.downloaded / task.total) * 100);
+      }
+      
+      const now = Date.now();
+      const timeDiff = (now - lastProgressTime) / 1000;
+      if (timeDiff > 0.5) {
+        const bytesDiff = task.downloaded - lastDownloaded;
+        const speed = timeDiff > 0 ? bytesDiff / timeDiff : 0;
+        lastDownloaded = task.downloaded;
+        lastProgressTime = now;
+        
+        const tasks = store.get('downloads', {});
+        tasks[taskId] = { ...tasks[taskId], ...task, speed };
+        updateDownloads(tasks);
+        mainWindow.webContents.send('download-progress', { id: taskId, progress: task.progress, speed: speed, status: 'downloading' });
+      }
+    });
+
     Body.pipe(writeStream);
 
     await new Promise((resolve, reject) => {
-      writeStream.on('finish', resolve);
-      writeStream.on('error', reject);
+      writeStream.on('finish', () => {
+        task.status = 'completed';
+        task.progress = 100;
+        
+        const tasks = store.get('downloads', {});
+        tasks[taskId] = { ...tasks[taskId], ...task, speed: 0 };
+        updateDownloads(tasks);
+        mainWindow.webContents.send('download-progress', { id: taskId, progress: 100, status: 'completed' });
+        resolve();
+      });
+      const errorHandler = (err) => {
+         task.status = 'error';
+         task.error = err.message;
+
+         const tasks = store.get('downloads', {});
+         tasks[taskId] = { ...tasks[taskId], ...task };
+         updateDownloads(tasks);
+         mainWindow.webContents.send('download-progress', { id: taskId, status: 'error', error: err.message });
+         reject(err);
+      }
+      writeStream.on('error', errorHandler);
+      Body.on('error', errorHandler);
     });
 
-    return { success: true };
   } catch (error) {
-    return { success: false, error: `下载文件失败: ${error.message}` };
+    task.status = 'error';
+    task.error = error.message;
+
+    const tasks = store.get('downloads', {});
+    tasks[taskId] = task;
+    updateDownloads(tasks);
+    mainWindow.webContents.send('download-progress', { id: taskId, status: 'error', error: error.message });
   }
+});
+
+ipcMain.on('show-item-in-folder', (_, filePath) => {
+  shell.showItemInFolder(filePath);
+});
+
+ipcMain.on('downloads-clear-completed', () => {
+  const currentTasks = store.get('downloads', {});
+  const activeTasks = Object.entries(currentTasks).reduce((acc, [id, task]) => {
+    if (task.status !== 'completed') {
+      acc[id] = task;
+    }
+    return acc;
+  }, {});
+  updateDownloads(activeTasks);
+  mainWindow.webContents.send('downloads-cleared', activeTasks);
+});
+
+ipcMain.on('downloads-delete-task', (_, taskId) => {
+  const currentTasks = store.get('downloads', {});
+  // Here you could also add logic to delete the actual file from disk if desired
+  // fs.unlinkSync(currentTasks[taskId].filePath);
+  delete currentTasks[taskId];
+  updateDownloads(currentTasks);
+  mainWindow.webContents.send('downloads-cleared', currentTasks);
 });
 
 ipcMain.handle('r2-list-objects', async (_, { continuationToken }) => {
