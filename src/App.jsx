@@ -13,6 +13,7 @@ import DownloadsPage from './pages/Downloads';
 
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
 
   const toggleSidebar = () => {
     setIsSidebarCollapsed(prev => !prev);
@@ -25,12 +26,12 @@ function App() {
         <Layout>
           <Sidebar isCollapsed={isSidebarCollapsed} onToggle={toggleSidebar} />
           <LayoutBody>
-            <Header />
+            <Header onSearchClick={() => setIsSearchDialogOpen(true)} />
             <main className="flex-1 p-6 overflow-auto">
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/files" element={<FilesPage />} />
+                <Route path="/files" element={<FilesPage isSearchOpen={isSearchDialogOpen} onSearchOpenChange={setIsSearchDialogOpen} />} />
                 <Route path="/uploads" aname="uploads" element={<UploadsPage />} />
                 <Route path="/downloads" element={<DownloadsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />

@@ -11,7 +11,6 @@ import {
   DialogHeader,
   DialogFooter,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { 
   Table,
@@ -30,7 +29,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { 
   ToggleGroup,
@@ -41,7 +39,7 @@ import {
 } from 'lucide-react';
 import { formatBytes, getFileIcon, getFileTypeDescription } from '@/lib/file-utils.jsx';
 
-export default function FilesPage() {
+export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -52,7 +50,6 @@ export default function FilesPage() {
   const [viewMode, setViewMode] = useState('card');
   const [searchTerm, setSearchTerm] = useState('');
   const [inputSearchTerm, setInputSearchTerm] = useState('');
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const observer = useRef();
   const navigate = useNavigate();
 
@@ -97,7 +94,7 @@ export default function FilesPage() {
 
   const handleSearch = () => {
     setSearchTerm(inputSearchTerm);
-    setIsSearchOpen(false);
+    onSearchOpenChange(false);
     setFiles([]);
     setNextToken(null);
     fetchFiles(inputSearchTerm, false);
@@ -239,103 +236,75 @@ export default function FilesPage() {
 
   return (
     <AlertDialog open={!!fileToDelete} onOpenChange={(open) => !open && setFileToDelete(null)}>
-      <div className="flex flex-col h-full">
-        <div className="flex-shrink-0 mb-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold">存储的文件</h1>
-            <div className="flex items-center gap-4">
-                <span className="text-sm text-muted-foreground">{files.length} 个文件</span>
-                <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
-                    <DialogTrigger asChild>
-                        <Button variant="outline" size="icon">
-                            <TextSearch className="h-4 w-4" />
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-[425px]">
-                        <DialogHeader>
-                        <DialogTitle>搜索文件</DialogTitle>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="search-term" className="text-right">
-                            文件名前缀
-                            </Label>
-                            <Input
-                            id="search-term"
-                            value={inputSearchTerm}
-                            onChange={(e) => setInputSearchTerm(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                            className="col-span-3"
-                            placeholder="输入文件名前缀..."
-                            />
-                        </div>
-                        </div>
-                        <DialogFooter>
-                        <Button type="submit" onClick={handleSearch}>搜索</Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-                <ToggleGroup type="single" value={viewMode} onValueChange={(value) => value && setViewMode(value)} variant="outline" size="sm">
+      <Dialog open={isSearchOpen} onOpenChange={onSearchOpenChange}>
+        <div className="flex flex-col h-full">
+          <div className="flex-shrink-0 mb-4">
+            <div className="flex justify-between items-center">
+              <h1 className="text-2xl font-bold">存储的文件</h1>
+              <div className="flex items-center gap-4">
+                  <span className="text-sm text-muted-foreground">{files.length} 个文件</span>
+                  
+                  <ToggleGroup type="single" value={viewMode} onValueChange={(value) => value && setViewMode(value)} aria-label="View mode">
                     <ToggleGroupItem value="card" aria-label="Card view">
-                        <LayoutGrid className="h-4 w-4" />
+                      <LayoutGrid className="h-4 w-4" />
                     </ToggleGroupItem>
                     <ToggleGroupItem value="list" aria-label="List view">
-                        <List className="h-4 w-4" />
+                      <List className="h-4 w-4" />
                     </ToggleGroupItem>
-                </ToggleGroup>
-                <Button onClick={() => fetchFiles(searchTerm, false)} disabled={loading} variant="outline">
-                  <RefreshCw className={`mr-2 h-4 w-4 ${loading && !nextToken ? 'animate-spin' : ''}`} />
-                  刷新
-                </Button>
-            </div>
-          </div>
-          {searchTerm && (
-            <div className="mt-4 flex items-center gap-2">
-              <span className="text-sm font-medium">当前搜索:</span>
-              <span className="inline-flex items-center gap-x-2 rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
-                {searchTerm}
-              </span>
-              <Button variant="ghost" size="icon" onClick={clearSearch} className="h-6 w-6">
-                <XCircle className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-          {error && <div className="mt-4 text-red-500 p-4 bg-red-500/10 rounded-md">错误: {error}</div>}
-        </div>
+                  </ToggleGroup>
 
-        <div className="flex-1 overflow-y-auto -mr-6 pr-6">
-          {loading && files.length === 0 && <div className="text-center p-8">正在加载文件...</div>}
-          
-          {!loading && files.length === 0 && !error && (
-              <div className="text-center p-8 text-muted-foreground">
-                  <p>{searchTerm ? '没有找到符合搜索条件的文件。' : '没有找到文件。'}</p>
-                  <p className="mt-2 text-sm">
-                    {searchTerm 
-                        ? '尝试更换搜索词或清除搜索。'
-                        : '尝试点击右上角的刷新按钮，或者检查您的存储桶配置。'}
-                  </p>
+                  <Button variant="outline" onClick={() => fetchFiles(searchTerm, false)} disabled={loading}>
+                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                  </Button>
               </div>
-          )}
-          
-          {viewMode === 'card' ? renderFileCards() : renderFileList()}
-          
-          {loading && files.length > 0 && <div className="text-center p-4">正在加载更多文件...</div>}
-          
-          {!loading && !nextToken && files.length > 0 && (
-            <div className="text-center p-4 text-muted-foreground">已加载所有文件。</div>
-          )}
+            </div>
+            {searchTerm && (
+              <div className="mt-2 flex items-center gap-2">
+                  <p className="text-sm text-muted-foreground">
+                      搜索结果: <strong>{searchTerm}</strong>
+                  </p>
+                  <Button variant="ghost" size="icon" onClick={clearSearch}>
+                      <XCircle className="h-4 w-4" />
+                  </Button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 overflow-auto">
+            {viewMode === 'card' ? renderFileCards() : renderFileList()}
+            {loading && <div className="text-center p-4">加载中...</div>}
+            {error && <div className="text-center p-4 text-red-500">错误: {error}</div>}
+            {!loading && files.length === 0 && <div className="text-center p-4">没有文件</div>}
+          </div>
         </div>
-      </div>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>搜索文件</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              id="search"
+              value={inputSearchTerm}
+              onChange={(e) => setInputSearchTerm(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              placeholder="输入文件前缀进行搜索..."
+            />
+          </div>
+          <DialogFooter>
+            <Button onClick={handleSearch}>搜索</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>确认删除</AlertDialogTitle>
+          <AlertDialogTitle>确定要删除吗?</AlertDialogTitle>
           <AlertDialogDescription>
-            确定要删除文件 "{fileToDelete}" 吗？此操作无法撤销。
+            这个操作无法撤销。 "{fileToDelete}" 将从您的 R2 存储桶中永久删除。
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>取消</AlertDialogCancel>
-          <AlertDialogAction onClick={handleConfirmDelete}>删除</AlertDialogAction>
+          <AlertDialogCancel onClick={() => setFileToDelete(null)}>取消</AlertDialogCancel>
+          <AlertDialogAction onClick={handleConfirmDelete}>确定</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
