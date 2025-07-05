@@ -1,8 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
-import { RefreshCw, Trash2, Download, Copy, Archive, FileJson, File as FileIcon } from 'lucide-react';
+import { 
+  RefreshCw, Trash2, Download, Copy, Archive, FileJson, File as FileIcon,
+  FileImage, FileText, FileVideo, FileAudio, Code, AppWindow
+} from 'lucide-react';
 
 function formatBytes(bytes, decimals = 2) {
   if (bytes === 0) return '0 Bytes';
@@ -13,18 +16,39 @@ function formatBytes(bytes, decimals = 2) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
+const fileTypeMappings = [
+  { type: '图片', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'], icon: <FileImage className="h-10 w-10 text-blue-500" /> },
+  { type: '视频', extensions: ['mp4', 'mov', 'avi', 'mkv'], icon: <FileVideo className="h-10 w-10 text-red-500" /> },
+  { type: '音频', extensions: ['mp3', 'wav', 'flac', 'aac'], icon: <FileAudio className="h-10 w-10 text-green-500" /> },
+  { type: '文档', extensions: ['pdf', 'doc', 'docx', 'txt', 'md'], icon: <FileText className="h-10 w-10 text-yellow-500" /> },
+  { type: '压缩包', extensions: ['zip', 'rar', '7z', 'tar', 'gz'], icon: <Archive className="h-10 w-10 text-orange-500" /> },
+  { type: '代码', extensions: ['js', 'jsx', 'ts', 'tsx', 'py', 'java', 'c', 'cpp', 'go', 'html', 'css'], icon: <Code className="h-10 w-10 text-indigo-500" /> },
+  { type: 'JSON', extensions: ['json'], icon: <FileJson className="h-10 w-10 text-purple-500" /> },
+  { type: '应用', extensions: ['exe', 'app', 'dmg'], icon: <AppWindow className="h-10 w-10 text-gray-500" /> },
+];
+
+const getFileMeta = (key) => {
+  const extension = key.split('.').pop()?.toLowerCase();
+  if (!extension) return { description: '文件', icon: <FileIcon className="h-10 w-10 text-muted-foreground" /> };
+
+  for (const mapping of fileTypeMappings) {
+    if (mapping.extensions.includes(extension)) {
+      return { description: mapping.type, icon: mapping.icon };
+    }
+  }
+
+  return { 
+    description: `${extension.toUpperCase()} 文件`, 
+    icon: <FileIcon className="h-10 w-10 text-muted-foreground" /> 
+  };
+};
+
 const getFileIcon = (key) => {
-  if (key.endsWith('.zip') || key.endsWith('.gz') || key.endsWith('.tar')) return <Archive className="h-10 w-10 text-primary" />;
-  if (key.endsWith('.json')) return <FileJson className="h-10 w-10 text-primary" />;
-  return <FileIcon className="h-10 w-10 text-muted-foreground" />;
+  return getFileMeta(key).icon;
 };
 
 const getFileTypeDescription = (key) => {
-    if (key.endsWith('.zip') || key.endsWith('.gz') || key.endsWith('.tar')) return '压缩文件';
-    if (key.endsWith('.json')) return 'JSON 文件';
-    const ext = key.split('.').pop();
-    if (ext && ext !== key) return `${ext.toUpperCase()} 文件`;
-    return '文件';
+  return getFileMeta(key).description;
 }
 
 export default function FilesPage() {
@@ -34,6 +58,18 @@ export default function FilesPage() {
   const [nextToken, setNextToken] = useState(null);
   const [settings, setSettings] = useState(null);
   const [downloading, setDownloading] = useState({});
+  const observer = useRef();
+
+  const lastFileElementRef = useCallback(node => {
+    if (loading) return;
+    if (observer.current) observer.current.disconnect();
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && nextToken) {
+        fetchFiles(true);
+      }
+    });
+    if (node) observer.current.observe(node);
+  }, [loading, nextToken]);
 
   useEffect(() => {
     window.api.getSettings().then(setSettings);
@@ -84,7 +120,13 @@ export default function FilesPage() {
 
   const getPublicUrl = (key) => {
     if (!settings || !settings.publicDomain) return null;
-    const domain = settings.publicDomain.endsWith('/') ? settings.publicDomain.slice(0, -1) : settings.publicDomain;
+    let domain = settings.publicDomain;
+    if (domain.endsWith('/')) {
+      domain = domain.slice(0, -1);
+    }
+    if (!/^(https?:\/\/)/i.test(domain)) {
+      domain = `https://${domain}`;
+    }
     return `${domain}/${key}`;
   }
 
@@ -98,62 +140,66 @@ export default function FilesPage() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">存储的文件</h1>
-        <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">{files.length} 个文件</span>
-            <Button onClick={() => fetchFiles(false)} disabled={loading} variant="outline">
-              <RefreshCw className={`mr-2 h-4 w-4 ${loading && !nextToken ? 'animate-spin' : ''}`} />
-              刷新
-            </Button>
+    <div className="flex flex-col h-full">
+      <div className="flex-shrink-0 mb-4">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold">存储的文件</h1>
+          <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground">{files.length} 个文件</span>
+              <Button onClick={() => fetchFiles(false)} disabled={loading} variant="outline">
+                <RefreshCw className={`mr-2 h-4 w-4 ${loading && !nextToken ? 'animate-spin' : ''}`} />
+                刷新
+              </Button>
+          </div>
         </div>
+        {error && <div className="mt-4 text-red-500 p-4 bg-red-500/10 rounded-md">错误: {error}</div>}
       </div>
 
-      {error && <div className="text-red-500 p-4 bg-red-500/10 rounded-md">错误: {error}</div>}
-      
-      {loading && files.length === 0 && <div className="text-center p-8">正在加载文件...</div>}
-      
-      {!loading && files.length === 0 && !error && <div className="text-center p-8 text-muted-foreground">没有找到文件。</div>}
-      
-      <div className="space-y-4">
-        {files.map((file) => {
-          const publicUrl = getPublicUrl(file.Key);
-          return (
-            <Card key={file.Key} className="p-4">
-              <div className="flex items-start gap-4">
-                {getFileIcon(file.Key)}
-                <div className="flex-1">
-                  <p className="font-semibold">{file.Key}</p>
-                  <div className="text-sm text-muted-foreground flex items-center gap-4">
-                    <span>{getFileTypeDescription(file.Key)}</span>
-                    <span>{formatBytes(file.Size)}</span>
-                    <span>上次修改: {new Date(file.LastModified).toLocaleDateString()}</span>
+      <div className="flex-1 overflow-y-auto -mr-6 pr-6">
+        {loading && files.length === 0 && <div className="text-center p-8">正在加载文件...</div>}
+        
+        {!loading && files.length === 0 && !error && <div className="text-center p-8 text-muted-foreground">没有找到文件。</div>}
+        
+        <div className="space-y-4">
+          {files.map((file, index) => {
+            const isLastElement = files.length === index + 1;
+            const publicUrl = getPublicUrl(file.Key);
+            return (
+              <Card key={file.Key} ref={isLastElement ? lastFileElementRef : null} className="p-4">
+                <div className="flex items-start gap-4">
+                  {getFileIcon(file.Key)}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold whitespace-nowrap overflow-hidden text-ellipsis" title={file.Key}>
+                      {file.Key}
+                    </p>
+                    <div className="text-sm text-muted-foreground flex items-center gap-4">
+                      <span>{getFileTypeDescription(file.Key)}</span>
+                      <span>{formatBytes(file.Size)}</span>
+                      <span>上次修改: {new Date(file.LastModified).toLocaleDateString()}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-              {publicUrl && (
-                <div className="mt-4 flex items-center gap-2">
-                    <Input readOnly value={publicUrl} className="bg-muted"/>
-                    <Button variant="outline" size="icon" onClick={() => handleCopyUrl(publicUrl)}><Copy className="h-4 w-4"/></Button>
-                    <Button variant="outline" size="icon" onClick={() => handleDownload(file.Key)} disabled={downloading[file.Key]}>
-                        {downloading[file.Key] ? <RefreshCw className="h-4 w-4 animate-spin"/> : <Download className="h-4 w-4"/>}
-                    </Button>
-                    <Button variant="destructive" size="icon" onClick={() => handleDelete(file.Key)}><Trash2 className="h-4 w-4"/></Button>
-                </div>
-              )}
-            </Card>
-          )
-        })}
-      </div>
-      
-      {nextToken && (
-        <div className="flex justify-center mt-6">
-            <Button onClick={() => fetchFiles(true)} disabled={loading}>
-              {loading ? '正在加载...' : '加载更多'}
-            </Button>
+                {publicUrl && (
+                  <div className="mt-4 flex items-center gap-2">
+                      <Input readOnly value={publicUrl} className="bg-muted flex-1"/>
+                      <Button variant="outline" size="icon" onClick={() => handleCopyUrl(publicUrl)}><Copy className="h-4 w-4"/></Button>
+                      <Button variant="outline" size="icon" onClick={() => handleDownload(file.Key)} disabled={downloading[file.Key]}>
+                          {downloading[file.Key] ? <RefreshCw className="h-4 w-4 animate-spin"/> : <Download className="h-4 w-4"/>}
+                      </Button>
+                      <Button variant="destructive" size="icon" onClick={() => handleDelete(file.Key)}><Trash2 className="h-4 w-4"/></Button>
+                  </div>
+                )}
+              </Card>
+            )
+          })}
         </div>
-      )}
+        
+        {loading && files.length > 0 && <div className="text-center p-4">正在加载更多文件...</div>}
+        
+        {!loading && !nextToken && files.length > 0 && (
+          <div className="text-center p-4 text-muted-foreground">已加载所有文件。</div>
+        )}
+      </div>
     </div>
   );
 } 

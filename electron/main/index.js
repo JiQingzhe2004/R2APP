@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog, globalShortcut } from 'electron'
 import { join } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
 import Store from 'electron-store'
@@ -104,12 +104,25 @@ app.whenReady().then(() => {
   console.log('App is ready');
   electronApp.setAppUserModelId('com.r2.explorer')
 
+  // Register F5 for refresh
+  globalShortcut.register('F5', () => {
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+    if (focusedWindow) {
+      focusedWindow.webContents.reload();
+    }
+  });
+
   createWindow()
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
+
+app.on('will-quit', () => {
+  // Unregister all shortcuts.
+  globalShortcut.unregisterAll();
+});
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -295,14 +308,13 @@ ipcMain.handle('r2-list-objects', async (_, { continuationToken }) => {
     const command = new ListObjectsV2Command({ 
       Bucket: bucketName,
       ContinuationToken: continuationToken,
-      // Delimiter: '/', // Optional: for folder-like navigation
+      MaxKeys: 30,
     });
     const response = await s3Client.send(command);
     return { 
       success: true, 
       data: {
         files: response.Contents || [],
-        // commonPrefixes: response.CommonPrefixes || [],
         nextContinuationToken: response.NextContinuationToken
       }
     };

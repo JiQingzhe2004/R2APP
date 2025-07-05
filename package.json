@@ -28,7 +28,8 @@
     "electron-store": "^8.2.0",
     "electron-updater": "^6.1.8",
     "lucide-react": "^0.378.0",
-    "react-router-dom": "^7.6.3"
+    "react-router-dom": "^7.6.3",
+    "sonner": "^2.0.6"
   },
   "devDependencies": {
     "@electron-toolkit/preload": "^3.0.0",

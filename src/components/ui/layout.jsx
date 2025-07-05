@@ -23,7 +23,7 @@ LayoutHeader.displayName = 'LayoutHeader';
 const LayoutBody = React.forwardRef(({ className, ...props }, ref) => (
   <main
     ref={ref}
-    className={cn('flex-1 flex flex-col', className)}
+    className={cn('flex-1 flex flex-col overflow-hidden', className)}
     {...props}
   />
 ));
