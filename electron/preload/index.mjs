@@ -7,10 +7,10 @@ const api = {
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
   testConnection: (settings) => ipcRenderer.invoke('r2-test-connection', settings),
   getBucketStats: () => ipcRenderer.invoke('r2-get-bucket-stats'),
-  listObjects: (continuationToken) => ipcRenderer.invoke('r2-list-objects', { continuationToken }),
-  deleteObject: (key) => ipcRenderer.invoke('r2-delete-object', { key }),
+  listObjects: ({ continuationToken, prefix }) => ipcRenderer.invoke('r2-list-objects', { continuationToken, prefix }),
+  deleteObject: (key) => ipcRenderer.invoke('r2-delete-object', key),
   showOpenDialog: () => ipcRenderer.invoke('show-open-dialog'),
-  uploadFile: (filePath, key) => ipcRenderer.invoke('r2-upload-file', { filePath, key }),
+  uploadFile: (filePath) => ipcRenderer.invoke('r2-upload-file', filePath),
   onUploadProgress: (callback) => {
     const handler = (_event, value) => callback(value);
     ipcRenderer.on('upload-progress', handler);

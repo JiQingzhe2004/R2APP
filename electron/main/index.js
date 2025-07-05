@@ -416,21 +416,22 @@ ipcMain.on('downloads-delete-task', (_, taskId) => {
   mainWindow.webContents.send('downloads-cleared', currentTasks);
 });
 
-ipcMain.handle('r2-list-objects', async (_, { continuationToken }) => {
+ipcMain.handle('r2-list-objects', async (_, { continuationToken, prefix }) => {
   const s3Client = getS3Client();
   if (!s3Client) {
     return { success: false, error: '请先在设置中配置您的存储桶。' };
   }
-  const bucketName = store.get('settings').bucketName;
+  const settings = store.get('settings');
 
   try {
-    const command = new ListObjectsV2Command({ 
-      Bucket: bucketName,
+    const command = new ListObjectsV2Command({
+      Bucket: settings.bucketName,
       ContinuationToken: continuationToken,
+      Prefix: prefix,
       MaxKeys: 30,
     });
     const response = await s3Client.send(command);
-    return { 
+    return {
       success: true, 
       data: {
         files: response.Contents || [],

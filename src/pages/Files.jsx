@@ -4,6 +4,15 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
+import { Label } from '@/components/ui/Label';
+import { 
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { 
   Table,
   TableBody,
@@ -28,7 +37,7 @@ import {
   ToggleGroupItem,
 } from "@/components/ui/toggle-group"
 import { 
-  RefreshCw, Trash2, Download, Copy, List, LayoutGrid
+  RefreshCw, Trash2, Download, Copy, List, LayoutGrid, TextSearch, XCircle
 } from 'lucide-react';
 import { formatBytes, getFileIcon, getFileTypeDescription } from '@/lib/file-utils.jsx';
 
@@ -41,6 +50,9 @@ export default function FilesPage() {
   const [downloading, setDownloading] = useState({});
   const [fileToDelete, setFileToDelete] = useState(null);
   const [viewMode, setViewMode] = useState('card');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [inputSearchTerm, setInputSearchTerm] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const observer = useRef();
   const navigate = useNavigate();
 
@@ -49,38 +61,55 @@ export default function FilesPage() {
     if (observer.current) observer.current.disconnect();
     observer.current = new IntersectionObserver(entries => {
       if (entries[0].isIntersecting && nextToken) {
-        fetchFiles(true);
+        fetchFiles(searchTerm, true);
       }
     });
     if (node) observer.current.observe(node);
-  }, [loading, nextToken]);
+  }, [loading, nextToken, searchTerm]);
 
   useEffect(() => {
     window.api.getSettings().then(setSettings);
+    fetchFiles('');
   }, []);
 
-  const fetchFiles = useCallback(async (isLoadMore = false) => {
+  const fetchFiles = useCallback(async (prefix, isLoadMore = false) => {
     setLoading(true);
     setError(null);
     try {
       const token = isLoadMore ? nextToken : undefined;
-      const result = await window.api.listObjects(token);
+      const result = await window.api.listObjects({ continuationToken: token, prefix });
       if (result.success) {
         setFiles(prev => isLoadMore ? [...prev, ...result.data.files] : result.data.files);
         setNextToken(result.data.nextContinuationToken);
       } else {
         setError(result.error);
+        setFiles([]);
+        setNextToken(null);
       }
     } catch (err) {
       setError(err.message);
+      setFiles([]);
+      setNextToken(null);
     } finally {
       setLoading(false);
     }
   }, [nextToken]);
 
-  useEffect(() => {
-    fetchFiles();
-  }, [fetchFiles]);
+  const handleSearch = () => {
+    setSearchTerm(inputSearchTerm);
+    setIsSearchOpen(false);
+    setFiles([]);
+    setNextToken(null);
+    fetchFiles(inputSearchTerm, false);
+  };
+
+  const clearSearch = () => {
+    setSearchTerm('');
+    setInputSearchTerm('');
+    setFiles([]);
+    setNextToken(null);
+    fetchFiles('', false);
+  };
 
   const handleDeleteClick = (key) => {
     setFileToDelete(key);
@@ -216,6 +245,36 @@ export default function FilesPage() {
             <h1 className="text-2xl font-bold">存储的文件</h1>
             <div className="flex items-center gap-4">
                 <span className="text-sm text-muted-foreground">{files.length} 个文件</span>
+                <Dialog open={isSearchOpen} onOpenChange={setIsSearchOpen}>
+                    <DialogTrigger asChild>
+                        <Button variant="outline" size="icon">
+                            <TextSearch className="h-4 w-4" />
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                        <DialogTitle>搜索文件</DialogTitle>
+                        </DialogHeader>
+                        <div className="grid gap-4 py-4">
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="search-term" className="text-right">
+                            文件名前缀
+                            </Label>
+                            <Input
+                            id="search-term"
+                            value={inputSearchTerm}
+                            onChange={(e) => setInputSearchTerm(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                            className="col-span-3"
+                            placeholder="输入文件名前缀..."
+                            />
+                        </div>
+                        </div>
+                        <DialogFooter>
+                        <Button type="submit" onClick={handleSearch}>搜索</Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
                 <ToggleGroup type="single" value={viewMode} onValueChange={(value) => value && setViewMode(value)} variant="outline" size="sm">
                     <ToggleGroupItem value="card" aria-label="Card view">
                         <LayoutGrid className="h-4 w-4" />
@@ -224,12 +283,23 @@ export default function FilesPage() {
                         <List className="h-4 w-4" />
                     </ToggleGroupItem>
                 </ToggleGroup>
-                <Button onClick={() => fetchFiles(false)} disabled={loading} variant="outline">
+                <Button onClick={() => fetchFiles(searchTerm, false)} disabled={loading} variant="outline">
                   <RefreshCw className={`mr-2 h-4 w-4 ${loading && !nextToken ? 'animate-spin' : ''}`} />
                   刷新
                 </Button>
             </div>
           </div>
+          {searchTerm && (
+            <div className="mt-4 flex items-center gap-2">
+              <span className="text-sm font-medium">当前搜索:</span>
+              <span className="inline-flex items-center gap-x-2 rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
+                {searchTerm}
+              </span>
+              <Button variant="ghost" size="icon" onClick={clearSearch} className="h-6 w-6">
+                <XCircle className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
           {error && <div className="mt-4 text-red-500 p-4 bg-red-500/10 rounded-md">错误: {error}</div>}
         </div>
 
@@ -238,8 +308,12 @@ export default function FilesPage() {
           
           {!loading && files.length === 0 && !error && (
               <div className="text-center p-8 text-muted-foreground">
-                  <p>没有找到文件。</p>
-                  <p className="mt-2 text-sm">尝试点击右上角的刷新按钮，或者检查您的存储桶配置。</p>
+                  <p>{searchTerm ? '没有找到符合搜索条件的文件。' : '没有找到文件。'}</p>
+                  <p className="mt-2 text-sm">
+                    {searchTerm 
+                        ? '尝试更换搜索词或清除搜索。'
+                        : '尝试点击右上角的刷新按钮，或者检查您的存储桶配置。'}
+                  </p>
               </div>
           )}
           
@@ -254,13 +328,13 @@ export default function FilesPage() {
       </div>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>确定要删除吗？</AlertDialogTitle>
+          <AlertDialogTitle>确认删除</AlertDialogTitle>
           <AlertDialogDescription>
-            此操作无法撤销。文件 "{fileToDelete}" 将被永久删除。
+            确定要删除文件 "{fileToDelete}" 吗？此操作无法撤销。
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={() => setFileToDelete(null)}>取消</AlertDialogCancel>
+          <AlertDialogCancel>取消</AlertDialogCancel>
           <AlertDialogAction onClick={handleConfirmDelete}>删除</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
