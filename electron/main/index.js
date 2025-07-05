@@ -85,6 +85,7 @@ function createWindow() {
     height: 670,
     show: false,
     autoHideMenuBar: true,
+    frame: false,
     ...(process.platform === 'linux' ? { icon: null } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),
@@ -537,4 +538,21 @@ ipcMain.handle('r2-delete-object', async (_, { key }) => {
   } catch (error) {
     return { success: false, error: `删除文件失败: ${error.message}` };
   }
+});
+
+// IPC handlers for window controls
+ipcMain.on('minimize-window', () => {
+  mainWindow?.minimize();
+});
+
+ipcMain.on('maximize-window', () => {
+  if (mainWindow?.isMaximized()) {
+    mainWindow.unmaximize();
+  } else {
+    mainWindow?.maximize();
+  }
+});
+
+ipcMain.on('close-window', () => {
+  mainWindow?.close();
 }); 

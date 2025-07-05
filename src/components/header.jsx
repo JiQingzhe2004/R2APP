@@ -1,4 +1,4 @@
-import { Bell, TextSearch, ServerCog, ServerCrash, ServerOff, ChevronsUpDown } from 'lucide-react'
+import { Bell, TextSearch, ServerCog, ServerCrash, ServerOff, ChevronsUpDown, Minus, Square, X } from 'lucide-react'
 import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { 
@@ -31,8 +31,11 @@ export function Header({ onSearchClick, r2Status, profiles, activeProfileId, onP
   const activeProfile = profiles.find(p => p.id === activeProfileId);
 
   return (
-    <header className="h-14 flex items-center justify-between border-b bg-muted/40 px-6">
-      <div className="flex items-center gap-4">
+    <header 
+      className="h-14 flex items-center justify-between border-b bg-muted/40 px-2"
+      style={{ WebkitAppRegion: 'drag' }}
+    >
+      <div className="flex items-center gap-4" style={{ WebkitAppRegion: 'no-drag' }}>
         {profiles && profiles.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -59,10 +62,10 @@ export function Header({ onSearchClick, r2Status, profiles, activeProfileId, onP
         )}
       </div>
       
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' }}>
         <TooltipProvider>
           <Tooltip>
-            <TooltipTrigger>
+            <TooltipTrigger className="p-2">
               {getStatusIcon()}
             </TooltipTrigger>
             <TooltipContent>
@@ -78,6 +81,18 @@ export function Header({ onSearchClick, r2Status, profiles, activeProfileId, onP
             <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
           </span>
         </button>
+
+        <div className="flex items-center gap-1 pl-2">
+           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.api.minimizeWindow()}>
+              <Minus className="h-4 w-4" />
+           </Button>
+           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.api.maximizeWindow()}>
+              <Square className="h-4 w-4" />
+           </Button>
+           <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-500/90" onClick={() => window.api.closeWindow()}>
+              <X className="h-4 w-4" />
+           </Button>
+        </div>
       </div>
     </header>
   )

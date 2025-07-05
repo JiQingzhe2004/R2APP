@@ -20,6 +20,8 @@ import {
 import { Link, useLocation } from 'react-router-dom'
 import { useTheme } from "./theme-provider"
 import { cn } from "@/lib/utils"
+import WhiteLogo from '@/assets/WhiteLOGO.png'
+import BlackLogo from '@/assets/BlackLOGO.png'
 
 export function Sidebar({ isCollapsed, onToggle }) {
   const { theme, setTheme } = useTheme()
@@ -39,11 +41,12 @@ export function Sidebar({ isCollapsed, onToggle }) {
       isCollapsed ? "w-20" : "w-64"
     )}>
       <div className={cn(
-        "h-14 flex items-center border-b px-6",
+        "h-14 flex items-center border-b px-4 gap-2",
         isCollapsed && "px-0 justify-center"
       )}>
+        <img src={BlackLogo} alt="Logo" className="h-6 w-6 hidden dark:block" />
+        <img src={WhiteLogo} alt="Logo" className="h-6 w-6 dark:hidden" />
         <h1 className={cn("text-lg font-bold", isCollapsed && "hidden")}>R2存储管理器</h1>
-        <h1 className={cn("text-lg font-bold", !isCollapsed && "hidden")}>R2</h1>
       </div>
       <nav className="flex-1 py-4 px-4">
         <ul className="space-y-1 h-full flex flex-col">

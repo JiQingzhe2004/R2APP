@@ -57,6 +57,10 @@ const api = {
   removeDownload: (id) => ipcRenderer.invoke('remove-download', id),
   clearCompletedDownloads: () => ipcRenderer.invoke('clear-completed-downloads'),
   retryDownload: (taskId) => ipcRenderer.send('retry-download', taskId),
+  // Window controls
+  minimizeWindow: () => ipcRenderer.send('minimize-window'),
+  maximizeWindow: () => ipcRenderer.send('maximize-window'),
+  closeWindow: () => ipcRenderer.send('close-window'),
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
