@@ -1,0 +1,64 @@
+{
+  "name": "r2-explorer",
+  "version": "1.0.0",
+  "description": "一个用于管理Cloudflare R2存储的现代化桌面应用。",
+  "main": "out/main/index.js",
+  "author": "吉庆喆",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "postinstall": "electron-builder install-app-deps",
+    "build:win": "npm run build && electron-builder --win --config",
+    "build:mac": "npm run build && electron-builder --mac --config",
+    "build:linux": "npm run build && electron-builder --linux --config"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.569.0",
+    "@aws-sdk/lib-storage": "^3.583.0",
+    "@electron-toolkit/preload": "^3.0.0",
+    "@electron-toolkit/utils": "^3.0.0",
+    "@radix-ui/react-dropdown-menu": "^2.0.6",
+    "@radix-ui/react-progress": "^1.0.3",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "electron-log": "^5.4.1",
+    "electron-serve": "^2.1.1",
+    "electron-store": "^8.2.0",
+    "electron-updater": "^6.1.8",
+    "lucide-react": "^0.378.0",
+    "react-router-dom": "^7.6.3"
+  },
+  "devDependencies": {
+    "@electron-toolkit/preload": "^3.0.0",
+    "@electron-toolkit/utils": "^3.0.0",
+    "@radix-ui/react-label": "^2.0.2",
+    "@radix-ui/react-slot": "^1.0.2",
+    "@types/react": "^18.2.79",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.19",
+    "electron": "^37.2.0",
+    "electron-builder": "^24.13.3",
+    "electron-reloader": "^1.2.3",
+    "electron-vite": "^2.1.0",
+    "postcss": "^8.4.38",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "tailwind-merge": "^2.3.0",
+    "tailwindcss": "^3.4.3",
+    "tailwindcss-animate": "^1.0.7",
+    "vite": "^5.2.10"
+  },
+  "build": {
+    "appId": "com.r2.explorer",
+    "productName": "R2 Explorer",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/main/**",
+      "dist/**"
+    ]
+  }
+}
