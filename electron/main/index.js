@@ -45,7 +45,36 @@ try {
   require('electron-reloader')(module, {});
 } catch (_) {}
 
-const store = new Store()
+const store = new Store();
+
+// --- Data Migration ---
+function runMigration() {
+  const oldSettings = store.get('settings');
+  // Check if old structure exists and new structure doesn't
+  if (oldSettings && !store.has('profiles')) {
+    console.log('Migrating old settings to new profile structure...');
+    const newProfileId = uuidv4();
+    const newBaseSettings = {
+      accountId: oldSettings.accountId,
+      accessKeyId: oldSettings.accessKeyId,
+      secretAccessKey: oldSettings.secretAccessKey,
+    };
+    const newProfile = {
+      id: newProfileId,
+      name: '默认配置',
+      bucketName: oldSettings.bucketName,
+      publicDomain: oldSettings.publicDomain || '',
+    };
+    
+    store.set('settings', newBaseSettings);
+    store.set('profiles', [newProfile]);
+    store.set('activeProfileId', newProfileId);
+    console.log('Migration complete.');
+  }
+}
+
+// Run migration on startup
+runMigration();
 
 let mainWindow;
 
@@ -132,31 +161,55 @@ app.on('window-all-closed', () => {
 })
 
 // IPC handlers
+function getActiveSettings() {
+  const baseSettings = store.get('settings', {});
+  const profiles = store.get('profiles', []);
+  const activeProfileId = store.get('activeProfileId');
+  const activeProfile = profiles.find(p => p.id === activeProfileId);
+
+  if (!activeProfile) {
+    return null;
+  }
+
+  return { ...baseSettings, ...activeProfile };
+}
+
 ipcMain.handle('get-settings', () => {
-    return store.get('settings')
+  return {
+    settings: store.get('settings', {}),
+    profiles: store.get('profiles', []),
+    activeProfileId: store.get('activeProfileId')
+  }
 })
 
-ipcMain.handle('save-settings', (event, settings) => {
+ipcMain.handle('save-base-settings', (event, settings) => {
     store.set('settings', settings)
     return { success: true }
 })
 
-ipcMain.handle('r2-test-connection', async (event, settings) => {
-  if (!settings || !settings.accountId || !settings.accessKeyId || !settings.secretAccessKey || !settings.bucketName) {
+ipcMain.handle('save-profiles', (event, { profiles, activeProfileId }) => {
+  store.set('profiles', profiles);
+  store.set('activeProfileId', activeProfileId);
+  return { success: true };
+});
+
+ipcMain.handle('r2-test-connection', async (event, { settings, profile }) => {
+  const testSettings = { ...settings, ...profile };
+  if (!testSettings.accountId || !testSettings.accessKeyId || !testSettings.secretAccessKey || !testSettings.bucketName) {
     return { success: false, error: '缺少必要的配置信息。' }
   }
 
   const testS3Client = new S3Client({
     region: 'auto',
-    endpoint: `https://${settings.accountId}.r2.cloudflarestorage.com`,
+    endpoint: `https://${testSettings.accountId}.r2.cloudflarestorage.com`,
     credentials: {
-      accessKeyId: settings.accessKeyId,
-      secretAccessKey: settings.secretAccessKey,
+      accessKeyId: testSettings.accessKeyId,
+      secretAccessKey: testSettings.secretAccessKey,
     },
   });
 
   try {
-    const command = new ListObjectsV2Command({ Bucket: settings.bucketName, MaxKeys: 0 });
+    const command = new ListObjectsV2Command({ Bucket: testSettings.bucketName, MaxKeys: 0 });
     await testS3Client.send(command);
     return { success: true, message: '连接成功！配置信息有效。' };
   } catch (error) {
@@ -173,9 +226,9 @@ ipcMain.handle('r2-test-connection', async (event, settings) => {
 });
 
 ipcMain.handle('check-r2-status', async () => {
-  const settings = store.get('settings');
+  const settings = getActiveSettings();
   if (!settings || !settings.accountId || !settings.accessKeyId || !settings.secretAccessKey || !settings.bucketName) {
-    return { success: false, error: '缺少配置' };
+    return { success: false, error: '缺少配置或未选择有效的存储库' };
   }
 
   const s3Client = new S3Client({
@@ -197,7 +250,7 @@ ipcMain.handle('check-r2-status', async () => {
 });
 
 ipcMain.handle('r2-get-bucket-stats', async () => {
-  const settings = store.get('settings');
+  const settings = getActiveSettings();
   if (!settings || !settings.bucketName) {
     return { success: false, error: '请先在设置中配置您的存储桶。' };
   }
@@ -238,7 +291,7 @@ ipcMain.handle('r2-get-bucket-stats', async () => {
 });
 
 function getS3Client() {
-  const settings = store.get('settings');
+  const settings = getActiveSettings();
   if (!settings || !settings.bucketName) {
     return null;
   }
@@ -265,7 +318,8 @@ ipcMain.handle('r2-upload-file', async (_, { filePath, key }) => {
   if (!s3Client) {
     return { success: false, error: '请先在设置中配置您的存储桶。' };
   }
-  const bucketName = store.get('settings').bucketName;
+  const settings = getActiveSettings();
+  const bucketName = settings.bucketName;
 
   try {
     const fileStream = fs.createReadStream(filePath);
@@ -314,7 +368,7 @@ ipcMain.on('r2-download-file', async (_, { key }) => {
     // For now, we'll rely on the settings being correct.
     return;
   }
-  const bucketName = store.get('settings').bucketName;
+  const bucketName = getActiveSettings().bucketName;
 
   const downloadsPath = app.getPath('downloads');
   let filePath = join(downloadsPath, key);
@@ -445,11 +499,12 @@ ipcMain.handle('r2-list-objects', async (_, { continuationToken, prefix }) => {
   if (!s3Client) {
     return { success: false, error: '请先在设置中配置您的存储桶。' };
   }
-  const settings = store.get('settings');
+  const settings = getActiveSettings();
+  const bucketName = settings.bucketName;
 
   try {
     const command = new ListObjectsV2Command({
-      Bucket: settings.bucketName,
+      Bucket: bucketName,
       ContinuationToken: continuationToken,
       Prefix: prefix,
       MaxKeys: 30,
@@ -472,7 +527,8 @@ ipcMain.handle('r2-delete-object', async (_, { key }) => {
   if (!s3Client) {
     return { success: false, error: '客户端未初始化。' };
   }
-  const bucketName = store.get('settings').bucketName;
+  const settings = getActiveSettings();
+  const bucketName = settings.bucketName;
 
   try {
     const command = new DeleteObjectCommand({ Bucket: bucketName, Key: key });

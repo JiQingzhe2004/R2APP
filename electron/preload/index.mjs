@@ -4,45 +4,59 @@ import { electronAPI } from '@electron-toolkit/preload'
 // Custom APIs for renderer
 const api = {
   getSettings: () => ipcRenderer.invoke('get-settings'),
-  saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
-  testR2Connection: (settings) => ipcRenderer.invoke('r2-test-connection', settings),
+  saveBaseSettings: (settings) => ipcRenderer.invoke('save-base-settings', settings),
+  saveProfiles: (data) => ipcRenderer.invoke('save-profiles', data),
+  testR2Connection: (data) => ipcRenderer.invoke('r2-test-connection', data),
   getBucketStats: () => ipcRenderer.invoke('r2-get-bucket-stats'),
   checkR2Status: () => ipcRenderer.invoke('check-r2-status'),
-  listObjects: ({ continuationToken, prefix }) => ipcRenderer.invoke('r2-list-objects', { continuationToken, prefix }),
+  listObjects: (args) => ipcRenderer.invoke('r2-list-objects', args),
   deleteObject: (key) => ipcRenderer.invoke('r2-delete-object', key),
   showOpenDialog: () => ipcRenderer.invoke('show-open-dialog'),
-  uploadFile: (filePath) => ipcRenderer.invoke('r2-upload-file', filePath),
+  uploadFile: (args) => {
+    ipcRenderer.send('r2-upload-file', args);
+  },
   onUploadProgress: (callback) => {
-    const handler = (_event, value) => callback(value);
-    ipcRenderer.on('upload-progress', handler);
-    return () => {
-      ipcRenderer.removeListener('upload-progress', handler);
-    };
+    ipcRenderer.on('upload-progress', (event, data) => {
+      callback(data);
+    });
+    return () => ipcRenderer.removeAllListeners('upload-progress');
   },
-  downloadFile: (key) => ipcRenderer.send('r2-download-file', { key }),
-  getAllDownloads: () => ipcRenderer.invoke('downloads-get-all'),
-  onDownloadUpdate: (callback) => {
-    const startHandler = (_event, task) => callback({ type: 'start', task });
-    const progressHandler = (_event, data) => callback({ type: 'progress', data });
-
-    ipcRenderer.on('download-start', startHandler);
-    ipcRenderer.on('download-progress', progressHandler);
-
-    return () => {
-      ipcRenderer.removeListener('download-start', startHandler);
-      ipcRenderer.removeListener('download-progress', progressHandler);
-    };
+  onUploadComplete: (callback) => {
+    ipcRenderer.on('upload-complete', (event, data) => {
+      callback(data);
+    });
+    return () => ipcRenderer.removeAllListeners('upload-complete');
   },
-  showItemInFolder: (filePath) => ipcRenderer.send('show-item-in-folder', filePath),
-  clearCompletedDownloads: () => ipcRenderer.send('downloads-clear-completed'),
-  deleteDownloadTask: (taskId) => ipcRenderer.send('downloads-delete-task', taskId),
-  onDownloadsCleared: (callback) => {
-    const handler = (_event, tasks) => callback(tasks);
-    ipcRenderer.on('downloads-cleared', handler);
-    return () => {
-      ipcRenderer.removeListener('downloads-cleared', handler);
-    };
-  }
+  onUploadError: (callback) => {
+    ipcRenderer.on('upload-error', (event, data) => {
+      callback(data);
+    });
+    return () => ipcRenderer.removeAllListeners('upload-error');
+  },
+  getDownloads: () => ipcRenderer.invoke('get-downloads'),
+  onDownloadProgress: (callback) => {
+    ipcRenderer.on('download-progress', (event, data) => {
+      callback(data)
+    })
+    return () => ipcRenderer.removeAllListeners('download-progress');
+  },
+  onDownloadComplete: (callback) => {
+    ipcRenderer.on('download-complete', (event, data) => {
+      callback(data)
+    })
+    return () => ipcRenderer.removeAllListeners('download-complete');
+  },
+  onDownloadError: (callback) => {
+    ipcRenderer.on('download-error', (event, data) => {
+      callback(data)
+    })
+    return () => ipcRenderer.removeAllListeners('download-error');
+  },
+  downloadFile: (key) => ipcRenderer.send('download-file', key),
+  openFileInFolder: (filePath) => ipcRenderer.send('open-file-in-folder', filePath),
+  removeDownload: (id) => ipcRenderer.invoke('remove-download', id),
+  clearCompletedDownloads: () => ipcRenderer.invoke('clear-completed-downloads'),
+  retryDownload: (taskId) => ipcRenderer.send('retry-download', taskId),
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

@@ -15,6 +15,8 @@ function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
   const [r2Status, setR2Status] = useState({ loading: true, success: false, message: '正在检查连接...' });
+  const [profiles, setProfiles] = useState([]);
+  const [activeProfileId, setActiveProfileId] = useState(null);
 
   const checkStatus = useCallback(async () => {
     setR2Status({ loading: true, success: false, message: '正在检查连接...' });
@@ -26,12 +28,25 @@ function App() {
     }
   }, []);
 
+  const refreshState = useCallback(async () => {
+    const data = await window.api.getSettings();
+    setProfiles(data.profiles || []);
+    setActiveProfileId(data.activeProfileId || null);
+    await checkStatus();
+  }, [checkStatus]);
+
   useEffect(() => {
-    checkStatus();
+    refreshState();
     const intervalId = setInterval(checkStatus, 60000); // 每 60 秒检查一次
 
     return () => clearInterval(intervalId);
-  }, [checkStatus]);
+  }, [refreshState, checkStatus]);
+
+  const handleProfileSwitch = async (profileId) => {
+    const currentProfiles = await window.api.getSettings().then(d => d.profiles);
+    await window.api.saveProfiles({ profiles: currentProfiles, activeProfileId: profileId });
+    await refreshState();
+  };
 
   const toggleSidebar = () => {
     setIsSidebarCollapsed(prev => !prev);
@@ -44,15 +59,21 @@ function App() {
         <Layout>
           <Sidebar isCollapsed={isSidebarCollapsed} onToggle={toggleSidebar} />
           <LayoutBody>
-            <Header onSearchClick={() => setIsSearchDialogOpen(true)} r2Status={r2Status} />
+            <Header 
+              onSearchClick={() => setIsSearchDialogOpen(true)} 
+              r2Status={r2Status}
+              profiles={profiles}
+              activeProfileId={activeProfileId}
+              onProfileSwitch={handleProfileSwitch}
+            />
             <main className="flex-1 p-6 overflow-auto">
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/files" element={<FilesPage isSearchOpen={isSearchDialogOpen} onSearchOpenChange={setIsSearchDialogOpen} />} />
+                <Route path="/dashboard" element={<DashboardPage key={activeProfileId} />} />
+                <Route path="/files" element={<FilesPage key={activeProfileId} isSearchOpen={isSearchDialogOpen} onSearchOpenChange={setIsSearchDialogOpen} />} />
                 <Route path="/uploads" aname="uploads" element={<UploadsPage />} />
                 <Route path="/downloads" element={<DownloadsPage />} />
-                <Route path="/settings" element={<SettingsPage onSettingsSaved={checkStatus} />} />
+                <Route path="/settings" element={<SettingsPage onSettingsSaved={refreshState} />} />
               </Routes>
             </main>
           </LayoutBody>
