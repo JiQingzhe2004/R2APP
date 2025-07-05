@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button"
 import { toast } from 'sonner'
 import { User, KeyRound, Container, Globe, Plug, Save } from 'lucide-react'
 
-export default function SettingsPage() {
+export default function SettingsPage({ onSettingsSaved }) {
   const [settings, setSettings] = useState({
     accountId: '',
     accessKeyId: '',
@@ -49,6 +49,9 @@ export default function SettingsPage() {
     const result = await window.api.saveSettings(settings)
     if (result.success) {
       toast.success('设置已成功保存！', { id: toastId })
+      if (onSettingsSaved) {
+        onSettingsSaved();
+      }
     } else {
       toast.error('保存失败，请重试。', { id: toastId })
     }

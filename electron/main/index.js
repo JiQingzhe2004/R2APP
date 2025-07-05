@@ -2,7 +2,7 @@ import { app, shell, BrowserWindow, ipcMain, dialog, globalShortcut } from 'elec
 import { join, parse } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
 import Store from 'electron-store'
-import { S3Client, ListObjectsV2Command, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, ListObjectsV2Command, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand } from '@aws-sdk/client-s3'
 import { Upload } from "@aws-sdk/lib-storage";
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
@@ -169,6 +169,30 @@ ipcMain.handle('r2-test-connection', async (event, settings) => {
       errorMessage = `连接失败：${error.message}`;
     }
     return { success: false, error: errorMessage };
+  }
+});
+
+ipcMain.handle('check-r2-status', async () => {
+  const settings = store.get('settings');
+  if (!settings || !settings.accountId || !settings.accessKeyId || !settings.secretAccessKey || !settings.bucketName) {
+    return { success: false, error: '缺少配置' };
+  }
+
+  const s3Client = new S3Client({
+    region: 'auto',
+    endpoint: `https://${settings.accountId}.r2.cloudflarestorage.com`,
+    credentials: {
+      accessKeyId: settings.accessKeyId,
+      secretAccessKey: settings.secretAccessKey,
+    },
+  });
+
+  try {
+    const command = new HeadBucketCommand({ Bucket: settings.bucketName });
+    await s3Client.send(command);
+    return { success: true, message: '连接成功' };
+  } catch (error) {
+    return { success: false, error: `连接失败: ${error.message}` };
   }
 });
 

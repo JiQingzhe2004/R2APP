@@ -5,8 +5,9 @@ import { electronAPI } from '@electron-toolkit/preload'
 const api = {
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
-  testConnection: (settings) => ipcRenderer.invoke('r2-test-connection', settings),
+  testR2Connection: (settings) => ipcRenderer.invoke('r2-test-connection', settings),
   getBucketStats: () => ipcRenderer.invoke('r2-get-bucket-stats'),
+  checkR2Status: () => ipcRenderer.invoke('check-r2-status'),
   listObjects: ({ continuationToken, prefix }) => ipcRenderer.invoke('r2-list-objects', { continuationToken, prefix }),
   deleteObject: (key) => ipcRenderer.invoke('r2-delete-object', key),
   showOpenDialog: () => ipcRenderer.invoke('show-open-dialog'),

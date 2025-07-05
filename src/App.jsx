@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from 'sonner';
 import { Layout, LayoutBody } from '@/components/ui/layout'
@@ -14,6 +14,24 @@ import DownloadsPage from './pages/Downloads';
 function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
+  const [r2Status, setR2Status] = useState({ loading: true, success: false, message: '正在检查连接...' });
+
+  const checkStatus = useCallback(async () => {
+    setR2Status({ loading: true, success: false, message: '正在检查连接...' });
+    try {
+      const result = await window.api.checkR2Status();
+      setR2Status({ loading: false, success: result.success, message: result.success ? 'R2 存储连接正常' : result.error });
+    } catch (error) {
+      setR2Status({ loading: false, success: false, message: `检查失败: ${error.message}` });
+    }
+  }, []);
+
+  useEffect(() => {
+    checkStatus();
+    const intervalId = setInterval(checkStatus, 60000); // 每 60 秒检查一次
+
+    return () => clearInterval(intervalId);
+  }, [checkStatus]);
 
   const toggleSidebar = () => {
     setIsSidebarCollapsed(prev => !prev);
@@ -26,7 +44,7 @@ function App() {
         <Layout>
           <Sidebar isCollapsed={isSidebarCollapsed} onToggle={toggleSidebar} />
           <LayoutBody>
-            <Header onSearchClick={() => setIsSearchDialogOpen(true)} />
+            <Header onSearchClick={() => setIsSearchDialogOpen(true)} r2Status={r2Status} />
             <main className="flex-1 p-6 overflow-auto">
               <Routes>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -34,7 +52,7 @@ function App() {
                 <Route path="/files" element={<FilesPage isSearchOpen={isSearchDialogOpen} onSearchOpenChange={setIsSearchDialogOpen} />} />
                 <Route path="/uploads" aname="uploads" element={<UploadsPage />} />
                 <Route path="/downloads" element={<DownloadsPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/settings" element={<SettingsPage onSettingsSaved={checkStatus} />} />
               </Routes>
             </main>
           </LayoutBody>
