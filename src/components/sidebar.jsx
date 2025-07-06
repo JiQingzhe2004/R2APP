@@ -48,7 +48,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
       )}>
         <img src={BlackLogo} alt="Logo" className="h-6 w-6 hidden dark:block" />
         <img src={WhiteLogo} alt="Logo" className="h-6 w-6 dark:hidden" />
-        <h1 className={cn("text-lg font-bold", isCollapsed && "hidden")}>R2存储管理器</h1>
+        <h1 className={cn("text-lg font-bold", isCollapsed && "hidden")}>CS-Explorer</h1>
       </div>
       <nav className="flex-1 py-4 px-4">
         <ul className="space-y-1 h-full flex flex-col">

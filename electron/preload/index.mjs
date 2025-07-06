@@ -9,6 +9,7 @@ const api = {
   // Bucket/File Operations
   checkStatus: () => ipcRenderer.invoke('check-status'),
   getBucketStats: () => ipcRenderer.invoke('get-bucket-stats'),
+  getRecentActivities: () => ipcRenderer.invoke('get-recent-activities'),
   listObjects: (options) => ipcRenderer.invoke('list-objects', options),
   deleteObject: (key) => ipcRenderer.invoke('delete-object', key),
   uploadFile: (filePath, key) => ipcRenderer.invoke('upload-file', { filePath, key }),
@@ -40,6 +41,12 @@ const api = {
   getFilePaths: (files) => ipcRenderer.invoke('get-file-paths', files),
 
   // Window Controls
+  isWindowMaximized: () => ipcRenderer.invoke('is-window-maximized'),
+  onWindowMaximizedStatusChanged: (callback) => {
+    const handler = (event, ...args) => callback(...args);
+    ipcRenderer.on('window-maximized-status-changed', handler);
+    return () => ipcRenderer.removeListener('window-maximized-status-changed', handler);
+  },
   minimizeWindow: () => ipcRenderer.send('minimize-window'),
   maximizeWindow: () => ipcRenderer.send('maximize-window'),
   closeWindow: () => ipcRenderer.send('close-window'),

@@ -17,6 +17,7 @@ const R2_TEMPLATE = {
   secretAccessKey: '',
   bucketName: '',
   publicDomain: '',
+  storageQuotaGB: 10,
 };
 
 const OSS_TEMPLATE = {
@@ -28,6 +29,7 @@ const OSS_TEMPLATE = {
   bucket: '',
   endpoint: '',
   publicDomain: '',
+  storageQuotaGB: 10,
 };
 
 export default function SettingsPage({ onSettingsSaved }) {
@@ -226,6 +228,17 @@ export default function SettingsPage({ onSettingsSaved }) {
                    <div className="space-y-2">
                     <Label htmlFor={`publicDomain-${profile.id}`}>自定义域名 (可选)</Label>
                      <Input id={`publicDomain-${profile.id}`} name="publicDomain" value={profile.publicDomain} onChange={(e) => handleProfileChange(profile.id, e)} placeholder="例如: files.example.com"/>
+                  </div>
+                   <div className="space-y-2">
+                    <Label htmlFor={`storageQuotaGB-${profile.id}`}>存储配额 (GB)</Label>
+                    <Input 
+                      id={`storageQuotaGB-${profile.id}`} 
+                      name="storageQuotaGB" 
+                      type="number"
+                      value={profile.storageQuotaGB || ''} 
+                      onChange={(e) => handleProfileChange(profile.id, e)} 
+                      placeholder="默认: 10"
+                    />
                   </div>
                   <div className="flex justify-end gap-2 pt-2 border-t mt-4">
                     <Button size="sm" type="button" variant="ghost" onClick={() => handleTestConnection(profile.id)} disabled={isTesting[profile.id] || isSaving}>

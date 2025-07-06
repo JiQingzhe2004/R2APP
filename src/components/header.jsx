@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Bell, TextSearch, ShieldEllipsis, ShieldCheck, ShieldX, ChevronsUpDown, Minus, Square, X, CheckCircle, XCircle, Trash2, Info } from 'lucide-react'
+import { Bell, TextSearch, ShieldEllipsis, ShieldCheck, ShieldX, ChevronsUpDown, Minus, Square, X, CheckCircle, XCircle, Trash2, Info, PictureInPicture2 } from 'lucide-react'
 import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Card } from "@/components/ui/Card"
@@ -64,7 +64,14 @@ export function Header({
   const [activeNotification, setActiveNotification] = useState(null);
   const [isPopupVisible, setIsPopupVisible] = useState(false);
   const [progress, setProgress] = useState(100);
+  const [isMaximized, setIsMaximized] = useState(false);
   const prevNotificationsRef = useRef();
+
+  useEffect(() => {
+    window.api.isWindowMaximized().then(setIsMaximized);
+    const cleanup = window.api.onWindowMaximizedStatusChanged(setIsMaximized);
+    return cleanup;
+  }, []);
 
   useEffect(() => {
     if (notifications && (!prevNotificationsRef.current || notifications.length > prevNotificationsRef.current.length)) {
@@ -244,7 +251,7 @@ export function Header({
               <Minus className="h-4 w-4" />
            </Button>
            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.api.maximizeWindow()}>
-              <Square className="h-4 w-4" />
+              {isMaximized ? <PictureInPicture2 className="h-4 w-4" /> : <Square className="h-4 w-4" />}
            </Button>
            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-500/90" onClick={() => window.api.closeWindow()}>
               <X className="h-4 w-4" />

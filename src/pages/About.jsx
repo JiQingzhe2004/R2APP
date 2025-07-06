@@ -22,7 +22,7 @@ export default function AboutPage() {
   }, []);
 
   return (
-    <div className="p-4 sm:p-6 flex justify-center items-start">
+    <div className="p-4 sm:p-6 flex flex-col items-center gap-4">
       <Card className="w-full max-w-2xl">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
@@ -75,6 +75,9 @@ export default function AboutPage() {
           </div>
         </CardFooter>
       </Card>
+      <p className="text-xs text-muted-foreground">
+        Copyright © {new Date().getFullYear()} {appInfo.author}. All Rights Reserved.
+      </p>
     </div>
   )
 } 

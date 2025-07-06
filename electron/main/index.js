@@ -19,6 +19,21 @@ try {
 
 const store = new Store();
 
+const MAX_ACTIVITIES = 20;
+
+function addRecentActivity(type, message, status) {
+  const activities = store.get('recent-activities', []);
+  const newActivity = {
+    id: uuidv4(),
+    type,
+    message,
+    status,
+    timestamp: new Date().toISOString(),
+  };
+  const updatedActivities = [newActivity, ...activities].slice(0, MAX_ACTIVITIES);
+  store.set('recent-activities', updatedActivities);
+}
+
 // --- Data Migration ---
 function runMigration() {
   const oldSettings = store.get('settings');
@@ -80,6 +95,14 @@ function createWindow() {
     if (is.dev) {
         mainWindow.webContents.openDevTools()
     }
+  })
+
+  mainWindow.on('maximize', () => {
+    mainWindow.webContents.send('window-maximized-status-changed', true)
+  })
+
+  mainWindow.on('unmaximize', () => {
+    mainWindow.webContents.send('window-maximized-status-changed', false)
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -252,40 +275,47 @@ ipcMain.handle('check-status', async () => {
 ipcMain.handle('get-bucket-stats', async () => {
   const storage = await getStorageClient();
   if (!storage) {
-     return { success: false, error: '请先在设置中配置您的存储桶。' };
-   }
- 
-   let totalSize = 0;
-   let totalCount = 0;
-  let continuationToken;
-   
-   try {
+    return { success: false, error: '未找到活动的存储配置' };
+  }
+  const activeProfile = getActiveProfile();
+
+  try {
+    let totalCount = 0;
+    let totalSize = 0;
+    let continuationToken = undefined;
+
     if (storage.type === 'r2') {
-     do {
-          const command = new ListObjectsV2Command({ Bucket: storage.bucket, ContinuationToken: continuationToken });
-          const response = await storage.client.send(command);
-       if (response.Contents) {
-         totalCount += response.Contents.length;
-         totalSize += response.Contents.reduce((acc, obj) => acc + obj.Size, 0);
-       }
-          continuationToken = response.NextContinuationToken;
-        } while (continuationToken);
+      do {
+        const command = new ListObjectsV2Command({
+          Bucket: storage.bucket,
+          ContinuationToken: continuationToken,
+        });
+        const response = await storage.client.send(command);
+        totalCount += response.KeyCount || 0;
+        totalSize += response.Contents?.reduce((acc, obj) => acc + obj.Size, 0) || 0;
+        continuationToken = response.NextContinuationToken;
+      } while (continuationToken);
     } else if (storage.type === 'oss') {
-        let response;
-        do {
-            response = await storage.client.list({ marker: continuationToken, 'max-keys': 1000 });
-            if (response.objects) {
-                totalCount += response.objects.length;
-                totalSize += response.objects.reduce((acc, obj) => acc + obj.size, 0);
-            }
-            continuationToken = response.nextMarker;
-        } while (response.isTruncated);
+      do {
+        const response = await storage.client.list({ marker: continuationToken, 'max-keys': 1000 });
+        totalCount += response.objects?.length || 0;
+        totalSize += response.objects?.reduce((acc, obj) => acc + obj.size, 0) || 0;
+        continuationToken = response.nextMarker;
+      } while (continuationToken);
     }
-     return { success: true, data: { totalCount, totalSize } };
-   } catch (error) {
-     console.error('Failed to get bucket stats:', error);
-     return { success: false, error: '获取存储桶统计信息失败。' };
-   }
+    
+    const quota = parseInt(activeProfile?.storageQuotaGB, 10);
+
+    return { success: true, data: { 
+      totalCount, 
+      totalSize, 
+      bucketName: storage.bucket,
+      storageQuotaGB: !isNaN(quota) && quota > 0 ? quota : 10
+    } };
+  } catch (error) {
+    console.error('Failed to get bucket stats:', error);
+    return { success: false, error: error.message };
+  }
 });
 
 ipcMain.handle('list-objects', async (_, { continuationToken, prefix }) => {
@@ -328,19 +358,21 @@ ipcMain.handle('list-objects', async (_, { continuationToken, prefix }) => {
 ipcMain.handle('delete-object', async (_, key) => {
   const storage = await getStorageClient();
   if (!storage) {
-    return { success: false, error: '客户端未初始化。' };
+    return { success: false, error: '未找到活动的存储配置' };
   }
 
   try {
     if (storage.type === 'r2') {
-        const command = new DeleteObjectCommand({ Bucket: storage.bucket, Key: key });
-        await storage.client.send(command);
+      const command = new DeleteObjectCommand({ Bucket: storage.bucket, Key: key });
+      await storage.client.send(command);
     } else if (storage.type === 'oss') {
-        await storage.client.delete(key);
+      await storage.client.delete(key);
     }
+    addRecentActivity('delete', `删除了 ${key}`);
     return { success: true };
   } catch (error) {
-    return { success: false, error: `删除文件失败: ${error.message}` };
+    console.error(`Failed to delete object ${key}:`, error);
+    return { success: false, error: error.message };
   }
 });
 
@@ -472,6 +504,7 @@ ipcMain.on('download-file', async (event, key) => {
             store.set('download-tasks', finalTasks);
           }
           mainWindow.webContents.send('download-update', { type: 'progress', data: { id: taskId, progress: 100, status: 'completed' } });
+          addRecentActivity('download', `下载了 ${key}`);
           resolve();
         });
         writeStream.on('error', errorHandler);
@@ -561,4 +594,18 @@ ipcMain.handle('clear-completed-downloads', () => {
   if (mainWindow) {
     mainWindow.webContents.send('downloads-cleared', newTasks);
   }
+});
+
+ipcMain.handle('get-recent-activities', async () => {
+  try {
+    const activities = store.get('recent-activities', []);
+    return { success: true, data: activities };
+  } catch (error) {
+    console.error('Failed to get recent activities:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('is-window-maximized', () => {
+  return mainWindow?.isMaximized() || false;
 });
