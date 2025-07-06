@@ -16,21 +16,25 @@ import {
   LayoutDashboard,
   Folder,
   DownloadCloud,
-  Info
+  Info,
+  MessageSquare
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useTheme } from "./theme-provider"
 import { cn } from "@/lib/utils"
 import WhiteLogo from '@/assets/WhiteLOGO.png'
 import BlackLogo from '@/assets/BlackLOGO.png'
+import { NavLink } from "./nav-link"
+import { Separator } from "@/components/ui/separator"
 
 export function Sidebar({ isCollapsed, onToggle }) {
   const { theme, setTheme } = useTheme()
   const location = useLocation();
+  const isActive = (path) => location.pathname.startsWith(path);
 
   const navItems = [
     { id: 'dashboard', href: '/dashboard', icon: LayoutDashboard, label: '仪表盘' },
-    { id: 'files', href: '/files', icon: Folder, label: '文件管理' },
+    { id: 'files', href: '/files', icon: File, label: '文件管理' },
     { id: 'uploads', href: '/uploads', icon: Upload, label: '文件上传' },
     { id: 'downloads', href: '/downloads', icon: DownloadCloud, label: '下载管理' },
     { id: 'settings', href: '/settings', icon: Settings, label: '设置' },

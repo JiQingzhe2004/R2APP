@@ -35,7 +35,7 @@ import {
   ToggleGroupItem,
 } from "@/components/ui/toggle-group"
 import { 
-  RefreshCw, Trash2, Download, Copy, List, LayoutGrid, TextSearch, XCircle
+  RefreshCw, Trash2, Download, Copy, List, LayoutGrid, TextSearch, XCircle, FolderPlus, UploadCloud, FolderClosed
 } from 'lucide-react';
 import { formatBytes, getFileIcon, getFileTypeDescription } from '@/lib/file-utils.jsx';
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -51,20 +51,42 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
   const [viewMode, setViewMode] = useState('card');
   const [searchTerm, setSearchTerm] = useState('');
   const [inputSearchTerm, setInputSearchTerm] = useState('');
+  const [currentPrefix, setCurrentPrefix] = useState('');
+  const [isCreateFolderDialogOpen, setIsCreateFolderDialogOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
   const { addNotification } = useNotifications();
   const observer = useRef();
   const navigate = useNavigate();
+
+  const handleFileSelectAndUpload = async () => {
+    const selectedPaths = await window.api.showOpenDialog();
+    if (selectedPaths) {
+      const newUploads = selectedPaths.map(path => {
+        const fileName = path.split(/[\\/]/).pop();
+        const key = `${currentPrefix}${fileName}`;
+        // Do NOT start the upload here.
+        // Let UploadsPage handle the initiation.
+        return { path, key, status: 'pending' };
+      });
+
+      if (newUploads.length > 0) {
+        toast.info(`${newUploads.length} 个文件已加入上传队列。`);
+        // Navigate to uploads page with all the necessary info
+        navigate('/uploads', { state: { newUploads: newUploads } });
+      }
+    }
+  };
 
   const lastFileElementRef = useCallback(node => {
     if (loading) return;
     if (observer.current) observer.current.disconnect();
     observer.current = new IntersectionObserver(entries => {
       if (entries[0].isIntersecting && nextToken) {
-        fetchFiles(searchTerm, true);
+        fetchFiles(currentPrefix, true);
       }
     });
     if (node) observer.current.observe(node);
-  }, [loading, nextToken, searchTerm]);
+  }, [loading, nextToken, currentPrefix]);
 
   useEffect(() => {
     const getActiveSettings = (fullSettings) => {
@@ -78,17 +100,22 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
         const activeSettings = getActiveSettings(fullSettings);
         setSettings(activeSettings);
     });
-    fetchFiles('');
+    fetchFiles('', false);
   }, []);
 
   const fetchFiles = useCallback(async (prefix, isLoadMore = false) => {
     setLoading(true);
     setError(null);
     try {
+      const fetchPrefix = typeof prefix === 'string' ? prefix : currentPrefix;
       const token = isLoadMore ? nextToken : undefined;
-      const result = await window.api.listObjects({ continuationToken: token, prefix });
+      const result = await window.api.listObjects({ continuationToken: token, prefix: fetchPrefix, delimiter: '/' });
       if (result.success) {
-        setFiles(prev => isLoadMore ? [...prev, ...result.data.files] : result.data.files);
+        let newFiles = result.data.files;
+        if (fetchPrefix) {
+          newFiles = newFiles.filter(f => (f.key || f.Key) !== fetchPrefix);
+        }
+        setFiles(prev => isLoadMore ? [...prev, ...newFiles] : newFiles);
         setNextToken(result.data.nextContinuationToken);
       } else {
         setError(result.error);
@@ -102,14 +129,16 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
     } finally {
       setLoading(false);
     }
-  }, [nextToken]);
+  }, [nextToken, currentPrefix]);
 
   const handleSearch = () => {
-    setSearchTerm(inputSearchTerm);
     onSearchOpenChange(false);
     setFiles([]);
     setNextToken(null);
-    fetchFiles(inputSearchTerm, false);
+    const newSearchTerm = inputSearchTerm;
+    setSearchTerm(newSearchTerm);
+    setCurrentPrefix('');
+    fetchFiles(newSearchTerm, false);
   };
 
   const clearSearch = () => {
@@ -117,7 +146,38 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
     setInputSearchTerm('');
     setFiles([]);
     setNextToken(null);
+    setCurrentPrefix('');
     fetchFiles('', false);
+  };
+
+  const handleCreateFolder = async () => {
+    if (!newFolderName) {
+      toast.error('文件夹名称不能为空');
+      return;
+    }
+    const folderName = `${currentPrefix}${newFolderName}/`;
+    
+    const result = await window.api.createFolder(folderName);
+
+    if (result.success) {
+      toast.success(`文件夹 "${newFolderName}" 创建成功`);
+      addNotification({ message: `文件夹 "${newFolderName}" 已创建`, type: 'success' });
+      fetchFiles(currentPrefix);
+    } else {
+      toast.error(`创建失败: ${result.error}`);
+      addNotification({ message: `创建文件夹 "${newFolderName}" 失败`, type: 'error' });
+    }
+    setIsCreateFolderDialogOpen(false);
+    setNewFolderName('');
+  };
+
+  const handlePrefixChange = (newPrefix) => {
+    setSearchTerm('');
+    setInputSearchTerm('');
+    setCurrentPrefix(newPrefix);
+    setFiles([]);
+    setNextToken(null);
+    fetchFiles(newPrefix, false);
   };
 
   const handleDeleteClick = (key) => {
@@ -127,14 +187,25 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
   const handleConfirmDelete = async () => {
     if (!fileToDelete) return;
     
-    const result = await window.api.deleteObject(fileToDelete);
+    const isDir = fileToDelete.endsWith('/');
+    const result = isDir 
+      ? await window.api.deleteFolder(fileToDelete)
+      : await window.api.deleteObject(fileToDelete);
+
     if (result.success) {
-      toast.success('文件删除成功');
-      addNotification({ message: `文件 "${fileToDelete}" 已删除`, type: 'success' });
-      setFiles(prev => prev.filter(file => (file.key || file.Key) !== fileToDelete));
+      const message = isDir ? `文件夹 "${fileToDelete}" 删除成功` : `文件 "${fileToDelete}" 删除成功`;
+      toast.success(message);
+      addNotification({ message: message.replace('成功', '已删除'), type: 'success' });
+      
+      if (isDir) {
+        fetchFiles(currentPrefix);
+      }
+      // After a delete, always refresh the current view from scratch.
+      fetchFiles(currentPrefix);
     } else {
-      toast.error(`删除失败: ${result.error}`);
-      addNotification({ message: `删除文件 "${fileToDelete}" 失败`, type: 'error' });
+      const message = `删除失败: ${result.error}`;
+      toast.error(message);
+      addNotification({ message: `删除 "${fileToDelete}" 失败`, type: 'error' });
     }
     setFileToDelete(null);
   };
@@ -178,6 +249,36 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
       navigate('/downloads');
   }
 
+  const renderBreadcrumbs = () => {
+    if (searchTerm) return null;
+
+    const parts = currentPrefix.split('/').filter(p => p);
+    return (
+      <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-4 px-1">
+        <span
+          className="cursor-pointer hover:text-primary"
+          onClick={() => handlePrefixChange('')}
+        >
+          全部文件
+        </span>
+        {parts.map((part, index) => {
+          const path = parts.slice(0, index + 1).join('/') + '/';
+          return (
+            <span key={path} className="flex items-center gap-1.5">
+              <span>/</span>
+              <span
+                className="cursor-pointer hover:text-primary"
+                onClick={() => handlePrefixChange(path)}
+              >
+                {part}
+              </span>
+            </span>
+          );
+        })}
+      </div>
+    );
+  };
+
   const renderFileCards = () => (
     <div className="space-y-4">
       {files.map((file, index) => {
@@ -186,22 +287,31 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
         const size = file.size || file.Size;
         const lastModified = file.lastModified || file.LastModified;
         const publicUrl = getPublicUrl(key);
+        const isDir = file.isFolder;
+
+        const handleCardClick = (e) => {
+          if (e.target.closest('button')) return;
+          if (isDir) {
+            handlePrefixChange(key);
+          }
+        };
+
         return (
-          <Card key={key} ref={isLastElement ? lastFileElementRef : null} className="p-4">
+          <Card key={key} ref={isLastElement ? lastFileElementRef : null} className="p-4" onClick={handleCardClick} style={{ cursor: isDir ? 'pointer' : 'default' }}>
             <div className="flex items-start gap-4">
-              {getFileIcon(file)}
+              {isDir ? <FolderClosed /> : getFileIcon(file)}
               <div className="flex-1 min-w-0">
                 <p className="font-semibold whitespace-nowrap overflow-hidden text-ellipsis" title={key}>
-                  {key}
+                  {isDir ? key.replace(currentPrefix, '').slice(0, -1) : key.replace(currentPrefix, '')}
                 </p>
-                <div className="text-sm text-muted-foreground flex items-center gap-4">
+                <div className="text-sm text-muted-foreground flex items-center gap-2 flex-wrap">
                   <span>{getFileTypeDescription(file)}</span>
-                  <span>{formatBytes(size)}</span>
+                  {!isDir && <span>{formatBytes(size)}</span>}
                   <span>上次修改: {new Date(lastModified).toLocaleDateString()}</span>
                 </div>
               </div>
             </div>
-            {publicUrl && (
+            {!isDir && publicUrl && (
               <div className="mt-4 flex items-center gap-2">
                   <Input readOnly value={publicUrl} className="bg-muted flex-1"/>
                   <Button variant="outline" size="icon" onClick={() => handleCopyUrl(publicUrl)}><Copy className="h-4 w-4"/></Button>
@@ -211,13 +321,18 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
                   <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(key)} disabled={downloading[key]}><Trash2 className="h-4 w-4"/></Button>
               </div>
             )}
-            {!publicUrl && (
+            {!isDir && !publicUrl && (
                <div className="mt-4 flex items-center justify-end gap-2">
                   <Button variant="outline" size="icon" onClick={() => handleDownload(key)} disabled={downloading[key]}>
                       <Download className="h-4 w-4"/>
                   </Button>
                   <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(key)} disabled={downloading[key]}><Trash2 className="h-4 w-4"/></Button>
               </div>
+            )}
+             {isDir && (
+                <div className="mt-4 flex items-center justify-end gap-2">
+                    <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(key)}><Trash2 className="h-4 w-4"/></Button>
+                </div>
             )}
           </Card>
         )
@@ -244,24 +359,33 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
                     const size = file.size || file.Size;
                     const lastModified = file.lastModified || file.LastModified;
                     const publicUrl = getPublicUrl(key);
+                    const isDir = file.isFolder;
+                    
+                    const handleRowClick = () => {
+                      if (isDir) {
+                        handlePrefixChange(key);
+                      }
+                    };
+
                     return (
-                        <TableRow key={key} ref={isLastElement ? lastFileElementRef : null}>
-                            <TableCell>{getFileIcon(file)}</TableCell>
-                            <TableCell className="font-medium max-w-xs truncate" title={key}>
-                              {key}
+                        <TableRow key={key} ref={isLastElement ? lastFileElementRef : null} onClick={handleRowClick} style={{ cursor: isDir ? 'pointer' : 'default' }}>
+                            <TableCell>{isDir ? <FolderClosed /> : getFileIcon(file)}</TableCell>
+                            <TableCell className="font-semibold max-w-xs truncate" title={key}>
+                                {isDir ? key.replace(currentPrefix, '').slice(0, -1) : key.replace(currentPrefix, '')}
                             </TableCell>
-                            <TableCell>{formatBytes(size)}</TableCell>
-                            <TableCell>{new Date(lastModified).toLocaleString()}</TableCell>
+                            <TableCell>{!isDir ? formatBytes(size) : ''}</TableCell>
+                            <TableCell>{new Date(lastModified).toLocaleDateString()}</TableCell>
                             <TableCell className="text-right">
-                                <div className="flex items-center justify-end gap-2">
-                                    {publicUrl && <Button variant="ghost" size="icon" onClick={() => handleCopyUrl(publicUrl)}><Copy className="h-4 w-4"/></Button>}
-                                    <Button variant="ghost" size="icon" onClick={() => handleDownload(key)} disabled={downloading[key]}>
-                                        <Download className="h-4 w-4"/>
-                                    </Button>
-                                    <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(key)} disabled={downloading[key]}>
-                                        <Trash2 className="h-4 w-4"/>
-                                    </Button>
-                                </div>
+                                {!isDir && (
+                                  <>
+                                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleCopyUrl(publicUrl); }}><Copy className="h-4 w-4"/></Button>
+                                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDownload(key);}} disabled={downloading[key]}><Download className="h-4 w-4"/></Button>
+                                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDeleteClick(key);}} disabled={downloading[key]}><Trash2 className="h-4 w-4" color="hsl(var(--destructive))"/></Button>
+                                  </>
+                                )}
+                                {isDir && (
+                                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDeleteClick(key); }}><Trash2 className="h-4 w-4" color="hsl(var(--destructive))"/></Button>
+                                )}
                             </TableCell>
                         </TableRow>
                     )
@@ -281,7 +405,7 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
               <div className="flex items-center gap-4">
                   <span className="text-sm text-muted-foreground">{files.length} 个文件</span>
                   
-                  <ToggleGroup type="single" value={viewMode} onValueChange={(value) => value && setViewMode(value)} aria-label="View mode">
+                  <ToggleGroup type="single" value={viewMode} onValueChange={setViewMode} aria-label="View mode">
                     <ToggleGroupItem value="card" aria-label="Card view">
                       <LayoutGrid className="h-4 w-4" />
                     </ToggleGroupItem>
@@ -290,8 +414,14 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
                     </ToggleGroupItem>
                   </ToggleGroup>
 
-                  <Button variant="outline" onClick={() => fetchFiles(searchTerm, false)} disabled={loading}>
+                  <Button variant="outline" onClick={() => fetchFiles(currentPrefix, false)} disabled={loading}>
                     <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                  </Button>
+                  <Button variant="outline" size="icon" onClick={() => setIsCreateFolderDialogOpen(true)}>
+                    <FolderPlus className="h-4 w-4" />
+                  </Button>
+                  <Button variant="outline" size="icon" onClick={handleFileSelectAndUpload}>
+                    <UploadCloud className="h-4 w-4" />
                   </Button>
               </div>
             </div>
@@ -306,6 +436,8 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
               </div>
             )}
           </div>
+
+          {renderBreadcrumbs()}
 
           <div className="flex-1 overflow-auto">
             {viewMode === 'card' ? renderFileCards() : renderFileList()}
@@ -344,6 +476,32 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
           <AlertDialogAction onClick={handleConfirmDelete}>确定</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
+      <Dialog open={isCreateFolderDialogOpen} onOpenChange={setIsCreateFolderDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>创建新文件夹</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="folder-name" className="text-right">
+                文件夹名称
+              </Label>
+              <Input
+                id="folder-name"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                className="col-span-3"
+                onKeyPress={(e) => e.key === 'Enter' && handleCreateFolder()}
+                placeholder="例如：我的照片"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateFolderDialogOpen(false)}>取消</Button>
+            <Button onClick={handleCreateFolder}>创建</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AlertDialog>
   );
 } 

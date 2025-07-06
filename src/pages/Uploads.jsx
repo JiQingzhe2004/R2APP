@@ -21,35 +21,47 @@ export default function UploadsPage() {
   }, []);
 
   useEffect(() => {
-    if (location.state?.newFilePaths) {
-      addFilesByPath(location.state.newFilePaths);
+    if (location.state?.newUploads) {
+      addUploads(location.state.newUploads);
       // Clear the state to prevent re-adding files on refresh
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location, navigate]);
 
+  const addUploads = (newUploads) => {
+    // Filter out uploads that are already in the list (same remote key)
+    const uniqueNewUploads = newUploads.filter(
+      (newUpload) => !filesToUpload.some((existing) => existing.key === newUpload.key)
+    );
+
+    if (uniqueNewUploads.length > 0) {
+      setFilesToUpload((prev) => [...prev, ...uniqueNewUploads]);
+    }
+  };
+
   const handleFileSelect = async () => {
     const selectedPaths = await window.api.showOpenDialog();
     if (selectedPaths) {
-      addFilesByPath(selectedPaths);
+      const newUploads = selectedPaths.map((path) => ({
+        path,
+        key: path.split(/[\\/]/).pop(), // remote key is filename for root upload
+        status: 'pending',
+      }));
+      addUploads(newUploads);
     }
   };
 
   const addFilesByPath = (paths) => {
-    const newFiles = paths.map(path => {
+    const newUploads = paths.map(path => {
       if (!path || typeof path !== 'string') {
-        // This is the fallback check. If this logs, the restart didn't work.
-        console.error("Could not get file path. The main process config is likely not loaded correctly. Please ensure the app is fully restarted.");
+        console.error("Could not get file path.");
         return null;
       };
       const key = path.split(/[\\/]/).pop();
-      if (filesToUpload.find(f => f.path === path)) return null;
       return { path, key, status: 'pending' };
     }).filter(Boolean);
 
-    if (newFiles.length > 0) {
-      setFilesToUpload(prev => [...prev, ...newFiles]);
-    }
+    addUploads(newUploads);
   };
 
   useEffect(() => {
@@ -89,13 +101,7 @@ export default function UploadsPage() {
     e.stopPropagation();
     setIsDragging(false);
     
-    console.log('Drop event files:', e.dataTransfer.files);
-    
-    const paths = Array.from(e.dataTransfer.files).map(f => {
-      console.log('Processing dropped file object:', f);
-      console.log('File path property:', f.path);
-      return f.path;
-    });
+    const paths = Array.from(e.dataTransfer.files).map(f => f.path);
 
     if (paths.length > 0 && paths.every(p => p)) {
       addFilesByPath(paths);
@@ -117,8 +123,6 @@ export default function UploadsPage() {
           successCount++;
         } else {
           errorCount++;
-          // The main process will send a progress event with an error,
-          // so we don't need to set the error state here.
         }
       }
     }
@@ -136,11 +140,10 @@ export default function UploadsPage() {
     }
 
     if (errorCount === 0 && successCount > 0) {
-        // All files uploaded successfully
         setTimeout(() => {
             setFilesToUpload([]);
             setUploadProgress({});
-        }, 2000); // 2-second delay to show completion status
+        }, 2000);
     }
   };
   
@@ -152,6 +155,16 @@ export default function UploadsPage() {
       return newProgress;
     });
   };
+
+  // This useEffect will trigger the upload automatically when new files are added.
+  useEffect(() => {
+    // We only want to auto-start uploads if there's at least one "pending" file
+    // and we are not already in the process of uploading.
+    const hasPendingFiles = filesToUpload.some(f => f.status === 'pending');
+    if (hasPendingFiles && !isUploading) {
+      handleUpload();
+    }
+  }, [filesToUpload]);
 
   return (
     <div className="space-y-6">
@@ -182,11 +195,12 @@ export default function UploadsPage() {
           <div className="space-y-2">
             {filesToUpload.map(file => {
               const progress = uploadProgress[file.key];
+              const displayName = file.key.split('/').pop();
               return (
                 <Card key={file.key} className="p-4 flex items-center space-x-4">
                   <File className="h-6 w-6 text-muted-foreground" />
                   <div className="flex-1 space-y-1">
-                    <p className="text-sm font-medium leading-none">{file.key}</p>
+                    <p className="text-sm font-medium leading-none" title={file.key}>{displayName}</p>
                     {progress && progress.status !== 'pending' && (
                         <Progress value={progress.percentage} className="h-2" />
                     )}
@@ -198,16 +212,21 @@ export default function UploadsPage() {
                      <CheckCircle className="h-6 w-6 text-green-500" />
                   ) : (
                     <Button variant="ghost" size="icon" onClick={() => removeFile(file.key)} disabled={isUploading}>
-                       <X className="h-4 w-4" />
+                      <X className="h-4 w-4" />
                     </Button>
                   )}
                 </Card>
               );
             })}
           </div>
-           <Button onClick={handleUpload} disabled={isUploading || !filesToUpload.some(f=>f.status === 'pending')}>
-            {isUploading ? '正在上传...' : `上传 ${filesToUpload.length} 个文件`}
-          </Button>
+          <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => { setFilesToUpload([]); setUploadProgress({}); }} disabled={isUploading}>
+                  清空列表
+              </Button>
+              <Button onClick={handleUpload} disabled={isUploading || filesToUpload.every(f => f.status !== 'pending')}>
+                  {isUploading ? '正在上传...' : '全部上传'}
+              </Button>
+          </div>
         </div>
       )}
     </div>

@@ -2,7 +2,7 @@ import { app, shell, BrowserWindow, ipcMain, dialog, globalShortcut } from 'elec
 import { join, parse } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
 import Store from 'electron-store'
-import { S3Client, ListObjectsV2Command, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand } from '@aws-sdk/client-s3'
+import { S3Client, ListObjectsV2Command, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, DeleteObjectsCommand } from '@aws-sdk/client-s3'
 import { Upload } from "@aws-sdk/lib-storage";
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
@@ -318,38 +318,64 @@ ipcMain.handle('get-bucket-stats', async () => {
   }
 });
 
-ipcMain.handle('list-objects', async (_, { continuationToken, prefix }) => {
+ipcMain.handle('list-objects', async (_, { continuationToken, prefix, delimiter }) => {
   const storage = await getStorageClient();
   if (!storage) {
-    return { success: false, error: '请先在设置中配置您的存储桶。' };
+    return { success: false, error: '未找到活动的存储配置' };
   }
 
   try {
     let files = [];
-    let nextContinuationToken;
+    let folders = [];
+    let nextContinuationToken = null;
 
     if (storage.type === 'r2') {
-      const command = new ListObjectsV2Command({ Bucket: storage.bucket, ContinuationToken: continuationToken, Prefix: prefix, MaxKeys: 30 });
+      const command = new ListObjectsV2Command({
+        Bucket: storage.bucket,
+        ContinuationToken: continuationToken,
+        Prefix: prefix,
+        Delimiter: delimiter,
+        MaxKeys: 50,
+      });
       const response = await storage.client.send(command);
       files = (response.Contents || []).map(f => ({
-          key: f.Key,
-          lastModified: f.LastModified,
-          size: f.Size,
-          etag: f.ETag
+        key: f.Key,
+        lastModified: f.LastModified,
+        size: f.Size,
+        etag: f.ETag
+      }));
+      folders = (response.CommonPrefixes || []).map(p => ({
+        key: p.Prefix,
+        type: 'folder'
       }));
       nextContinuationToken = response.NextContinuationToken;
     } else if (storage.type === 'oss') {
-      const response = await storage.client.list({ marker: continuationToken, prefix: prefix, 'max-keys': 30 });
+      const response = await storage.client.list({
+        marker: continuationToken,
+        prefix: prefix,
+        delimiter: delimiter,
+        'max-keys': 50
+      });
       files = (response.objects || []).map(f => ({
-          key: f.name,
-          lastModified: f.lastModified,
-          size: f.size,
-          etag: f.etag
+        key: f.name,
+        lastModified: f.lastModified,
+        size: f.size,
+        etag: f.etag
+      }));
+      folders = (response.prefixes || []).map(p => ({
+        key: p,
+        type: 'folder'
       }));
       nextContinuationToken = response.nextMarker;
     }
     
-    return { success: true, data: { files, nextContinuationToken } };
+    // Combine folders and files, with folders first
+    const combined = [
+      ...folders.map(f => ({ ...f, isFolder: true })),
+      ...files.map(f => ({ ...f, isFolder: false }))
+    ].filter(item => item.key !== prefix); // Don't show the current folder itself
+
+    return { success: true, data: { files: combined, nextContinuationToken } };
   } catch (error) {
     return { success: false, error: `获取文件列表失败: ${error.message}` };
   }
@@ -368,12 +394,110 @@ ipcMain.handle('delete-object', async (_, key) => {
     } else if (storage.type === 'oss') {
       await storage.client.delete(key);
     }
-    addRecentActivity('delete', `删除了 ${key}`);
+    addRecentActivity('delete', `删除了 ${key}`, 'success');
     return { success: true };
   } catch (error) {
     console.error(`Failed to delete object ${key}:`, error);
+    addRecentActivity('delete', `删除对象 ${key} 失败`, 'error');
     return { success: false, error: error.message };
   }
+});
+
+ipcMain.handle('delete-folder', async (event, prefix) => {
+  const storage = await getStorageClient();
+  if (!storage) {
+    return { success: false, error: '未找到有效的存储配置' };
+  }
+  const { client, type, bucket } = storage;
+
+  try {
+    let allKeys = [];
+    if (type === 'r2') {
+      let continuationToken;
+      do {
+        const response = await client.send(new ListObjectsV2Command({
+          Bucket: bucket,
+          Prefix: prefix,
+          ContinuationToken: continuationToken,
+        }));
+        if (response.Contents) {
+          allKeys.push(...response.Contents.map(item => item.Key));
+        }
+        continuationToken = response.NextContinuationToken;
+      } while (continuationToken);
+
+      if (allKeys.length > 0) {
+        // AWS S3 DeleteObjects can handle 1000 keys at a time
+        for (let i = 0; i < allKeys.length; i += 1000) {
+          const chunk = allKeys.slice(i, i + 1000);
+          await client.send(new DeleteObjectsCommand({
+            Bucket: bucket,
+            Delete: { Objects: chunk.map(k => ({ Key: k })) },
+          }));
+        }
+      }
+    } else if (type === 'oss') {
+      let continuationToken;
+      do {
+        const response = await client.list({
+          prefix: prefix,
+          marker: continuationToken,
+          'max-keys': 1000,
+        });
+        if (response.objects) {
+          allKeys.push(...response.objects.map(item => item.name));
+        }
+        continuationToken = response.nextMarker;
+      } while (continuationToken);
+
+      if (allKeys.length > 0) {
+        // OSS deleteMulti can handle 1000 keys at a time
+        await client.deleteMulti(allKeys, { quiet: true });
+      }
+    }
+
+    addRecentActivity('delete', `文件夹 "${prefix}" 已删除`, 'success');
+    return { success: true, deletedCount: allKeys.length };
+  } catch (error) {
+    console.error(`Failed to delete folder ${prefix}:`, error);
+    addRecentActivity('delete', `删除文件夹 "${prefix}" 失败`, 'error');
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('create-folder', async (event, folderName) => {
+  const storage = await getStorageClient();
+  if (!storage) {
+    return { success: false, error: '未找到有效的存储配置' };
+  }
+
+  const { client, type, bucket } = storage;
+
+  try {
+    if (type === 'r2') {
+      const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+      await client.send(new PutObjectCommand({
+        Bucket: bucket,
+        Key: folderName,
+        Body: '',
+      }));
+    } else if (type === 'oss') {
+      await client.put(folderName, Buffer.from(''));
+    } else {
+      return { success: false, error: '不支持的存储类型' };
+    }
+    
+    addRecentActivity('create-folder', `文件夹 "${folderName}" 已创建`, 'success');
+    return { success: true };
+  } catch (error) {
+    console.error(`Failed to create folder ${folderName}:`, error);
+    addRecentActivity('create-folder', `创建文件夹 "${folderName}" 失败`, 'error');
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('get-downloads', (event) => {
+  return store.get('downloads', []);
 });
 
 ipcMain.handle('show-open-dialog', async () => {

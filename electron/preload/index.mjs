@@ -12,6 +12,8 @@ const api = {
   getRecentActivities: () => ipcRenderer.invoke('get-recent-activities'),
   listObjects: (options) => ipcRenderer.invoke('list-objects', options),
   deleteObject: (key) => ipcRenderer.invoke('delete-object', key),
+  deleteFolder: (prefix) => ipcRenderer.invoke('delete-folder', prefix),
+  createFolder: (folderName) => ipcRenderer.invoke('create-folder', folderName),
   uploadFile: (filePath, key) => ipcRenderer.invoke('upload-file', { filePath, key }),
   showOpenDialog: () => ipcRenderer.invoke('show-open-dialog'),
   
