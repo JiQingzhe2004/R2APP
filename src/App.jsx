@@ -12,6 +12,7 @@ import FilesPage from './pages/Files';
 import UploadsPage from './pages/Uploads';
 import DownloadsPage from './pages/Downloads';
 import AboutPage from './pages/About';
+import ReleaseNotesPage from './pages/ReleaseNotes';
 
 function AppContent() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -76,7 +77,7 @@ function AppContent() {
           onClearNotifications={clearNotifications}
           onRemoveNotification={removeNotification}
         />
-        <main className="flex-1 p-6 overflow-auto">
+        <main className="relative flex-1 overflow-auto p-6">
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<DashboardPage key={activeProfileId} />} />
@@ -85,6 +86,7 @@ function AppContent() {
             <Route path="/downloads" element={<DownloadsPage />} />
             <Route path="/settings" element={<SettingsPage onSettingsSaved={refreshState} />} />
             <Route path="/about" element={<AboutPage />} />
+            <Route path="/releasenotes" element={<ReleaseNotesPage />} />
           </Routes>
         </main>
       </LayoutBody>

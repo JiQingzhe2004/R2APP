@@ -17,7 +17,8 @@ import {
   Folder,
   DownloadCloud,
   Info,
-  MessageSquare
+  MessageSquare,
+  ScrollText
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useTheme } from "./theme-provider"
@@ -39,6 +40,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
     { id: 'downloads', href: '/downloads', icon: DownloadCloud, label: '下载管理' },
     { id: 'settings', href: '/settings', icon: Settings, label: '设置' },
     { id: 'about', href: '/about', icon: Info, label: '关于应用' },
+    { id: 'releasenotes', href: '/releasenotes', icon: ScrollText, label: '更新日志' },
   ]
 
   return (
