@@ -3,3 +3,17 @@ node_modules
 out
 dist
 release
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build output
+dist-electron
+
+# icon
+resources/icon.ico
+
+# temp file
+src/version.json

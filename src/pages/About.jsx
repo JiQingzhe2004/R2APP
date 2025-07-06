@@ -4,8 +4,11 @@ import WhiteLogo from '@/assets/WhiteLOGO.png'
 import BlackLogo from '@/assets/BlackLOGO.png'
 import { Github, GitCommit, UserCircle, Award, ArrowRight } from 'lucide-react'
 import { Button } from "@/components/ui/Button"
+import { useTheme } from '@/components/theme-provider';
+import versionData from '@/version.json';
 
 export default function AboutPage() {
+  const { theme } = useTheme();
   const [appInfo, setAppInfo] = useState({
     name: 'R2 存储管理器',
     version: '...',
@@ -26,8 +29,8 @@ export default function AboutPage() {
       <Card className="w-full max-w-2xl">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <img src={BlackLogo} alt="Logo" className="h-20 w-20 hidden dark:block" />
-            <img src={WhiteLogo} alt="Logo" className="h-20 w-20 dark:hidden" />
+            <img src={BlackLogo} alt="App Logo" className="w-32 h-32 hidden dark:block" />
+            <img src={WhiteLogo} alt="App Logo" className="w-32 h-32 dark:hidden" />
           </div>
           <CardTitle className="text-3xl font-bold">{appInfo.name}</CardTitle>
         </CardHeader>
@@ -75,9 +78,24 @@ export default function AboutPage() {
           </div>
         </CardFooter>
       </Card>
-      <p className="text-xs text-muted-foreground">
-        Copyright © {new Date().getFullYear()} {appInfo.author}. All Rights Reserved.
-      </p>
+      <div className="text-center mt-6 text-xs text-muted-foreground space-y-2">
+         <div className="flex items-center justify-center gap-x-4">
+            <span>版本: {versionData.version}</span>
+            <div className="h-3 w-px bg-border" />
+            <a 
+              href={appInfo.githubUrl ? `${appInfo.githubUrl}/issues` : "#"}
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 hover:text-primary transition-colors"
+            >
+              <Github size={12} />
+              <span>提交 Issue</span>
+            </a>
+        </div>
+        <p>
+          Copyright © {new Date().getFullYear()} {appInfo.author}. All Rights Reserved.
+        </p>
+      </div>
     </div>
   )
 } 
