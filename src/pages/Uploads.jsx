@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
 import { Progress } from '@/components/ui/Progress';
@@ -12,10 +13,20 @@ export default function UploadsPage() {
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const { addNotification } = useNotifications();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     console.log('UploadsPage mounted. Checking window.api:', window.api);
   }, []);
+
+  useEffect(() => {
+    if (location.state?.newFilePaths) {
+      addFilesByPath(location.state.newFilePaths);
+      // Clear the state to prevent re-adding files on refresh
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location, navigate]);
 
   const handleFileSelect = async () => {
     const selectedPaths = await window.api.showOpenDialog();

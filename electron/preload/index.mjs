@@ -1,85 +1,58 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { electronAPI } from '@electron-toolkit/preload'
 
-// Custom APIs for renderer
 const api = {
+  // Settings
   getSettings: () => ipcRenderer.invoke('get-settings'),
-  saveBaseSettings: (settings) => ipcRenderer.invoke('save-base-settings', settings),
   saveProfiles: (data) => ipcRenderer.invoke('save-profiles', data),
-  testR2Connection: (data) => ipcRenderer.invoke('r2-test-connection', data),
-  getBucketStats: () => ipcRenderer.invoke('r2-get-bucket-stats'),
-  checkR2Status: () => ipcRenderer.invoke('check-r2-status'),
-  listObjects: (args) => ipcRenderer.invoke('r2-list-objects', args),
-  deleteObject: (key) => ipcRenderer.invoke('r2-delete-object', key),
+  testConnection: (profile) => ipcRenderer.invoke('test-connection', profile),
+  
+  // Bucket/File Operations
+  checkStatus: () => ipcRenderer.invoke('check-status'),
+  getBucketStats: () => ipcRenderer.invoke('get-bucket-stats'),
+  listObjects: (options) => ipcRenderer.invoke('list-objects', options),
+  deleteObject: (key) => ipcRenderer.invoke('delete-object', key),
+  uploadFile: (filePath, key) => ipcRenderer.invoke('upload-file', { filePath, key }),
   showOpenDialog: () => ipcRenderer.invoke('show-open-dialog'),
-  uploadFile: (filePath, key) => ipcRenderer.invoke('r2-upload-file', { filePath, key }),
-  onUploadProgress: (callback) => {
-    ipcRenderer.on('upload-progress', (event, data) => {
-      callback(data);
-    });
-    return () => ipcRenderer.removeAllListeners('upload-progress');
-  },
-  onUploadComplete: (callback) => {
-    ipcRenderer.on('upload-complete', (event, data) => {
-      callback(data);
-    });
-    return () => ipcRenderer.removeAllListeners('upload-complete');
-  },
-  onUploadError: (callback) => {
-    ipcRenderer.on('upload-error', (event, data) => {
-      callback(data);
-    });
-    return () => ipcRenderer.removeAllListeners('upload-error');
-  },
-  getDownloads: () => ipcRenderer.invoke('get-downloads'),
-  onDownloadProgress: (callback) => {
-    ipcRenderer.on('download-progress', (event, data) => {
-      callback(data)
-    })
-    return () => ipcRenderer.removeAllListeners('download-progress');
-  },
-  onDownloadComplete: (callback) => {
-    ipcRenderer.on('download-complete', (event, data) => {
-      callback(data)
-    })
-    return () => ipcRenderer.removeAllListeners('download-complete');
-  },
-  onDownloadError: (callback) => {
-    ipcRenderer.on('download-error', (event, data) => {
-      callback(data)
-    })
-    return () => ipcRenderer.removeAllListeners('download-error');
-  },
-  downloadFile: (key) => ipcRenderer.send('download-file', key),
-  openFileInFolder: (filePath) => ipcRenderer.send('open-file-in-folder', filePath),
-  removeDownload: (id) => ipcRenderer.invoke('remove-download', id),
-  clearCompletedDownloads: () => ipcRenderer.invoke('clear-completed-downloads'),
-  retryDownload: (taskId) => ipcRenderer.send('retry-download', taskId),
-  getAllDownloads: () => ipcRenderer.invoke('get-all-downloads'),
+  
+  // Downloads
   onDownloadUpdate: (callback) => {
-    const channel = 'download-update';
-    const listener = (event, data) => callback(data);
-    ipcRenderer.on(channel, listener);
-    return () => ipcRenderer.removeListener(channel, listener);
+    const handler = (event, ...args) => callback(...args);
+    ipcRenderer.on('download-update', handler);
+    return () => ipcRenderer.removeListener('download-update', handler);
   },
   onDownloadsCleared: (callback) => {
-    const channel = 'downloads-cleared';
-    const listener = (event, data) => callback(data);
-    ipcRenderer.on(channel, listener);
-    return () => ipcRenderer.removeListener(channel, listener);
+    const handler = (event, ...args) => callback(...args);
+    ipcRenderer.on('downloads-cleared', handler);
+    return () => ipcRenderer.removeListener('downloads-cleared', handler);
   },
+  downloadFile: (key) => ipcRenderer.send('download-file', key),
+  getAllDownloads: () => ipcRenderer.invoke('get-all-downloads'),
   deleteDownloadTask: (taskId) => ipcRenderer.invoke('delete-download-task', taskId),
+  clearCompletedDownloads: () => ipcRenderer.invoke('clear-completed-downloads'),
   showItemInFolder: (filePath) => ipcRenderer.invoke('show-item-in-folder', filePath),
-  // Window controls
+
+  // Uploads
+  onUploadProgress: (callback) => {
+    const handler = (event, ...args) => callback(...args);
+    ipcRenderer.on('upload-progress', handler);
+    return () => ipcRenderer.removeListener('upload-progress', handler);
+  },
+  getFilePaths: (files) => ipcRenderer.invoke('get-file-paths', files),
+
+  // Window Controls
   minimizeWindow: () => ipcRenderer.send('minimize-window'),
   maximizeWindow: () => ipcRenderer.send('maximize-window'),
   closeWindow: () => ipcRenderer.send('close-window'),
+  
+  // App Info
   getAppInfo: () => ipcRenderer.invoke('get-app-info'),
+
+  // Notifications (though managed by context, might be useful)
+  onNotification: (callback) => {
+    const handler = (event, ...args) => callback(...args);
+    ipcRenderer.on('notify', handler);
+    return () => ipcRenderer.removeListener('notify', handler);
+  },
 }
 
-// Use `contextBridge` APIs to expose Electron APIs to
-// the renderer. For more info, see:
-// https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
-contextBridge.exposeInMainWorld('api', api)
-
-// ... existing code ... 
+contextBridge.exposeInMainWorld('api', api); 

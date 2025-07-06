@@ -20,7 +20,10 @@ const fileTypeMappings = [
   { type: '应用', extensions: ['exe', 'app', 'dmg'], icon: <AppWindow className="h-10 w-10 text-gray-500" /> },
 ];
 
-export const getFileMeta = (key) => {
+export const getFileMeta = (file) => {
+  const key = file.key || file.Key; // Handle both 'key' and 'Key'
+  if (!key) return { description: '未知文件', icon: <FileIcon className="h-10 w-10 text-muted-foreground" /> };
+  
   const extension = key.split('.').pop()?.toLowerCase();
   if (!extension) return { description: '文件', icon: <FileIcon className="h-10 w-10 text-muted-foreground" /> };
 
@@ -36,10 +39,10 @@ export const getFileMeta = (key) => {
   };
 };
 
-export const getFileIcon = (key) => {
-  return getFileMeta(key).icon;
+export const getFileIcon = (file) => {
+  return getFileMeta(file).icon;
 };
 
-export const getFileTypeDescription = (key) => {
-  return getFileMeta(key).description;
+export const getFileTypeDescription = (file) => {
+  return getFileMeta(file).description;
 } 

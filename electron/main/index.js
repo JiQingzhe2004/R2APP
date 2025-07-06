@@ -8,36 +8,7 @@ import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import serve from 'electron-serve';
 import packageJson from '../../package.json' assert { type: 'json' };
-
-// Enhanced debugging - Print app paths
-console.log('App paths:');
-console.log('- App path:', app.getAppPath());
-console.log('- App directory structure:');
-try {
-  // Check if dist directory exists
-  const distPath = join(app.getAppPath(), 'dist');
-  console.log('- Dist path exists:', fs.existsSync(distPath));
-  if (fs.existsSync(distPath)) {
-    console.log('- Dist directory contents:', fs.readdirSync(distPath));
-    
-    // Check if index.html exists
-    const indexPath = join(distPath, 'index.html');
-    console.log('- index.html exists:', fs.existsSync(indexPath));
-  }
-} catch (err) {
-  console.error('Error checking directory structure:', err);
-}
-
-// Configure electron-serve with detailed logging
-const loadURL = serve({
-  directory: join(app.getAppPath(), 'dist'),
-  // Add a custom handler to log file requests
-  handler: (request, response) => {
-    const url = request.url.replace('app://', '');
-    console.log(`[electron-serve] Request for: ${url}`);
-    return null; // Let electron-serve handle the request normally
-  }
-});
+import OSS from 'ali-oss';
 
 // This is the correct way to disable sandbox for the entire app.
 app.commandLine.appendSwitch('no-sandbox');
@@ -51,26 +22,35 @@ const store = new Store();
 // --- Data Migration ---
 function runMigration() {
   const oldSettings = store.get('settings');
-  // Check if old structure exists and new structure doesn't
-  if (oldSettings && !store.has('profiles')) {
+  const oldProfiles = store.get('profiles');
+
+  // Check if old structure with base settings exists and new unified profiles don't
+  if (oldSettings && oldSettings.accountId && (!oldProfiles || oldProfiles.length === 0 || !oldProfiles[0].type)) {
     console.log('Migrating old settings to new profile structure...');
-    const newProfileId = uuidv4();
-    const newBaseSettings = {
+    
+    const migratedProfiles = (oldProfiles || []).map(p => ({
+      id: p.id || uuidv4(),
+      name: p.name || '默认R2配置',
+      bucketName: p.bucketName,
+      publicDomain: p.publicDomain || '',
+      // Add R2 specific fields from old base settings
+      type: 'r2',
       accountId: oldSettings.accountId,
       accessKeyId: oldSettings.accessKeyId,
       secretAccessKey: oldSettings.secretAccessKey,
-    };
-    const newProfile = {
-      id: newProfileId,
-      name: '默认配置',
-      bucketName: oldSettings.bucketName,
-      publicDomain: oldSettings.publicDomain || '',
-    };
+    }));
     
-    store.set('settings', newBaseSettings);
-    store.set('profiles', [newProfile]);
-    store.set('activeProfileId', newProfileId);
-    console.log('Migration complete.');
+    store.set('profiles', migratedProfiles);
+    
+    // If there was an active ID, keep it, otherwise set the first one as active.
+    if (!store.has('activeProfileId') && migratedProfiles.length > 0) {
+        store.set('activeProfileId', migratedProfiles[0].id);
+    }
+    
+    // Delete the old base settings key
+    store.delete('settings');
+    
+    console.log('Migration complete. Old base settings removed.');
   }
 }
 
@@ -80,7 +60,6 @@ runMigration();
 let mainWindow;
 
 function createWindow() {
-  console.log('Creating main window...');
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -92,51 +71,32 @@ function createWindow() {
       preload: join(__dirname, '../preload/index.mjs'),
       sandbox: false,
       contextIsolation: true,
-      // Enable dev tools in production for debugging
-      devTools: true
+      devTools: !app.isPackaged
     }
   })
 
   mainWindow.on('ready-to-show', () => {
-    console.log('Window ready to show');
     mainWindow.show()
-    // Open DevTools in production for debugging
-    if (!is.dev) {
-      mainWindow.webContents.openDevTools()
+    if (is.dev) {
+        mainWindow.webContents.openDevTools()
     }
   })
-
-  // Add error listener for failed page loads
-  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
-    console.error(`Failed to load URL: ${validatedURL}`);
-    console.error(`Error code: ${errorCode}, Description: ${errorDescription}`);
-  });
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
   })
   
-  mainWindow.on('closed', () => {
-    console.log('Window closed');
-    mainWindow = null;
-  });
-
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    console.log(`Loading dev URL: ${process.env['ELECTRON_RENDERER_URL']}`);
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-    mainWindow.webContents.openDevTools()
   } else {
-    console.log('Loading production app via electron-serve');
-    loadURL(mainWindow)
+    mainWindow.loadFile(join(__dirname, '../../dist/index.html'))
   }
 }
 
 app.whenReady().then(() => {
-  console.log('App is ready');
   electronApp.setAppUserModelId('com.r2.explorer')
 
-  // Register F5 for refresh
   globalShortcut.register('F5', () => {
     const focusedWindow = BrowserWindow.getFocusedWindow();
     if (focusedWindow) {
@@ -152,7 +112,6 @@ app.whenReady().then(() => {
 })
 
 app.on('will-quit', () => {
-  // Unregister all shortcuts.
   globalShortcut.unregisterAll();
 });
 
@@ -163,149 +122,227 @@ app.on('window-all-closed', () => {
 })
 
 // IPC handlers
-function getActiveSettings() {
-  const baseSettings = store.get('settings', {});
+function getActiveProfile() {
   const profiles = store.get('profiles', []);
   const activeProfileId = store.get('activeProfileId');
   const activeProfile = profiles.find(p => p.id === activeProfileId);
 
   if (!activeProfile) {
+    console.error('No active profile found.');
     return null;
   }
 
-  return { ...baseSettings, ...activeProfile };
+  return activeProfile;
 }
 
 ipcMain.handle('get-settings', () => {
   return {
-    settings: store.get('settings', {}),
     profiles: store.get('profiles', []),
     activeProfileId: store.get('activeProfileId')
   }
 })
 
-ipcMain.handle('save-base-settings', (event, settings) => {
-    store.set('settings', settings)
-    return { success: true }
-})
-
 ipcMain.handle('save-profiles', (event, { profiles, activeProfileId }) => {
-  store.set('profiles', profiles);
-  store.set('activeProfileId', activeProfileId);
-  return { success: true };
+  try {
+    store.set('profiles', profiles);
+    store.set('activeProfileId', activeProfileId);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to save profiles:', error);
+    return { success: false, error: error.message };
+  }
 });
 
-ipcMain.handle('r2-test-connection', async (event, { settings, profile }) => {
-  const testSettings = { ...settings, ...profile };
-  if (!testSettings.accountId || !testSettings.accessKeyId || !testSettings.secretAccessKey || !testSettings.bucketName) {
-    return { success: false, error: '缺少必要的配置信息。' }
-  }
-
-  const testS3Client = new S3Client({
-    region: 'auto',
-    endpoint: `https://${testSettings.accountId}.r2.cloudflarestorage.com`,
-    credentials: {
-      accessKeyId: testSettings.accessKeyId,
-      secretAccessKey: testSettings.secretAccessKey,
-    },
-  });
-
-  try {
-    const command = new ListObjectsV2Command({ Bucket: testSettings.bucketName, MaxKeys: 0 });
-    await testS3Client.send(command);
-    return { success: true, message: '连接成功！配置信息有效。' };
-  } catch (error) {
-    let errorMessage = '连接失败。';
-    if (error.name === 'NoSuchBucket') {
-      errorMessage = '连接失败：找不到指定的存储桶。';
-    } else if (error.name === 'InvalidAccessKeyId' || error.name === 'SignatureDoesNotMatch') {
-      errorMessage = '连接失败：访问密钥 ID 或秘密访问密钥无效。';
-    } else {
-      errorMessage = `连接失败：${error.message}`;
+ipcMain.handle('test-connection', async (event, profile) => {
+  if (profile.type === 'r2') {
+    if (!profile.accountId || !profile.accessKeyId || !profile.secretAccessKey || !profile.bucketName) {
+      return { success: false, error: '缺少 R2 配置信息。' }
     }
-    return { success: false, error: errorMessage };
+    const testS3Client = new S3Client({
+      region: 'auto',
+      endpoint: `https://${profile.accountId}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: profile.accessKeyId,
+        secretAccessKey: profile.secretAccessKey,
+      },
+    });
+    try {
+      await testS3Client.send(new ListObjectsV2Command({ Bucket: profile.bucketName, MaxKeys: 0 }));
+      return { success: true, message: 'R2 连接成功！' };
+    } catch (error) {
+      return { success: false, error: `R2 连接失败: ${error.message}` };
+    }
+  } else if (profile.type === 'oss') {
+    if (!profile.accessKeyId || !profile.accessKeySecret || !profile.bucket || !profile.region) {
+       return { success: false, error: '缺少 OSS 配置信息。' };
+    }
+    try {
+      const client = new OSS({
+        region: profile.region,
+        accessKeyId: profile.accessKeyId,
+        accessKeySecret: profile.accessKeySecret,
+        bucket: profile.bucket,
+        secure: true,
+      });
+      await client.list({ 'max-keys': 1 });
+      return { success: true, message: 'OSS 连接成功！' };
+    } catch (error) {
+       return { success: false, error: `OSS 连接失败: ${error.message}` };
+    }
+  } else {
+    return { success: false, error: '未知的配置类型。' };
   }
 });
 
-ipcMain.handle('check-r2-status', async () => {
-  const settings = getActiveSettings();
-  if (!settings || !settings.accountId || !settings.accessKeyId || !settings.secretAccessKey || !settings.bucketName) {
-    return { success: false, error: '缺少配置或未选择有效的存储库' };
-  }
+async function getStorageClient() {
+    const profile = getActiveProfile();
+    if (!profile) return null;
 
-  const s3Client = new S3Client({
-    region: 'auto',
-    endpoint: `https://${settings.accountId}.r2.cloudflarestorage.com`,
-    credentials: {
-      accessKeyId: settings.accessKeyId,
-      secretAccessKey: settings.secretAccessKey,
-    },
-  });
+    if (profile.type === 'r2') {
+        if (!profile.accountId || !profile.accessKeyId || !profile.secretAccessKey) return null;
+        return {
+            client: new S3Client({
+                region: 'auto',
+                endpoint: `https://${profile.accountId}.r2.cloudflarestorage.com`,
+                credentials: {
+                    accessKeyId: profile.accessKeyId,
+                    secretAccessKey: profile.secretAccessKey,
+                },
+            }),
+            type: 'r2',
+            bucket: profile.bucketName,
+        };
+    } else if (profile.type === 'oss') {
+        if (!profile.accessKeyId || !profile.accessKeySecret || !profile.bucket || !profile.region) return null;
+        return {
+            client: new OSS({
+                region: profile.region,
+                accessKeyId: profile.accessKeyId,
+                accessKeySecret: profile.accessKeySecret,
+                bucket: profile.bucket,
+                secure: true,
+            }),
+            type: 'oss',
+            bucket: profile.bucket,
+        };
+    }
+    return null;
+}
 
+ipcMain.handle('check-status', async () => {
+  const storage = await getStorageClient();
+  if (!storage) {
+     return { success: false, error: '缺少配置或未选择有效的存储库' };
+   }
+ 
   try {
-    const command = new HeadBucketCommand({ Bucket: settings.bucketName });
-    await s3Client.send(command);
-    return { success: true, message: '连接成功' };
-  } catch (error) {
-    return { success: false, error: `连接失败: ${error.message}` };
-  }
+    if (storage.type === 'r2') {
+      const command = new HeadBucketCommand({ Bucket: storage.bucket });
+      await storage.client.send(command);
+    } else if (storage.type === 'oss') {
+      await storage.client.list({ 'max-keys': 1 });
+    }
+     return { success: true, message: '连接成功' };
+   } catch (error) {
+     console.error('Check status failed:', error);
+     return { success: false, error: `连接检查失败: ${error.message}` };
+   }
 });
 
-ipcMain.handle('r2-get-bucket-stats', async () => {
-  const settings = getActiveSettings();
-  if (!settings || !settings.bucketName) {
+ipcMain.handle('get-bucket-stats', async () => {
+  const storage = await getStorageClient();
+  if (!storage) {
+     return { success: false, error: '请先在设置中配置您的存储桶。' };
+   }
+ 
+   let totalSize = 0;
+   let totalCount = 0;
+  let continuationToken;
+   
+   try {
+    if (storage.type === 'r2') {
+     do {
+          const command = new ListObjectsV2Command({ Bucket: storage.bucket, ContinuationToken: continuationToken });
+          const response = await storage.client.send(command);
+       if (response.Contents) {
+         totalCount += response.Contents.length;
+         totalSize += response.Contents.reduce((acc, obj) => acc + obj.Size, 0);
+       }
+          continuationToken = response.NextContinuationToken;
+        } while (continuationToken);
+    } else if (storage.type === 'oss') {
+        let response;
+        do {
+            response = await storage.client.list({ marker: continuationToken, 'max-keys': 1000 });
+            if (response.objects) {
+                totalCount += response.objects.length;
+                totalSize += response.objects.reduce((acc, obj) => acc + obj.size, 0);
+            }
+            continuationToken = response.nextMarker;
+        } while (response.isTruncated);
+    }
+     return { success: true, data: { totalCount, totalSize } };
+   } catch (error) {
+     console.error('Failed to get bucket stats:', error);
+     return { success: false, error: '获取存储桶统计信息失败。' };
+   }
+});
+
+ipcMain.handle('list-objects', async (_, { continuationToken, prefix }) => {
+  const storage = await getStorageClient();
+  if (!storage) {
     return { success: false, error: '请先在设置中配置您的存储桶。' };
   }
 
-  const s3Client = new S3Client({
-    region: 'auto',
-    endpoint: `https://${settings.accountId}.r2.cloudflarestorage.com`,
-    credentials: {
-      accessKeyId: settings.accessKeyId,
-      secretAccessKey: settings.secretAccessKey,
-    },
-  });
-
-  let totalSize = 0;
-  let totalCount = 0;
-  let ContinuationToken;
-  
   try {
-    do {
-      const command = new ListObjectsV2Command({
-        Bucket: settings.bucketName,
-        ContinuationToken: ContinuationToken,
-      });
-      const response = await s3Client.send(command);
-      
-      if (response.Contents) {
-        totalCount += response.Contents.length;
-        totalSize += response.Contents.reduce((acc, obj) => acc + obj.Size, 0);
-      }
-      
-      ContinuationToken = response.NextContinuationToken;
-    } while (ContinuationToken);
+    let files = [];
+    let nextContinuationToken;
 
-    return { success: true, data: { totalCount, totalSize } };
+    if (storage.type === 'r2') {
+      const command = new ListObjectsV2Command({ Bucket: storage.bucket, ContinuationToken: continuationToken, Prefix: prefix, MaxKeys: 30 });
+      const response = await storage.client.send(command);
+      files = (response.Contents || []).map(f => ({
+          key: f.Key,
+          lastModified: f.LastModified,
+          size: f.Size,
+          etag: f.ETag
+      }));
+      nextContinuationToken = response.NextContinuationToken;
+    } else if (storage.type === 'oss') {
+      const response = await storage.client.list({ marker: continuationToken, prefix: prefix, 'max-keys': 30 });
+      files = (response.objects || []).map(f => ({
+          key: f.name,
+          lastModified: f.lastModified,
+          size: f.size,
+          etag: f.etag
+      }));
+      nextContinuationToken = response.nextMarker;
+    }
+    
+    return { success: true, data: { files, nextContinuationToken } };
   } catch (error) {
-     return { success: false, error: `获取统计信息失败: ${error.message}` };
+    return { success: false, error: `获取文件列表失败: ${error.message}` };
   }
 });
 
-function getS3Client() {
-  const settings = getActiveSettings();
-  if (!settings || !settings.bucketName) {
-    return null;
+ipcMain.handle('delete-object', async (_, key) => {
+  const storage = await getStorageClient();
+  if (!storage) {
+    return { success: false, error: '客户端未初始化。' };
   }
-  return new S3Client({
-    region: 'auto',
-    endpoint: `https://${settings.accountId}.r2.cloudflarestorage.com`,
-    credentials: {
-      accessKeyId: settings.accessKeyId,
-      secretAccessKey: settings.secretAccessKey,
-    },
-  });
-}
+
+  try {
+    if (storage.type === 'r2') {
+        const command = new DeleteObjectCommand({ Bucket: storage.bucket, Key: key });
+        await storage.client.send(command);
+    } else if (storage.type === 'oss') {
+        await storage.client.delete(key);
+    }
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: `删除文件失败: ${error.message}` };
+  }
+});
 
 ipcMain.handle('show-open-dialog', async () => {
   if (!mainWindow) return;
@@ -315,220 +352,168 @@ ipcMain.handle('show-open-dialog', async () => {
   return result.filePaths;
 });
 
-ipcMain.handle('r2-upload-file', async (_, { filePath, key }) => {
-  const s3Client = getS3Client();
-  if (!s3Client) {
-    return { success: false, error: '请先在设置中配置您的存储桶。' };
-  }
-  const settings = getActiveSettings();
-  const bucketName = settings.bucketName;
+ipcMain.handle('upload-file', async (_, { filePath, key }) => {
+  const storage = await getStorageClient();
+  if (!storage) {
+     return { success: false, error: '请先在设置中配置您的存储桶。' };
+   }
 
-  try {
-    const fileStream = fs.createReadStream(filePath);
-    const upload = new Upload({
-      client: s3Client,
-      params: {
-        Bucket: bucketName,
-        Key: key,
-        Body: fileStream,
-      },
-      queueSize: 4, // optional concurrency
-      partSize: 1024 * 1024 * 5, // optional size of each part
-      leavePartsOnError: false, // optional manually handle dropped parts
-    });
-
-    upload.on('httpUploadProgress', (progress) => {
-      if (progress.total) {
-        const percentage = Math.round((progress.loaded / progress.total) * 100);
-        mainWindow.webContents.send('upload-progress', { key, percentage });
-      }
-    });
-
-    await upload.done();
-    return { success: true };
-  } catch (error) {
-    mainWindow.webContents.send('upload-progress', { key, percentage: 0, error: error.message });
-    return { success: false, error: `文件上传失败: ${error.message}` };
-  }
-});
+   try {
+    if (storage.type === 'r2') {
+     const fileStream = fs.createReadStream(filePath);
+     const upload = new Upload({
+        client: storage.client,
+        params: { Bucket: storage.bucket, Key: key, Body: fileStream },
+     });
+      upload.on('httpUploadProgress', (p) => {
+        if (p.total) {
+          mainWindow.webContents.send('upload-progress', { key, percentage: Math.round((p.loaded / p.total) * 100) });
+       }
+     });
+ 
+     await upload.done();
+    } else if (storage.type === 'oss') {
+      await storage.client.multipartUpload(key, filePath, {
+        progress: (p) => {
+            mainWindow.webContents.send('upload-progress', { key, percentage: Math.round(p * 100) });
+        }
+      });
+    }
+     return { success: true };
+   } catch (error) {
+     console.error('Upload failed:', error);
+     return { success: false, error: `文件上传失败: ${error.message}` };
+   }
+ });
 
 ipcMain.on('download-file', async (event, key) => {
-  const s3Client = getS3Client();
-  if (!s3Client) {
-    mainWindow.webContents.send('download-update', { type: 'error', data: { error: 'S3 client not initialized' } });
-    return;
-  }
-  const bucketName = getActiveSettings().bucketName;
-  const downloadsPath = app.getPath('downloads');
-  let filePath = join(downloadsPath, key);
+  const storage = await getStorageClient();
+  if (!storage) {
+    mainWindow.webContents.send('download-update', { type: 'error', data: { error: '存储客户端未初始化' } });
+     return;
+   }
+  
+   const downloadsPath = app.getPath('downloads');
+   let filePath = join(downloadsPath, key);
 
-  // Avoid overwriting existing files
-  if (fs.existsSync(filePath)) {
-    const timestamp = new Date().getTime();
-    const pathData = parse(filePath);
-    filePath = join(pathData.dir, `${pathData.name}-${timestamp}${pathData.ext}`);
-  }
+   if (fs.existsSync(filePath)) {
+     const timestamp = new Date().getTime();
+     const pathData = parse(filePath);
+     filePath = join(pathData.dir, `${pathData.name}-${timestamp}${pathData.ext}`);
+   }
 
-  const taskId = uuidv4();
-  const task = {
-    id: taskId,
-    key,
-    filePath,
-    status: 'starting',
-    progress: 0,
-    createdAt: new Date().toISOString(),
-  };
+   const taskId = uuidv4();
+   const task = {
+     id: taskId,
+     key,
+     filePath,
+     status: 'starting',
+     progress: 0,
+     createdAt: new Date().toISOString(),
+   };
 
-  const tasks = store.get('download-tasks', {});
-  tasks[taskId] = task;
-  store.set('download-tasks', tasks);
+   const tasks = store.get('download-tasks', {});
+   tasks[taskId] = task;
+   store.set('download-tasks', tasks);
 
-  mainWindow.webContents.send('download-update', { type: 'start', task });
+   mainWindow.webContents.send('download-update', { type: 'start', task });
 
-  try {
-    const command = new GetObjectCommand({ Bucket: bucketName, Key: key });
-    const { Body, ContentLength } = await s3Client.send(command);
-
-    if (!Body) {
-      throw new Error('Could not get file body from S3');
-    }
-
-    const fileStream = fs.createWriteStream(filePath);
-    let downloaded = 0;
-    let lastProgressTime = 0;
-    let lastDownloaded = 0;
-
-    Body.on('data', (chunk) => {
-      downloaded += chunk.length;
-      const progress = ContentLength ? Math.round((downloaded / ContentLength) * 100) : 0;
-      
-      const now = Date.now();
-      let speed = 0;
-      if (now - lastProgressTime > 500) { // Update speed every 500ms
-        const timeDiff = (now - lastProgressTime) / 1000;
-        const bytesDiff = downloaded - lastDownloaded;
-        speed = timeDiff > 0 ? bytesDiff / timeDiff : 0;
-        lastProgressTime = now;
-        lastDownloaded = downloaded;
+   try {
+     if (storage.type === 'r2') {
+         const command = new GetObjectCommand({ Bucket: storage.bucket, Key: key });
+         const { Body, ContentLength } = await storage.client.send(command);
+ 
+      if (!Body) {
+        throw new Error('No response body from S3');
       }
-      
-      const currentTasks = store.get('download-tasks', {});
-      if (currentTasks[taskId]) {
-        currentTasks[taskId] = { ...currentTasks[taskId], progress, status: 'downloading', speed };
-        store.set('download-tasks', currentTasks);
-      }
-      mainWindow.webContents.send('download-update', { type: 'progress', data: { id: taskId, progress, speed, status: 'downloading' } });
-    });
 
-    Body.pipe(fileStream);
-    
-    await new Promise((resolve, reject) => {
-      fileStream.on('finish', () => {
-        const finalTasks = store.get('download-tasks', {});
-        if (finalTasks[taskId]) {
-          finalTasks[taskId].status = 'completed';
-          finalTasks[taskId].progress = 100;
-          finalTasks[taskId].speed = 0;
-          store.set('download-tasks', finalTasks);
+      const writeStream = fs.createWriteStream(filePath);
+      let downloadedBytes = 0;
+      let lastProgressTime = 0;
+      let lastDownloaded = 0;
+
+      Body.on('data', (chunk) => {
+        downloadedBytes += chunk.length;
+        const progress = ContentLength ? Math.round((downloadedBytes / ContentLength) * 100) : 0;
+        
+        const now = Date.now();
+        let speed = 0;
+        if (now - lastProgressTime > 500) {
+          const timeDiff = (now - lastProgressTime) / 1000;
+          const bytesDiff = downloadedBytes - lastDownloaded;
+          speed = timeDiff > 0 ? bytesDiff / timeDiff : 0;
+          lastProgressTime = now;
+          lastDownloaded = downloadedBytes;
         }
-        mainWindow.webContents.send('download-update', { type: 'progress', data: { id: taskId, progress: 100, status: 'completed' } });
-        resolve();
+        
+        mainWindow.webContents.send('download-update', { type: 'progress', data: { id: taskId, progress, speed } });
       });
-      const errorHandler = (err) => {
-        const errorTasks = store.get('download-tasks', {});
-        if (errorTasks[taskId]) {
-          errorTasks[taskId].status = 'error';
-          errorTasks[taskId].error = err.message;
-          store.set('download-tasks', errorTasks);
-        }
-        mainWindow.webContents.send('download-update', { type: 'progress', data: { id: taskId, status: 'error', error: err.message } });
-        reject(err);
-      };
-      fileStream.on('error', errorHandler);
-      Body.on('error', errorHandler);
-    });
-  } catch (error) {
-    const errorTasks = store.get('download-tasks', {});
-    if (errorTasks[taskId]) {
-      errorTasks[taskId].status = 'error';
-      errorTasks[taskId].error = error.message;
-      store.set('download-tasks', errorTasks);
-    }
-    mainWindow.webContents.send('download-update', { type: 'progress', data: { id: taskId, status: 'error', error: error.message } });
-  }
+
+      Body.pipe(writeStream);
+      
+      await new Promise((resolve, reject) => {
+        const errorHandler = (err) => {
+          writeStream.end();
+          const errorTasks = store.get('download-tasks', {});
+          if (errorTasks[taskId]) {
+            errorTasks[taskId].status = 'failed';
+            errorTasks[taskId].error = err.message;
+            store.set('download-tasks', errorTasks);
+          }
+          mainWindow.webContents.send('download-update', { type: 'error', data: { id: taskId, error: err.message } });
+          reject(err);
+        };
+
+        writeStream.on('finish', () => {
+          const finalTasks = store.get('download-tasks', {});
+          if (finalTasks[taskId]) {
+            finalTasks[taskId].status = 'completed';
+            finalTasks[taskId].progress = 100;
+            store.set('download-tasks', finalTasks);
+          }
+          mainWindow.webContents.send('download-update', { type: 'progress', data: { id: taskId, progress: 100, status: 'completed' } });
+          resolve();
+        });
+        writeStream.on('error', errorHandler);
+        Body.on('error', errorHandler);
+      });
+     } else if (storage.type === 'oss') {
+         const result = await storage.client.get(key, filePath);
+         if (result.res.status === 200) {
+             const finalTasks = store.get('download-tasks', {});
+             if (finalTasks[taskId]) {
+                 finalTasks[taskId].status = 'completed';
+                 finalTasks[taskId].progress = 100;
+                 store.set('download-tasks', finalTasks);
+             }
+             mainWindow.webContents.send('download-update', { type: 'progress', data: { id: taskId, progress: 100, status: 'completed' } });
+         } else {
+             throw new Error(`OSS download failed with status: ${result.res.status}`);
+         }
+     }
+   } catch (error) {
+     const errorTasks = store.get('download-tasks', {});
+     if (errorTasks[taskId]) {
+       errorTasks[taskId].status = 'failed';
+       errorTasks[taskId].error = error.message;
+       store.set('download-tasks', errorTasks);
+     }
+     mainWindow.webContents.send('download-update', { type: 'error', data: { id: taskId, error: error.message } });
+   }
+ });
+
+ipcMain.handle('get-all-downloads', () => {
+  return store.get('download-tasks', {});
 });
 
-ipcMain.on('show-item-in-folder', (_, filePath) => {
+ipcMain.handle('show-item-in-folder', (event, filePath) => {
   shell.showItemInFolder(filePath);
 });
 
-ipcMain.on('downloads-clear-completed', () => {
-  const currentTasks = store.get('downloads', {});
-  const activeTasks = Object.entries(currentTasks).reduce((acc, [id, task]) => {
-    if (task.status !== 'completed') {
-      acc[id] = task;
-    }
-    return acc;
-  }, {});
-  store.set('downloads', activeTasks);
-  mainWindow.webContents.send('downloads-cleared', activeTasks);
+ipcMain.handle('get-file-paths', (event, files) => {
+  return files.map(f => f.path);
 });
 
-ipcMain.on('downloads-delete-task', (_, taskId) => {
-  const currentTasks = store.get('downloads', {});
-  // Here you could also add logic to delete the actual file from disk if desired
-  // fs.unlinkSync(currentTasks[taskId].filePath);
-  delete currentTasks[taskId];
-  store.set('downloads', currentTasks);
-  mainWindow.webContents.send('downloads-cleared', currentTasks);
-});
-
-ipcMain.handle('r2-list-objects', async (_, { continuationToken, prefix }) => {
-  const s3Client = getS3Client();
-  if (!s3Client) {
-    return { success: false, error: '请先在设置中配置您的存储桶。' };
-  }
-  const settings = getActiveSettings();
-  const bucketName = settings.bucketName;
-
-  try {
-    const command = new ListObjectsV2Command({
-      Bucket: bucketName,
-      ContinuationToken: continuationToken,
-      Prefix: prefix,
-      MaxKeys: 30,
-    });
-    const response = await s3Client.send(command);
-    return {
-      success: true, 
-      data: {
-        files: response.Contents || [],
-        nextContinuationToken: response.NextContinuationToken
-      }
-    };
-  } catch (error) {
-    return { success: false, error: `获取文件列表失败: ${error.message}` };
-  }
-});
-
-ipcMain.handle('r2-delete-object', async (_, key) => {
-  const s3Client = getS3Client();
-  if (!s3Client) {
-    return { success: false, error: '客户端未初始化。' };
-  }
-  const settings = getActiveSettings();
-  const bucketName = settings.bucketName;
-
-  try {
-    const command = new DeleteObjectCommand({ Bucket: bucketName, Key: key });
-    await s3Client.send(command);
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: `删除文件失败: ${error.message}` };
-  }
-});
-
-// IPC handlers for window controls
 ipcMain.on('minimize-window', () => {
   mainWindow?.minimize();
 });
@@ -559,7 +544,6 @@ ipcMain.handle('delete-download-task', (event, taskId) => {
   const tasks = store.get('download-tasks', {});
   delete tasks[taskId];
   store.set('download-tasks', tasks);
-  // Notify renderer to update its state
   if (mainWindow) {
     mainWindow.webContents.send('downloads-cleared', tasks);
   }
@@ -574,16 +558,7 @@ ipcMain.handle('clear-completed-downloads', () => {
     }
   }
   store.set('download-tasks', newTasks);
-  // Notify renderer to update its state
   if (mainWindow) {
     mainWindow.webContents.send('downloads-cleared', newTasks);
   }
 });
-
-ipcMain.handle('get-all-downloads', () => {
-  return store.get('download-tasks', {});
-});
-
-ipcMain.handle('show-item-in-folder', (event, filePath) => {
-  shell.showItemInFolder(filePath);
-}); 

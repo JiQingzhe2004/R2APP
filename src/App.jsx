@@ -24,8 +24,8 @@ function AppContent() {
   const checkStatus = useCallback(async () => {
     setR2Status({ loading: true, success: false, message: '正在检查连接...' });
     try {
-      const result = await window.api.checkR2Status();
-      setR2Status({ loading: false, success: result.success, message: result.success ? 'R2 存储连接正常' : result.error });
+      const result = await window.api.checkStatus();
+      setR2Status({ loading: false, success: result.success, message: result.success ? '存储连接正常' : result.error });
     } catch (error) {
       setR2Status({ loading: false, success: false, message: `检查失败: ${error.message}` });
     }
@@ -61,36 +61,34 @@ function AppContent() {
   }
 
   return (
-    <Router>
-      <Layout>
-        <Sidebar isCollapsed={isSidebarCollapsed} onToggle={toggleSidebar} />
-        <LayoutBody>
-          <Header 
-            onSearchClick={() => setIsSearchDialogOpen(true)} 
-            r2Status={r2Status}
-            profiles={profiles}
-            activeProfileId={activeProfileId}
-            onProfileSwitch={handleProfileSwitch}
-            notifications={notifications}
-            unreadCount={unreadCount}
-            onMarkAllRead={markAllAsRead}
-            onClearNotifications={clearNotifications}
-            onRemoveNotification={removeNotification}
-          />
-          <main className="flex-1 p-6 overflow-auto">
-            <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<DashboardPage key={activeProfileId} />} />
-              <Route path="/files" element={<FilesPage key={activeProfileId} isSearchOpen={isSearchDialogOpen} onSearchOpenChange={setIsSearchDialogOpen} />} />
-              <Route path="/uploads" aname="uploads" element={<UploadsPage />} />
-              <Route path="/downloads" element={<DownloadsPage />} />
-              <Route path="/settings" element={<SettingsPage onSettingsSaved={refreshState} />} />
-              <Route path="/about" element={<AboutPage />} />
-            </Routes>
-          </main>
-        </LayoutBody>
-      </Layout>
-    </Router>
+    <Layout>
+      <Sidebar isCollapsed={isSidebarCollapsed} onToggle={toggleSidebar} />
+      <LayoutBody>
+        <Header 
+          onSearchClick={() => setIsSearchDialogOpen(true)} 
+          r2Status={r2Status}
+          profiles={profiles}
+          activeProfileId={activeProfileId}
+          onProfileSwitch={handleProfileSwitch}
+          notifications={notifications}
+          unreadCount={unreadCount}
+          onMarkAllRead={markAllAsRead}
+          onClearNotifications={clearNotifications}
+          onRemoveNotification={removeNotification}
+        />
+        <main className="flex-1 p-6 overflow-auto">
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<DashboardPage key={activeProfileId} />} />
+            <Route path="/files" element={<FilesPage key={activeProfileId} isSearchOpen={isSearchDialogOpen} onSearchOpenChange={setIsSearchDialogOpen} />} />
+            <Route path="/uploads" aname="uploads" element={<UploadsPage />} />
+            <Route path="/downloads" element={<DownloadsPage />} />
+            <Route path="/settings" element={<SettingsPage onSettingsSaved={refreshState} />} />
+            <Route path="/about" element={<AboutPage />} />
+          </Routes>
+        </main>
+      </LayoutBody>
+    </Layout>
   );
 }
 
@@ -99,7 +97,9 @@ function App() {
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
       <Toaster richColors position="top-center" />
       <NotificationProvider>
-        <AppContent />
+        <Router>
+          <AppContent />
+        </Router>
       </NotificationProvider>
     </ThemeProvider>
   )

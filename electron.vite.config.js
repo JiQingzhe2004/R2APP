@@ -9,7 +9,7 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, 'electron/main/index.js')
         },
-        external: ['@electron-toolkit/utils', 'electron-store']
+        external: ['@electron-toolkit/utils', 'electron-store', 'ali-oss']
       }
     }
   },

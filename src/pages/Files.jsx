@@ -131,7 +131,7 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
     if (result.success) {
       toast.success('文件删除成功');
       addNotification({ message: `文件 "${fileToDelete}" 已删除`, type: 'success' });
-      setFiles(prev => prev.filter(file => file.Key !== fileToDelete));
+      setFiles(prev => prev.filter(file => (file.key || file.Key) !== fileToDelete));
     } else {
       toast.error(`删除失败: ${result.error}`);
       addNotification({ message: `删除文件 "${fileToDelete}" 失败`, type: 'error' });
@@ -150,7 +150,6 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
   const getPublicUrl = (key) => {
     if (!settings) return null;
 
-    // 优先使用自定义公共域
     if (settings.publicDomain) {
       let domain = settings.publicDomain;
       if (domain.endsWith('/')) {
@@ -162,12 +161,14 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
       return `${domain}/${key}`;
     }
 
-    // 回退到 R2 默认 URL
-    if (settings.accountId && settings.bucketName) {
+    if (settings.type === 'r2' && settings.accountId && settings.bucketName) {
       return `https://${settings.bucketName}.${settings.accountId}.r2.cloudflarestorage.com/${key}`;
     }
     
-    // 如果无法生成 URL，则返回 null
+    if (settings.type === 'oss' && settings.region && settings.bucket) {
+      return `https://${settings.bucket}.${settings.region}.aliyuncs.com/${key}`;
+    }
+
     return null;
   };
 
@@ -181,19 +182,22 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
     <div className="space-y-4">
       {files.map((file, index) => {
         const isLastElement = files.length === index + 1;
-        const publicUrl = getPublicUrl(file.Key);
+        const key = file.key || file.Key;
+        const size = file.size || file.Size;
+        const lastModified = file.lastModified || file.LastModified;
+        const publicUrl = getPublicUrl(key);
         return (
-          <Card key={file.Key} ref={isLastElement ? lastFileElementRef : null} className="p-4">
+          <Card key={key} ref={isLastElement ? lastFileElementRef : null} className="p-4">
             <div className="flex items-start gap-4">
-              {getFileIcon(file.Key)}
+              {getFileIcon(file)}
               <div className="flex-1 min-w-0">
-                <p className="font-semibold whitespace-nowrap overflow-hidden text-ellipsis" title={file.Key}>
-                  {file.Key}
+                <p className="font-semibold whitespace-nowrap overflow-hidden text-ellipsis" title={key}>
+                  {key}
                 </p>
                 <div className="text-sm text-muted-foreground flex items-center gap-4">
-                  <span>{getFileTypeDescription(file.Key)}</span>
-                  <span>{formatBytes(file.Size)}</span>
-                  <span>上次修改: {new Date(file.LastModified).toLocaleDateString()}</span>
+                  <span>{getFileTypeDescription(file)}</span>
+                  <span>{formatBytes(size)}</span>
+                  <span>上次修改: {new Date(lastModified).toLocaleDateString()}</span>
                 </div>
               </div>
             </div>
@@ -201,18 +205,18 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
               <div className="mt-4 flex items-center gap-2">
                   <Input readOnly value={publicUrl} className="bg-muted flex-1"/>
                   <Button variant="outline" size="icon" onClick={() => handleCopyUrl(publicUrl)}><Copy className="h-4 w-4"/></Button>
-                  <Button variant="outline" size="icon" onClick={() => handleDownload(file.Key)} disabled={downloading[file.Key]}>
+                  <Button variant="outline" size="icon" onClick={() => handleDownload(key)} disabled={downloading[key]}>
                       <Download className="h-4 w-4"/>
                   </Button>
-                  <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(file.Key)} disabled={downloading[file.Key]}><Trash2 className="h-4 w-4"/></Button>
+                  <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(key)} disabled={downloading[key]}><Trash2 className="h-4 w-4"/></Button>
               </div>
             )}
             {!publicUrl && (
                <div className="mt-4 flex items-center justify-end gap-2">
-                  <Button variant="outline" size="icon" onClick={() => handleDownload(file.Key)} disabled={downloading[file.Key]}>
+                  <Button variant="outline" size="icon" onClick={() => handleDownload(key)} disabled={downloading[key]}>
                       <Download className="h-4 w-4"/>
                   </Button>
-                  <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(file.Key)} disabled={downloading[file.Key]}><Trash2 className="h-4 w-4"/></Button>
+                  <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(key)} disabled={downloading[key]}><Trash2 className="h-4 w-4"/></Button>
               </div>
             )}
           </Card>
@@ -236,20 +240,25 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
             <TableBody>
                 {files.map((file, index) => {
                     const isLastElement = files.length === index + 1;
-                    const publicUrl = getPublicUrl(file.Key);
+                    const key = file.key || file.Key;
+                    const size = file.size || file.Size;
+                    const lastModified = file.lastModified || file.LastModified;
+                    const publicUrl = getPublicUrl(key);
                     return (
-                        <TableRow key={file.Key} ref={isLastElement ? lastFileElementRef : null}>
-                            <TableCell>{getFileIcon(file.Key)}</TableCell>
-                            <TableCell className="font-medium">{file.Key}</TableCell>
-                            <TableCell>{formatBytes(file.Size)}</TableCell>
-                            <TableCell>{new Date(file.LastModified).toLocaleDateString()}</TableCell>
+                        <TableRow key={key} ref={isLastElement ? lastFileElementRef : null}>
+                            <TableCell>{getFileIcon(file)}</TableCell>
+                            <TableCell className="font-medium">{key}</TableCell>
+                            <TableCell>{formatBytes(size)}</TableCell>
+                            <TableCell>{new Date(lastModified).toLocaleDateString()}</TableCell>
                             <TableCell className="text-right">
                                 <div className="flex items-center justify-end gap-2">
                                     {publicUrl && <Button variant="ghost" size="icon" onClick={() => handleCopyUrl(publicUrl)}><Copy className="h-4 w-4"/></Button>}
-                                    <Button variant="ghost" size="icon" onClick={() => handleDownload(file.Key)} disabled={downloading[file.Key]}>
+                                    <Button variant="ghost" size="icon" onClick={() => handleDownload(key)} disabled={downloading[key]}>
                                         <Download className="h-4 w-4"/>
                                     </Button>
-                                    <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(file.Key)} disabled={downloading[file.Key]}><Trash2 className="h-4 w-4"/></Button>
+                                    <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(key)} disabled={downloading[key]}>
+                                        <Trash2 className="h-4 w-4"/>
+                                    </Button>
                                 </div>
                             </TableCell>
                         </TableRow>
