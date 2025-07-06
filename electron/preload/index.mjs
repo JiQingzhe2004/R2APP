@@ -12,9 +12,7 @@ const api = {
   listObjects: (args) => ipcRenderer.invoke('r2-list-objects', args),
   deleteObject: (key) => ipcRenderer.invoke('r2-delete-object', key),
   showOpenDialog: () => ipcRenderer.invoke('show-open-dialog'),
-  uploadFile: (args) => {
-    ipcRenderer.send('r2-upload-file', args);
-  },
+  uploadFile: (filePath, key) => ipcRenderer.invoke('r2-upload-file', { filePath, key }),
   onUploadProgress: (callback) => {
     ipcRenderer.on('upload-progress', (event, data) => {
       callback(data);
@@ -57,6 +55,21 @@ const api = {
   removeDownload: (id) => ipcRenderer.invoke('remove-download', id),
   clearCompletedDownloads: () => ipcRenderer.invoke('clear-completed-downloads'),
   retryDownload: (taskId) => ipcRenderer.send('retry-download', taskId),
+  getAllDownloads: () => ipcRenderer.invoke('get-all-downloads'),
+  onDownloadUpdate: (callback) => {
+    const channel = 'download-update';
+    const listener = (event, data) => callback(data);
+    ipcRenderer.on(channel, listener);
+    return () => ipcRenderer.removeListener(channel, listener);
+  },
+  onDownloadsCleared: (callback) => {
+    const channel = 'downloads-cleared';
+    const listener = (event, data) => callback(data);
+    ipcRenderer.on(channel, listener);
+    return () => ipcRenderer.removeListener(channel, listener);
+  },
+  deleteDownloadTask: (taskId) => ipcRenderer.invoke('delete-download-task', taskId),
+  showItemInFolder: (filePath) => ipcRenderer.invoke('show-item-in-folder', filePath),
   // Window controls
   minimizeWindow: () => ipcRenderer.send('minimize-window'),
   maximizeWindow: () => ipcRenderer.send('maximize-window'),

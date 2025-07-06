@@ -30,7 +30,7 @@ try {
 
 // Configure electron-serve with detailed logging
 const loadURL = serve({
-  directory: 'dist',
+  directory: join(app.getAppPath(), 'dist'),
   // Add a custom handler to log file requests
   handler: (request, response) => {
     const url = request.url.replace('app://', '');
@@ -352,29 +352,17 @@ ipcMain.handle('r2-upload-file', async (_, { filePath, key }) => {
   }
 });
 
-const downloadTasks = store.get('downloads', {});
-
-// Function to update and save downloads
-function updateDownloads(newTasks) {
-  store.set('downloads', newTasks);
-}
-
-ipcMain.handle('downloads-get-all', () => {
-  return store.get('downloads', {});
-});
-
-ipcMain.on('r2-download-file', async (_, { key }) => {
+ipcMain.on('download-file', async (event, key) => {
   const s3Client = getS3Client();
   if (!s3Client) {
-    // We can't return an error directly, but we can send an event
-    // For now, we'll rely on the settings being correct.
+    mainWindow.webContents.send('download-update', { type: 'error', data: { error: 'S3 client not initialized' } });
     return;
   }
   const bucketName = getActiveSettings().bucketName;
-
   const downloadsPath = app.getPath('downloads');
   let filePath = join(downloadsPath, key);
 
+  // Avoid overwriting existing files
   if (fs.existsSync(filePath)) {
     const timestamp = new Date().getTime();
     const pathData = parse(filePath);
@@ -388,86 +376,85 @@ ipcMain.on('r2-download-file', async (_, { key }) => {
     filePath,
     status: 'starting',
     progress: 0,
-    total: 0,
-    downloaded: 0,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
   };
-  
-  const currentTasks = store.get('downloads', {});
-  currentTasks[taskId] = task;
-  updateDownloads(currentTasks);
 
-  mainWindow.webContents.send('download-start', task);
-  
+  const tasks = store.get('download-tasks', {});
+  tasks[taskId] = task;
+  store.set('download-tasks', tasks);
+
+  mainWindow.webContents.send('download-update', { type: 'start', task });
+
   try {
     const command = new GetObjectCommand({ Bucket: bucketName, Key: key });
     const { Body, ContentLength } = await s3Client.send(command);
-    
-    if (!Body) throw new Error('无法获取文件内容。');
 
-    task.status = 'downloading';
-    task.total = ContentLength;
-    
-    const writeStream = fs.createWriteStream(filePath);
-    let lastProgressTime = Date.now();
+    if (!Body) {
+      throw new Error('Could not get file body from S3');
+    }
+
+    const fileStream = fs.createWriteStream(filePath);
+    let downloaded = 0;
+    let lastProgressTime = 0;
     let lastDownloaded = 0;
 
     Body.on('data', (chunk) => {
-      task.downloaded += chunk.length;
-      if (task.total > 0) {
-        task.progress = Math.round((task.downloaded / task.total) * 100);
-      }
+      downloaded += chunk.length;
+      const progress = ContentLength ? Math.round((downloaded / ContentLength) * 100) : 0;
       
       const now = Date.now();
-      const timeDiff = (now - lastProgressTime) / 1000;
-      if (timeDiff > 0.5) {
-        const bytesDiff = task.downloaded - lastDownloaded;
-        const speed = timeDiff > 0 ? bytesDiff / timeDiff : 0;
-        lastDownloaded = task.downloaded;
+      let speed = 0;
+      if (now - lastProgressTime > 500) { // Update speed every 500ms
+        const timeDiff = (now - lastProgressTime) / 1000;
+        const bytesDiff = downloaded - lastDownloaded;
+        speed = timeDiff > 0 ? bytesDiff / timeDiff : 0;
         lastProgressTime = now;
-        
-        const tasks = store.get('downloads', {});
-        tasks[taskId] = { ...tasks[taskId], ...task, speed };
-        updateDownloads(tasks);
-        mainWindow.webContents.send('download-progress', { id: taskId, progress: task.progress, speed: speed, status: 'downloading' });
+        lastDownloaded = downloaded;
       }
+      
+      const currentTasks = store.get('download-tasks', {});
+      if (currentTasks[taskId]) {
+        currentTasks[taskId] = { ...currentTasks[taskId], progress, status: 'downloading', speed };
+        store.set('download-tasks', currentTasks);
+      }
+      mainWindow.webContents.send('download-update', { type: 'progress', data: { id: taskId, progress, speed, status: 'downloading' } });
     });
 
-    Body.pipe(writeStream);
-
+    Body.pipe(fileStream);
+    
     await new Promise((resolve, reject) => {
-      writeStream.on('finish', () => {
-        task.status = 'completed';
-        task.progress = 100;
-        
-        const tasks = store.get('downloads', {});
-        tasks[taskId] = { ...tasks[taskId], ...task, speed: 0 };
-        updateDownloads(tasks);
-        mainWindow.webContents.send('download-progress', { id: taskId, progress: 100, status: 'completed' });
+      fileStream.on('finish', () => {
+        const finalTasks = store.get('download-tasks', {});
+        if (finalTasks[taskId]) {
+          finalTasks[taskId].status = 'completed';
+          finalTasks[taskId].progress = 100;
+          finalTasks[taskId].speed = 0;
+          store.set('download-tasks', finalTasks);
+        }
+        mainWindow.webContents.send('download-update', { type: 'progress', data: { id: taskId, progress: 100, status: 'completed' } });
         resolve();
       });
       const errorHandler = (err) => {
-         task.status = 'error';
-         task.error = err.message;
-
-         const tasks = store.get('downloads', {});
-         tasks[taskId] = { ...tasks[taskId], ...task };
-         updateDownloads(tasks);
-         mainWindow.webContents.send('download-progress', { id: taskId, status: 'error', error: err.message });
-         reject(err);
-      }
-      writeStream.on('error', errorHandler);
+        const errorTasks = store.get('download-tasks', {});
+        if (errorTasks[taskId]) {
+          errorTasks[taskId].status = 'error';
+          errorTasks[taskId].error = err.message;
+          store.set('download-tasks', errorTasks);
+        }
+        mainWindow.webContents.send('download-update', { type: 'progress', data: { id: taskId, status: 'error', error: err.message } });
+        reject(err);
+      };
+      fileStream.on('error', errorHandler);
       Body.on('error', errorHandler);
     });
-
   } catch (error) {
-    task.status = 'error';
-    task.error = error.message;
-
-    const tasks = store.get('downloads', {});
-    tasks[taskId] = task;
-    updateDownloads(tasks);
-    mainWindow.webContents.send('download-progress', { id: taskId, status: 'error', error: error.message });
+    const errorTasks = store.get('download-tasks', {});
+    if (errorTasks[taskId]) {
+      errorTasks[taskId].status = 'error';
+      errorTasks[taskId].error = error.message;
+      store.set('download-tasks', errorTasks);
+    }
+    mainWindow.webContents.send('download-update', { type: 'progress', data: { id: taskId, status: 'error', error: error.message } });
   }
 });
 
@@ -483,7 +470,7 @@ ipcMain.on('downloads-clear-completed', () => {
     }
     return acc;
   }, {});
-  updateDownloads(activeTasks);
+  store.set('downloads', activeTasks);
   mainWindow.webContents.send('downloads-cleared', activeTasks);
 });
 
@@ -492,7 +479,7 @@ ipcMain.on('downloads-delete-task', (_, taskId) => {
   // Here you could also add logic to delete the actual file from disk if desired
   // fs.unlinkSync(currentTasks[taskId].filePath);
   delete currentTasks[taskId];
-  updateDownloads(currentTasks);
+  store.set('downloads', currentTasks);
   mainWindow.webContents.send('downloads-cleared', currentTasks);
 });
 
@@ -524,7 +511,7 @@ ipcMain.handle('r2-list-objects', async (_, { continuationToken, prefix }) => {
   }
 });
 
-ipcMain.handle('r2-delete-object', async (_, { key }) => {
+ipcMain.handle('r2-delete-object', async (_, key) => {
   const s3Client = getS3Client();
   if (!s3Client) {
     return { success: false, error: '客户端未初始化。' };
@@ -566,4 +553,37 @@ ipcMain.handle('get-app-info', () => {
     description: packageJson.description,
     license: packageJson.license,
   };
+});
+
+ipcMain.handle('delete-download-task', (event, taskId) => {
+  const tasks = store.get('download-tasks', {});
+  delete tasks[taskId];
+  store.set('download-tasks', tasks);
+  // Notify renderer to update its state
+  if (mainWindow) {
+    mainWindow.webContents.send('downloads-cleared', tasks);
+  }
+});
+
+ipcMain.handle('clear-completed-downloads', () => {
+  const tasks = store.get('download-tasks', {});
+  const newTasks = {};
+  for (const taskId in tasks) {
+    if (tasks[taskId].status !== 'completed') {
+      newTasks[taskId] = tasks[taskId];
+    }
+  }
+  store.set('download-tasks', newTasks);
+  // Notify renderer to update its state
+  if (mainWindow) {
+    mainWindow.webContents.send('downloads-cleared', newTasks);
+  }
+});
+
+ipcMain.handle('get-all-downloads', () => {
+  return store.get('download-tasks', {});
+});
+
+ipcMain.handle('show-item-in-folder', (event, filePath) => {
+  shell.showItemInFolder(filePath);
 }); 

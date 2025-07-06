@@ -65,7 +65,17 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
   }, [loading, nextToken, searchTerm]);
 
   useEffect(() => {
-    window.api.getSettings().then(setSettings);
+    const getActiveSettings = (fullSettings) => {
+        if (!fullSettings || !fullSettings.activeProfileId || !fullSettings.profiles) return null;
+        const baseSettings = fullSettings.settings || {};
+        const activeProfile = fullSettings.profiles.find(p => p.id === fullSettings.activeProfileId);
+        if (!activeProfile) return null;
+        return { ...baseSettings, ...activeProfile };
+    };
+    window.api.getSettings().then(fullSettings => {
+        const activeSettings = getActiveSettings(fullSettings);
+        setSettings(activeSettings);
+    });
     fetchFiles('');
   }, []);
 
@@ -134,16 +144,28 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
   };
 
   const getPublicUrl = (key) => {
-    if (!settings || !settings.publicDomain) return null;
-    let domain = settings.publicDomain;
-    if (domain.endsWith('/')) {
-      domain = domain.slice(0, -1);
+    if (!settings) return null;
+
+    // 优先使用自定义公共域
+    if (settings.publicDomain) {
+      let domain = settings.publicDomain;
+      if (domain.endsWith('/')) {
+        domain = domain.slice(0, -1);
+      }
+      if (!/^(https?:\/\/)/i.test(domain)) {
+        domain = `https://${domain}`;
+      }
+      return `${domain}/${key}`;
     }
-    if (!/^(https?:\/\/)/i.test(domain)) {
-      domain = `https://${domain}`;
+
+    // 回退到 R2 默认 URL
+    if (settings.accountId && settings.bucketName) {
+      return `https://${settings.bucketName}.${settings.accountId}.r2.cloudflarestorage.com/${key}`;
     }
-    return `${domain}/${key}`;
-  }
+    
+    // 如果无法生成 URL，则返回 null
+    return null;
+  };
 
   const handleDownload = (key) => {
       window.api.downloadFile(key);
