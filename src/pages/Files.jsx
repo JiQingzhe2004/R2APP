@@ -247,9 +247,11 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
                     return (
                         <TableRow key={key} ref={isLastElement ? lastFileElementRef : null}>
                             <TableCell>{getFileIcon(file)}</TableCell>
-                            <TableCell className="font-medium">{key}</TableCell>
+                            <TableCell className="font-medium max-w-xs truncate" title={key}>
+                              {key}
+                            </TableCell>
                             <TableCell>{formatBytes(size)}</TableCell>
-                            <TableCell>{new Date(lastModified).toLocaleDateString()}</TableCell>
+                            <TableCell>{new Date(lastModified).toLocaleString()}</TableCell>
                             <TableCell className="text-right">
                                 <div className="flex items-center justify-end gap-2">
                                     {publicUrl && <Button variant="ghost" size="icon" onClick={() => handleCopyUrl(publicUrl)}><Copy className="h-4 w-4"/></Button>}

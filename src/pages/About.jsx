@@ -12,7 +12,7 @@ export default function AboutPage() {
     author: '...',
     description: '正在加载描述信息...',
     license: '...',
-    githubUrl: 'https://github.com/your-repo' // 替换为您的仓库地址
+    githubUrl: 'https://github.com/JiQingzhe2004/R2APP' // 替换为您的仓库地址
   });
 
   useEffect(() => {

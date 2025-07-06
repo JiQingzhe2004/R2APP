@@ -10,7 +10,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
-  DropdownMenuLabel
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu"
 import { 
   Tooltip,
@@ -135,11 +137,15 @@ export function Header({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-[180px]">
-              {profiles.map(profile => (
-                <DropdownMenuItem key={profile.id} onSelect={() => onProfileSwitch(profile.id)} disabled={profile.id === activeProfileId}>
-                  {profile.name}
-                </DropdownMenuItem>
-              ))}
+              <DropdownMenuLabel>选择配置</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuRadioGroup value={activeProfileId} onValueChange={onProfileSwitch}>
+                {profiles.map(profile => (
+                  <DropdownMenuRadioItem key={profile.id} value={profile.id}>
+                    {profile.name}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
