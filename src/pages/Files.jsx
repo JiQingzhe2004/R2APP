@@ -39,6 +39,7 @@ import {
 } from 'lucide-react';
 import { formatBytes, getFileIcon, getFileTypeDescription } from '@/lib/file-utils.jsx';
 import { useNotifications } from '@/contexts/NotificationContext';
+import FilePreview from '@/components/FilePreview';
 
 export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
   const [files, setFiles] = useState([]);
@@ -54,6 +55,7 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
   const [currentPrefix, setCurrentPrefix] = useState('');
   const [isCreateFolderDialogOpen, setIsCreateFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
+  const [previewFile, setPreviewFile] = useState(null);
   const { addNotification } = useNotifications();
   const observer = useRef();
   const navigate = useNavigate();
@@ -293,6 +295,8 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
           if (e.target.closest('button')) return;
           if (isDir) {
             handlePrefixChange(key);
+          } else {
+            setPreviewFile(file);
           }
         };
 
@@ -364,6 +368,8 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
                     const handleRowClick = () => {
                       if (isDir) {
                         handlePrefixChange(key);
+                      } else {
+                        setPreviewFile(file);
                       }
                     };
 
@@ -396,56 +402,57 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
   );
 
   return (
-    <AlertDialog open={!!fileToDelete} onOpenChange={(open) => !open && setFileToDelete(null)}>
-      <Dialog open={isSearchOpen} onOpenChange={onSearchOpenChange}>
-        <div className="flex flex-col h-full">
-          <div className="flex-shrink-0 mb-4">
-            <div className="flex justify-between items-center">
-              <h1 className="text-2xl font-bold">存储的文件</h1>
-              <div className="flex items-center gap-4">
-                  <span className="text-sm text-muted-foreground">{files.length} 个文件</span>
-                  
-                  <ToggleGroup type="single" value={viewMode} onValueChange={setViewMode} aria-label="View mode">
-                    <ToggleGroupItem value="card" aria-label="Card view">
-                      <LayoutGrid className="h-4 w-4" />
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="list" aria-label="List view">
-                      <List className="h-4 w-4" />
-                    </ToggleGroupItem>
-                  </ToggleGroup>
+    <>
+      <div className="flex flex-col h-full">
+        <div className="flex-shrink-0 mb-4">
+          <div className="flex justify-between items-center">
+            <h1 className="text-2xl font-bold">存储的文件</h1>
+            <div className="flex items-center gap-4">
+                <span className="text-sm text-muted-foreground">{files.length} 个文件</span>
+                
+                <ToggleGroup type="single" value={viewMode} onValueChange={setViewMode} aria-label="View mode">
+                  <ToggleGroupItem value="card" aria-label="Card view">
+                    <LayoutGrid className="h-4 w-4" />
+                  </ToggleGroupItem>
+                  <ToggleGroupItem value="list" aria-label="List view">
+                    <List className="h-4 w-4" />
+                  </ToggleGroupItem>
+                </ToggleGroup>
 
-                  <Button variant="outline" onClick={() => fetchFiles(currentPrefix, false)} disabled={loading}>
-                    <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                  </Button>
-                  <Button variant="outline" size="icon" onClick={() => setIsCreateFolderDialogOpen(true)}>
-                    <FolderPlus className="h-4 w-4" />
-                  </Button>
-                  <Button variant="outline" size="icon" onClick={handleFileSelectAndUpload}>
-                    <UploadCloud className="h-4 w-4" />
-                  </Button>
-              </div>
+                <Button variant="outline" onClick={() => fetchFiles(currentPrefix, false)} disabled={loading}>
+                  <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                </Button>
+                <Button variant="outline" size="icon" onClick={() => setIsCreateFolderDialogOpen(true)}>
+                  <FolderPlus className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" size="icon" onClick={handleFileSelectAndUpload}>
+                  <UploadCloud className="h-4 w-4" />
+                </Button>
             </div>
-            {searchTerm && (
-              <div className="mt-2 flex items-center gap-2">
-                  <p className="text-sm text-muted-foreground">
-                      搜索结果: <strong>{searchTerm}</strong>
-                  </p>
-                  <Button variant="ghost" size="icon" onClick={clearSearch}>
-                      <XCircle className="h-4 w-4" />
-                  </Button>
-              </div>
-            )}
           </div>
-
-          {renderBreadcrumbs()}
-
-          <div className="flex-1 overflow-auto">
-            {viewMode === 'card' ? renderFileCards() : renderFileList()}
-            {loading && <div className="text-center p-4">加载中...</div>}
-            {error && <div className="text-center p-4 text-red-500">错误: {error}</div>}
-            {!loading && files.length === 0 && <div className="text-center p-4">没有文件</div>}
-          </div>
+          {searchTerm && (
+            <div className="mt-2 flex items-center gap-2">
+                <p className="text-sm text-muted-foreground">
+                    搜索结果: <strong>{searchTerm}</strong>
+                </p>
+                <Button variant="ghost" size="icon" onClick={clearSearch}>
+                    <XCircle className="h-4 w-4" />
+                </Button>
+            </div>
+          )}
         </div>
+
+        {renderBreadcrumbs()}
+
+        <div className="flex-1 overflow-auto">
+          {viewMode === 'card' ? renderFileCards() : renderFileList()}
+          {loading && <div className="text-center p-4">加载中...</div>}
+          {error && <div className="text-center p-4 text-red-500">错误: {error}</div>}
+          {!loading && files.length === 0 && <div className="text-center p-4">没有文件</div>}
+        </div>
+      </div>
+      
+      <Dialog open={isSearchOpen} onOpenChange={onSearchOpenChange}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>搜索文件</DialogTitle>
@@ -464,18 +471,22 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>确定要删除吗?</AlertDialogTitle>
-          <AlertDialogDescription>
-            这个操作无法撤销。 "{fileToDelete}" 将从您的 R2 存储桶中永久删除。
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel onClick={() => setFileToDelete(null)}>取消</AlertDialogCancel>
-          <AlertDialogAction onClick={handleConfirmDelete}>确定</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
+      
+      <AlertDialog open={!!fileToDelete} onOpenChange={(open) => !open && setFileToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确定要删除吗?</AlertDialogTitle>
+            <AlertDialogDescription>
+              这个操作无法撤销。 "{fileToDelete}" 将从您的 R2 存储桶中永久删除。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setFileToDelete(null)}>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete}>确定</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <Dialog open={isCreateFolderDialogOpen} onOpenChange={setIsCreateFolderDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -502,6 +513,13 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </AlertDialog>
+
+      <FilePreview
+        file={previewFile}
+        publicUrl={previewFile ? getPublicUrl(previewFile.key) : null}
+        open={!!previewFile}
+        onOpenChange={() => setPreviewFile(null)}
+      />
+    </>
   );
 } 

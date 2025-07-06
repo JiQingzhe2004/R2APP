@@ -14,6 +14,7 @@ const api = {
   deleteObject: (key) => ipcRenderer.invoke('delete-object', key),
   deleteFolder: (prefix) => ipcRenderer.invoke('delete-folder', prefix),
   createFolder: (folderName) => ipcRenderer.invoke('create-folder', folderName),
+  getObjectContent: (key) => ipcRenderer.invoke('get-object-content', key),
   uploadFile: (filePath, key) => ipcRenderer.invoke('upload-file', { filePath, key }),
   showOpenDialog: () => ipcRenderer.invoke('show-open-dialog'),
   

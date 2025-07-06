@@ -496,6 +496,48 @@ ipcMain.handle('create-folder', async (event, folderName) => {
   }
 });
 
+const PREVIEW_FILE_SIZE_LIMIT = 1024 * 1024; // 1MB
+
+ipcMain.handle('get-object-content', async (event, key) => {
+  const storage = await getStorageClient();
+  if (!storage) {
+    return { success: false, error: '未找到有效的存储配置' };
+  }
+  const { client, type, bucket } = storage;
+
+  try {
+    let content = '';
+    let fileTooLarge = false;
+
+    if (type === 'r2') {
+      const command = new GetObjectCommand({ Bucket: bucket, Key: key });
+      const response = await client.send(command);
+
+      if (response.ContentLength > PREVIEW_FILE_SIZE_LIMIT) {
+        fileTooLarge = true;
+      } else {
+        content = await response.Body.transformToString();
+      }
+    } else if (type === 'oss') {
+      const response = await client.get(key);
+      if (response.res.size > PREVIEW_FILE_SIZE_LIMIT) {
+        fileTooLarge = true;
+      } else {
+        content = response.content.toString('utf-8');
+      }
+    }
+
+    if (fileTooLarge) {
+      return { success: false, error: '文件过大，无法预览。' };
+    }
+
+    return { success: true, content };
+  } catch (error) {
+    console.error(`Failed to get content for ${key}:`, error);
+    return { success: false, error: `获取文件内容失败: ${error.message}` };
+  }
+});
+
 ipcMain.handle('get-downloads', (event) => {
   return store.get('downloads', []);
 });
