@@ -82,12 +82,12 @@ let mainWindow;
 function createWindow() {
   console.log('Creating main window...');
   mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
+    width: 1200,
+    height: 800,
     show: false,
     autoHideMenuBar: true,
     frame: false,
-    ...(process.platform === 'linux' ? { icon: null } : {}),
+    ...(process.platform === 'linux' ? {} : { icon: join(__dirname, '../../resources/icon.ico') }),
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),
       sandbox: false,
