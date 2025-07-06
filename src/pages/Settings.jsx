@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/Label"
 import { Button } from "@/components/ui/Button"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { toast } from 'sonner'
+import { useNotifications } from '@/contexts/NotificationContext';
 import { User, KeyRound, Container, Globe, Plug, Save, PlusCircle, Trash2 } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid';
 
@@ -12,6 +13,7 @@ export default function SettingsPage({ onSettingsSaved }) {
   const [baseSettings, setBaseSettings] = useState({ accountId: '', accessKeyId: '', secretAccessKey: '' });
   const [profiles, setProfiles] = useState([]);
   const [activeProfileId, setActiveProfileId] = useState(null);
+  const { addNotification } = useNotifications();
   
   const [isTesting, setIsTesting] = useState({}); // Track by profile id
   const [isSaving, setIsSaving] = useState(false);
@@ -88,11 +90,13 @@ export default function SettingsPage({ onSettingsSaved }) {
 
     if (baseResult.success && profilesResult.success) {
       toast.success('所有设置已成功保存！', { id: toastId });
+      addNotification({ message: '设置已成功保存', type: 'success' });
       if (onSettingsSaved) {
         onSettingsSaved();
       }
     } else {
       toast.error('保存失败，请检查配置并重试。', { id: toastId });
+      addNotification({ message: '设置保存失败', type: 'error' });
     }
     setIsSaving(false);
   };

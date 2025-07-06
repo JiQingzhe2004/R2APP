@@ -4,12 +4,14 @@ import { Button } from '@/components/ui/Button';
 import { Progress } from '@/components/ui/Progress';
 import { Card, CardContent } from '@/components/ui/Card';
 import { UploadCloud, File, X, CheckCircle } from 'lucide-react';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 export default function UploadsPage() {
   const [filesToUpload, setFilesToUpload] = useState([]);
   const [uploadProgress, setUploadProgress] = useState({});
   const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const { addNotification } = useNotifications();
 
   useEffect(() => {
     console.log('UploadsPage mounted. Checking window.api:', window.api);
@@ -114,10 +116,12 @@ export default function UploadsPage() {
 
     if (errorCount > 0) {
       toast.error(`${errorCount} 个文件上传失败。`);
+      addNotification({ message: `${errorCount} 个文件上传失败`, type: 'error' });
     } 
     
     if (successCount > 0) {
        toast.success(`${successCount} 个文件上传成功！`);
+       addNotification({ message: `${successCount} 个文件上传成功`, type: 'success' });
     }
 
     if (errorCount === 0 && successCount > 0) {

@@ -1,12 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Progress } from '@/components/ui/Progress';
 import { Card } from '@/components/ui/Card';
 import { Download, CheckCircle, AlertTriangle, X, Trash2, FolderOpen } from 'lucide-react';
 import { getFileIcon, formatBytes } from '@/lib/file-utils.jsx';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 export default function DownloadsPage() {
     const [tasks, setTasks] = useState({});
+    const { addNotification } = useNotifications();
+    const tasksRef = useRef(tasks);
+    tasksRef.current = tasks;
 
     useEffect(() => {
         window.api.getAllDownloads().then(initialTasks => {
@@ -17,16 +21,25 @@ export default function DownloadsPage() {
             if (type === 'start') {
                 setTasks(prev => ({ ...prev, [task.id]: { ...task, speed: 0 } }));
             } else if (type === 'progress') {
+                const existingTask = tasksRef.current[data.id];
+                if (existingTask) {
+                    if (data.status === 'completed' && existingTask.status !== 'completed') {
+                        addNotification({ message: `文件 "${existingTask.key}" 下载完成`, type: 'success' });
+                    } else if (data.status === 'error' && existingTask.status !== 'error') {
+                        addNotification({ message: `文件 "${existingTask.key}" 下载失败: ${data.error}`, type: 'error' });
+                    }
+                }
+                
                 setTasks(prev => {
-                    const existingTask = prev[data.id];
-                    if (!existingTask) return prev;
+                    const currentTask = prev[data.id];
+                    if (!currentTask) return prev;
                     return {
                         ...prev,
                         [data.id]: {
-                            ...existingTask,
+                            ...currentTask,
                             progress: data.progress,
-                            status: data.status || existingTask.status,
-                            speed: data.speed || existingTask.speed,
+                            status: data.status || currentTask.status,
+                            speed: data.speed || currentTask.speed,
                             error: data.error
                         }
                     };
@@ -42,7 +55,7 @@ export default function DownloadsPage() {
             removeProgressListener();
             removeClearedListener();
         };
-    }, []);
+    }, [addNotification]);
     
     const taskValues = Object.values(tasks).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     const activeTasks = taskValues.filter(t => t.status !== 'completed' && t.status !== 'error');

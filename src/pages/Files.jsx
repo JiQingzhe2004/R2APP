@@ -38,6 +38,7 @@ import {
   RefreshCw, Trash2, Download, Copy, List, LayoutGrid, TextSearch, XCircle
 } from 'lucide-react';
 import { formatBytes, getFileIcon, getFileTypeDescription } from '@/lib/file-utils.jsx';
+import { useNotifications } from '@/contexts/NotificationContext';
 
 export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
   const [files, setFiles] = useState([]);
@@ -50,6 +51,7 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
   const [viewMode, setViewMode] = useState('card');
   const [searchTerm, setSearchTerm] = useState('');
   const [inputSearchTerm, setInputSearchTerm] = useState('');
+  const { addNotification } = useNotifications();
   const observer = useRef();
   const navigate = useNavigate();
 
@@ -128,9 +130,11 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
     const result = await window.api.deleteObject(fileToDelete);
     if (result.success) {
       toast.success('文件删除成功');
+      addNotification({ message: `文件 "${fileToDelete}" 已删除`, type: 'success' });
       setFiles(prev => prev.filter(file => file.Key !== fileToDelete));
     } else {
       toast.error(`删除失败: ${result.error}`);
+      addNotification({ message: `删除文件 "${fileToDelete}" 失败`, type: 'error' });
     }
     setFileToDelete(null);
   };
