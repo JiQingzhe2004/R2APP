@@ -7,6 +7,7 @@ import { Upload } from "@aws-sdk/lib-storage";
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import serve from 'electron-serve';
+import packageJson from '../../package.json' assert { type: 'json' };
 
 // Enhanced debugging - Print app paths
 console.log('App paths:');
@@ -555,4 +556,14 @@ ipcMain.on('maximize-window', () => {
 
 ipcMain.on('close-window', () => {
   mainWindow?.close();
+});
+
+ipcMain.handle('get-app-info', () => {
+  return {
+    name: app.getName(),
+    version: app.getVersion(),
+    author: packageJson.author,
+    description: packageJson.description,
+    license: packageJson.license,
+  };
 }); 

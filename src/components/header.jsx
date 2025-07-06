@@ -1,4 +1,4 @@
-import { Bell, TextSearch, ServerCog, ServerCrash, ServerOff, ChevronsUpDown, Minus, Square, X } from 'lucide-react'
+import { Bell, TextSearch, ShieldEllipsis, ShieldCheck, ShieldX, ChevronsUpDown, Minus, Square, X } from 'lucide-react'
 import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { 
@@ -20,12 +20,12 @@ export function Header({ onSearchClick, r2Status, profiles, activeProfileId, onP
 
   const getStatusIcon = () => {
     if (r2Status.loading) {
-      return <ServerCog className="h-5 w-5 text-muted-foreground" />;
+      return <ShieldEllipsis className="h-5 w-5 text-muted-foreground" />;
     }
     if (r2Status.success) {
-      return <ServerCrash className="h-5 w-5 text-green-500" />;
+      return <ShieldCheck className="h-5 w-5 text-green-500" />;
     }
-    return <ServerOff className="h-5 w-5 text-red-500" />;
+    return <ShieldX className="h-5 w-5 text-red-500" />;
   };
 
   const activeProfile = profiles.find(p => p.id === activeProfileId);

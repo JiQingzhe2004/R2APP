@@ -61,6 +61,7 @@ const api = {
   minimizeWindow: () => ipcRenderer.send('minimize-window'),
   maximizeWindow: () => ipcRenderer.send('maximize-window'),
   closeWindow: () => ipcRenderer.send('close-window'),
+  getAppInfo: () => ipcRenderer.invoke('get-app-info'),
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

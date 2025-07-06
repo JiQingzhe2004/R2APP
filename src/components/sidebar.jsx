@@ -15,7 +15,8 @@ import {
   ChevronRight,
   LayoutDashboard,
   Folder,
-  DownloadCloud
+  DownloadCloud,
+  Info
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useTheme } from "./theme-provider"
@@ -33,6 +34,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
     { id: 'uploads', href: '/uploads', icon: Upload, label: '文件上传' },
     { id: 'downloads', href: '/downloads', icon: DownloadCloud, label: '下载管理' },
     { id: 'settings', href: '/settings', icon: Settings, label: '设置' },
+    { id: 'about', href: '/about', icon: Info, label: '关于应用' },
   ]
 
   return (
@@ -52,8 +54,12 @@ export function Sidebar({ isCollapsed, onToggle }) {
         <ul className="space-y-1 h-full flex flex-col">
           {navItems.map(({ id, href, icon: Icon, label, disabled }) => {
             const isActive = location.pathname === href;
-            const isSettings = id === 'settings';
-            const liClass = isSettings ? 'mt-auto' : '';
+            
+            let liClass = '';
+            // Push settings to the bottom, which will pull 'about' with it.
+            if (id === 'settings') {
+              liClass = 'mt-auto';
+            }
 
             const linkContent = (
               <>
