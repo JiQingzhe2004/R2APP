@@ -1,7 +1,7 @@
 {
-  "name": "r2-explorer",
-  "version": "1.0.0",
-  "description": "一个用于管理Cloudflare R2存储的现代化桌面应用。",
+  "name": "CS-Explorer",
+  "version": "2.0.0",
+  "description": "一个用于管理在线云存储的现代化桌面应用。",
   "main": "out/main/index.js",
   "author": "吉庆喆",
   "license": "MIT",
