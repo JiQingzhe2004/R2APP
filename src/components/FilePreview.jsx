@@ -9,7 +9,8 @@ import {
 import { Button } from './ui/Button';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Copy } from 'lucide-react';
+import { toast } from 'sonner';
 
 const isImage = (fileName = '') => {
   const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
@@ -32,6 +33,13 @@ const FilePreview = ({ file, publicUrl, open, onOpenChange }) => {
   const [error, setError] = useState('');
 
   const fileName = file ? file.key.split('/').pop() : '';
+
+  const handleCopy = () => {
+    if (content) {
+      navigator.clipboard.writeText(content);
+      toast.success('代码已复制到剪贴板');
+    }
+  };
 
   useEffect(() => {
     if (open && file && isCode(fileName)) {
@@ -92,9 +100,19 @@ const FilePreview = ({ file, publicUrl, open, onOpenChange }) => {
     
     if (isCode(fileName)) {
       return (
-        <SyntaxHighlighter language={fileName.split('.').pop()} style={atomDark} showLineNumbers>
-          {content}
-        </SyntaxHighlighter>
+        <div className="relative">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-2 right-2 h-7 w-7"
+            onClick={handleCopy}
+          >
+            <Copy className="h-4 w-4" />
+          </Button>
+          <SyntaxHighlighter language={fileName.split('.').pop()} style={atomDark} showLineNumbers>
+            {content}
+          </SyntaxHighlighter>
+        </div>
       );
     }
 
