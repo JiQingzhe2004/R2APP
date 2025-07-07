@@ -1,6 +1,6 @@
 {
   "name": "CS-Explorer",
-  "version": "3.2.4",
+  "version": "3.2.5",
   "description": "一个用于管理在线云存储的现代化桌面应用。",
   "main": "out/main/index.js",
   "author": "吉庆喆",
