@@ -6,7 +6,7 @@ import { FileText, HardDrive, ChartColumnBig, Activity, Server, RefreshCw, Uploa
 import { formatBytes } from '@/lib/file-utils.jsx'
 import { useNotifications } from '@/contexts/NotificationContext'
 import { cn } from '@/lib/utils'
-import { Separator } from "@/components/ui/Separator"
+import { Separator } from "@/components/ui/separator"
 import React from 'react'
 
 function timeAgo(dateString) {
