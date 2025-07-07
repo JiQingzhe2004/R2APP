@@ -4,8 +4,19 @@ import { Toaster, toast } from 'sonner';
 import { Layout, LayoutBody } from '@/components/ui/layout'
 import { Sidebar } from '@/components/sidebar'
 import { Header } from '@/components/header'
-import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { NotificationProvider, useNotifications } from './contexts/NotificationContext';
+import { UpdateProvider, useUpdate } from './contexts/UpdateContext';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import DashboardPage from './pages/Dashboard';
 import SettingsPage from './pages/Settings';
 import FilesPage from './pages/Files';
@@ -13,6 +24,33 @@ import UploadsPage from './pages/Uploads';
 import DownloadsPage from './pages/Downloads';
 import AboutPage from './pages/About';
 import ReleaseNotesPage from './pages/ReleaseNotes';
+
+function AppUpdateDialog() {
+  const { updateInfo, isUpdateModalOpen, setIsUpdateModalOpen } = useUpdate();
+  const navigate = useNavigate();
+
+  const handleGoToUpdate = () => {
+    navigate('/about');
+    setIsUpdateModalOpen(false);
+  }
+
+  return (
+    <AlertDialog open={isUpdateModalOpen} onOpenChange={setIsUpdateModalOpen}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>发现新版本！</AlertDialogTitle>
+          <AlertDialogDescription>
+            已检测到新版本 {updateInfo?.version}。是否立即前往"关于"页面进行更新？
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>稍后吧</AlertDialogCancel>
+          <AlertDialogAction onClick={handleGoToUpdate}>去更新</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
 
 function AppContent() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -62,35 +100,38 @@ function AppContent() {
   }
 
   return (
-    <Layout>
-      <Sidebar isCollapsed={isSidebarCollapsed} onToggle={toggleSidebar} />
-      <LayoutBody>
-        <Header 
-          onSearchClick={() => setIsSearchDialogOpen(true)} 
-          r2Status={r2Status}
-          profiles={profiles}
-          activeProfileId={activeProfileId}
-          onProfileSwitch={handleProfileSwitch}
-          notifications={notifications}
-          unreadCount={unreadCount}
-          onMarkAllRead={markAllAsRead}
-          onClearNotifications={clearNotifications}
-          onRemoveNotification={removeNotification}
-        />
-        <main className="relative flex-1 overflow-auto p-6">
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<DashboardPage key={activeProfileId} />} />
-            <Route path="/files" element={<FilesPage key={activeProfileId} isSearchOpen={isSearchDialogOpen} onSearchOpenChange={setIsSearchDialogOpen} />} />
-            <Route path="/uploads" aname="uploads" element={<UploadsPage />} />
-            <Route path="/downloads" element={<DownloadsPage />} />
-            <Route path="/settings" element={<SettingsPage onSettingsSaved={refreshState} />} />
-            <Route path="/about" element={<AboutPage />} />
-            <Route path="/releasenotes" element={<ReleaseNotesPage />} />
-          </Routes>
-        </main>
-      </LayoutBody>
-    </Layout>
+    <>
+      <Layout>
+        <Sidebar isCollapsed={isSidebarCollapsed} onToggle={toggleSidebar} />
+        <LayoutBody>
+          <Header 
+            onSearchClick={() => setIsSearchDialogOpen(true)} 
+            r2Status={r2Status}
+            profiles={profiles}
+            activeProfileId={activeProfileId}
+            onProfileSwitch={handleProfileSwitch}
+            notifications={notifications}
+            unreadCount={unreadCount}
+            onMarkAllRead={markAllAsRead}
+            onClearNotifications={clearNotifications}
+            onRemoveNotification={removeNotification}
+          />
+          <main className="relative flex-1 overflow-auto p-6">
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<DashboardPage key={activeProfileId} />} />
+              <Route path="/files" element={<FilesPage key={activeProfileId} isSearchOpen={isSearchDialogOpen} onSearchOpenChange={setIsSearchDialogOpen} />} />
+              <Route path="/uploads" aname="uploads" element={<UploadsPage />} />
+              <Route path="/downloads" element={<DownloadsPage />} />
+              <Route path="/settings" element={<SettingsPage onSettingsSaved={refreshState} />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/releasenotes" element={<ReleaseNotesPage />} />
+            </Routes>
+          </main>
+        </LayoutBody>
+      </Layout>
+      <AppUpdateDialog />
+    </>
   );
 }
 
@@ -99,9 +140,11 @@ function App() {
     <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
       <Toaster richColors position="top-center" />
       <NotificationProvider>
-        <Router>
-          <AppContent />
-        </Router>
+        <UpdateProvider>
+          <Router>
+            <AppContent />
+          </Router>
+        </UpdateProvider>
       </NotificationProvider>
     </ThemeProvider>
   )

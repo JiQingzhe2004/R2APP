@@ -1,0 +1,24 @@
+directories:
+  output: release
+  buildResources: build
+appId: com.r2.explorer
+productName: CS-Explorer
+artifactName: ${productName}-Setup-${version}.${ext}
+files:
+  - filter:
+      - out/**
+win:
+  icon: resources/icon.ico
+  target: nsis
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  allowElevation: false
+  license: EULA.txt
+  installerIcon: resources/icon.ico
+publish:
+  - provider: github
+    owner: JiQingzhe2004
+    repo: R2APP
+electronVersion: 37.2.0

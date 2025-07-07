@@ -1,0 +1,30 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest # 您也可以换成 windows-latest 或 macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18' # 建议使用与您本地一致的 Node.js 版本
+      
+      - name: Install dependencies
+        # 使用 npm ci 更适合 CI 环境，它更快且严格遵循 package-lock.json
+        run: npm ci
+
+      - name: Build and release
+        env:
+          # GH_TOKEN 是您下一步需要在 GitHub Secrets 中设置的名字
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        # 这里我们假设先发布 Windows 版本，您可以为其他平台创建类似的 job
+        run: npm run release:win 

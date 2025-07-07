@@ -9,6 +9,9 @@ import { v4 as uuidv4 } from 'uuid';
 import serve from 'electron-serve';
 import packageJson from '../../package.json' assert { type: 'json' };
 import OSS from 'ali-oss';
+import { autoUpdater } from 'electron-updater';
+
+autoUpdater.autoDownload = false;
 
 const loadURL = serve({
   directory: join(__dirname, '../renderer')
@@ -97,9 +100,6 @@ function createWindow() {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
-    if (is.dev) {
-        mainWindow.webContents.openDevTools()
-    }
   })
 
   mainWindow.on('maximize', () => {
@@ -125,6 +125,16 @@ function createWindow() {
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.r2.explorer')
 
+  // --- Set Feed URL for Updater ---
+  // In production, it will automatically use the GitHub provider.
+  // In development, we point it to our local server.
+  if (is.dev) {
+    console.log('Updater: Development mode detected. Using dev-app-update.yml for configuration.');
+    autoUpdater.forceDevUpdateConfig = true;
+  } else {
+    console.log('Updater: Production mode. Will use package.json provider (GitHub).');
+  }
+
   globalShortcut.register('F5', () => {
     const focusedWindow = BrowserWindow.getFocusedWindow();
     if (focusedWindow) {
@@ -133,6 +143,7 @@ app.whenReady().then(() => {
   });
 
   createWindow()
+  setupAutoUpdater()
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -141,13 +152,62 @@ app.whenReady().then(() => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
-});
+})
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
 })
+
+// --- Auto-updater handlers ---
+function setupAutoUpdater() {
+  console.log('Updater: Initializing event listeners...');
+
+  autoUpdater.on('checking-for-update', () => {
+    console.log('Updater: Checking for update...');
+  })
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('Updater: Update available.', info);
+    mainWindow?.webContents.send('update-available', info);
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    console.log('Updater: Update not available.');
+    mainWindow?.webContents.send('update-not-available');
+  });
+
+  autoUpdater.on('download-progress', (progressObj) => {
+    console.log(`Updater: Download progress: ${progressObj.percent.toFixed(2)}%`);
+    mainWindow?.webContents.send('update-download-progress', progressObj);
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('Updater: Update downloaded.', info);
+    mainWindow?.webContents.send('update-downloaded', info);
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.error('Updater: Error in auto-updater.', err);
+    mainWindow?.webContents.send('update-error', err);
+  });
+}
+
+ipcMain.handle('check-for-updates', () => {
+  console.log('IPC: Received "check-for-updates". Triggering updater.');
+  autoUpdater.checkForUpdates();
+});
+
+ipcMain.handle('download-update', () => {
+  console.log('IPC: Received "download-update". Triggering download.');
+  autoUpdater.downloadUpdate();
+});
+
+ipcMain.handle('quit-and-install-update', () => {
+  console.log('IPC: Received "quit-and-install-update". Triggering quit and install.');
+  autoUpdater.quitAndInstall();
+});
 
 // IPC handlers
 function getActiveProfile() {

@@ -2,10 +2,83 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/Card"
 import WhiteLogo from '@/assets/WhiteLOGO.png'
 import BlackLogo from '@/assets/BlackLOGO.png'
-import { Github, GitCommit, UserCircle, Award, ArrowRight } from 'lucide-react'
+import { Github, GitCommit, UserCircle, Award, ArrowRight, Download, RefreshCw, CheckCircle, XCircle, AlertTriangle, Loader2 } from 'lucide-react'
 import { Button } from "@/components/ui/Button"
 import { useTheme } from '@/components/theme-provider';
+import { Progress } from "@/components/ui/Progress"
+import { useUpdate } from '@/contexts/UpdateContext';
 import versionData from '@/version.json';
+
+function UpdateManager() {
+  const {
+    status,
+    updateInfo,
+    progressInfo,
+    errorInfo,
+    checkForUpdates,
+    downloadUpdate,
+    quitAndInstallUpdate
+  } = useUpdate();
+  
+  const renderStatus = () => {
+    switch (status) {
+      case 'checking':
+        return <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />正在检查更新...</div>;
+      case 'downloading':
+        return (
+          <div className="w-full">
+            <p className="text-sm text-muted-foreground mb-2">正在下载更新... ({progressInfo.percent.toFixed(1)}%)</p>
+            <Progress value={progressInfo.percent} className="w-full" />
+          </div>
+        );
+      case 'available':
+        return <div className="flex items-center gap-2 text-blue-500"><Download className="h-4 w-4" />发现新版本 {updateInfo?.version}，可以开始下载。</div>;
+      case 'downloaded':
+        return <div className="flex items-center gap-2 text-green-500"><CheckCircle className="h-4 w-4" />更新已下载，可以重启安装。</div>;
+      case 'not-available':
+        return <div className="flex items-center gap-2 text-muted-foreground"><CheckCircle className="h-4 w-4" />您已经是最新版本。</div>;
+      case 'error':
+        return <div className="flex items-center gap-2 text-destructive"><XCircle className="h-4 w-4" />更新出错: {errorInfo?.message}</div>;
+      case 'idle':
+      default:
+        return <div className="flex items-center gap-2 text-muted-foreground"><AlertTriangle className="h-4 w-4" />欢迎检查更新。</div>;
+    }
+  };
+
+  const renderAction = () => {
+    switch (status) {
+      case 'available':
+        return <Button onClick={downloadUpdate}><Download className="mr-2 h-4 w-4" />下载更新</Button>;
+      case 'not-available':
+      case 'error':
+      case 'idle':
+        return <Button onClick={checkForUpdates} disabled={status === 'checking'}><RefreshCw className="mr-2 h-4 w-4" />检查更新</Button>;
+      case 'downloading':
+        return <Button disabled><Loader2 className="mr-2 h-4 w-4 animate-spin" />下载中...</Button>;
+      case 'downloaded':
+        return <Button onClick={quitAndInstallUpdate}><Download className="mr-2 h-4 w-4" />重启并安装</Button>;
+      default:
+        return null;
+    }
+  }
+
+  return (
+    <Card className="w-full max-w-2xl mt-4">
+      <CardHeader>
+        <CardTitle>应用更新</CardTitle>
+        <CardDescription>检查并安装应用的最新版本。</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="p-4 bg-muted/50 rounded-lg min-h-[60px] flex items-center justify-center">
+          {renderStatus()}
+        </div>
+        <div className="flex justify-end">
+          {renderAction()}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
 
 export default function AboutPage() {
   const { theme } = useTheme();
@@ -78,6 +151,7 @@ export default function AboutPage() {
           </div>
         </CardFooter>
       </Card>
+      <UpdateManager />
       <div className="text-center mt-6 text-xs text-muted-foreground space-y-2">
          <div className="flex items-center justify-center gap-x-4">
             <span>版本: {versionData.version}</span>

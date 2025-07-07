@@ -1,6 +1,6 @@
 {
   "name": "CS-Explorer",
-  "version": "3.1.2",
+  "version": "3.2.0",
   "description": "一个用于管理在线云存储的现代化桌面应用。",
   "main": "out/main/index.js",
   "author": "吉庆喆",
@@ -12,8 +12,11 @@
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
-    "build:mac": "npm run build && electron-builder --mac --config",
-    "build:linux": "npm run build && electron-builder --linux --config"
+    "build:mac": "npm run build && electron-builder --mac",
+    "build:linux": "npm run build && electron-builder --linux",
+    "release:win": "npm run build && electron-builder --win -p always -r dotenv/config",
+    "release:mac": "npm run build && electron-builder --mac -p always -r dotenv/config",
+    "release:linux": "npm run build && electron-builder --linux -p always -r dotenv/config"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.569.0",
@@ -50,6 +53,7 @@
     "@types/react": "^18.2.79",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.19",
+    "dotenv": "^17.0.1",
     "electron": "^37.2.0",
     "electron-builder": "^24.13.3",
     "electron-reloader": "^1.2.3",
@@ -64,10 +68,11 @@
   },
   "build": {
     "appId": "com.r2.explorer",
-    "productName": "R2 Explorer",
+    "productName": "CS-Explorer",
     "directories": {
       "output": "release"
     },
+    "artifactName": "${productName}-Setup-${version}.${ext}",
     "files": [
       "out/**"
     ],
@@ -82,6 +87,13 @@
       "allowElevation": false,
       "license": "EULA.txt",
       "installerIcon": "resources/icon.ico"
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "JiQingzhe2004",
+        "repo": "R2APP"
+      }
+    ]
   }
 }

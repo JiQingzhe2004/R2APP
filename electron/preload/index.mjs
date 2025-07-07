@@ -52,6 +52,16 @@ const api = {
   // The correct way to get file path from a dropped file object
   getPathForFile: (file) => webUtils.getPathForFile(file),
 
+  // Updater API
+  onUpdateAvailable: (callback) => ipcRenderer.on('update-available', (event, ...args) => callback(...args)),
+  onUpdateNotAvailable: (callback) => ipcRenderer.on('update-not-available', (event, ...args) => callback(...args)),
+  onUpdateDownloadProgress: (callback) => ipcRenderer.on('update-download-progress', (event, ...args) => callback(...args)),
+  onUpdateDownloaded: (callback) => ipcRenderer.on('update-downloaded', (event, ...args) => callback(...args)),
+  onUpdateError: (callback) => ipcRenderer.on('update-error', (event, ...args) => callback(...args)),
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
+  quitAndInstallUpdate: () => ipcRenderer.invoke('quit-and-install-update'),
+
   // Window Controls
   isWindowMaximized: () => ipcRenderer.invoke('is-window-maximized'),
   onWindowMaximizedStatusChanged: (callback) => {
