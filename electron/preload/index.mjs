@@ -10,6 +10,13 @@ const api = {
   checkStatus: () => ipcRenderer.invoke('check-status'),
   getBucketStats: () => ipcRenderer.invoke('get-bucket-stats'),
   getRecentActivities: () => ipcRenderer.invoke('get-recent-activities'),
+  clearRecentActivities: () => ipcRenderer.invoke('clear-recent-activities'),
+  deleteRecentActivity: (activityId) => ipcRenderer.invoke('delete-recent-activity', activityId),
+  onActivityUpdated: (callback) => {
+    const listener = (event, ...args) => callback(...args);
+    ipcRenderer.on('activity-updated', listener);
+    return () => ipcRenderer.removeListener('activity-updated', listener);
+  },
   listObjects: (options) => ipcRenderer.invoke('list-objects', options),
   deleteObject: (key) => ipcRenderer.invoke('delete-object', key),
   deleteFolder: (prefix) => ipcRenderer.invoke('delete-folder', prefix),

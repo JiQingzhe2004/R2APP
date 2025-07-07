@@ -1,6 +1,6 @@
 {
   "name": "CS-Explorer",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "一个用于管理在线云存储的现代化桌面应用。",
   "main": "out/main/index.js",
   "author": "吉庆喆",
@@ -81,9 +81,7 @@
       "allowToChangeInstallationDirectory": true,
       "allowElevation": false,
       "license": "EULA.txt",
-      "installerIcon": "resources/icon.ico",
-      "installerHeader": "resources/installerHeader.bmp",
-      "sidebar": "resources/sidebar.bmp"
+      "installerIcon": "resources/icon.ico"
     }
   }
 }

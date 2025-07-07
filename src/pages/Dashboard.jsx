@@ -1,11 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, Fragment } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Progress } from "@/components/ui/Progress"
 import { Button } from '@/components/ui/Button'
-import { FileText, HardDrive, ChartColumnBig, Activity, Server, RefreshCw, Upload, Download, Trash2, CheckCircle, XCircle, AlertCircle, PackageSearch } from 'lucide-react'
+import { FileText, HardDrive, ChartColumnBig, Activity, Server, RefreshCw, Upload, Download, Trash2, CheckCircle, XCircle, AlertCircle, PackageSearch, ChevronDown, ChevronUp } from 'lucide-react'
 import { formatBytes } from '@/lib/file-utils.jsx'
 import { useNotifications } from '@/contexts/NotificationContext'
 import { cn } from '@/lib/utils'
+import { Separator } from "@/components/ui/Separator"
+import React from 'react'
 
 function timeAgo(dateString) {
   const date = new Date(dateString)
@@ -42,11 +44,16 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [r2Status, setR2Status] = useState({ loading: true, success: false, message: '正在检查连接...' })
   const [error, setError] = useState(null)
+  const [visibleActivityCount, setVisibleActivityCount] = useState(5)
   const { addNotification } = useNotifications()
+  const loadMoreButtonRef = useRef(null);
 
-  const fetchData = async () => {
-    setLoading(true)
+  const fetchData = async (keepLoading = false) => {
+    if (!keepLoading) {
+      setLoading(true)
+    }
     setError(null)
+    setVisibleActivityCount(5) // Reset on refresh
 
     const statusResult = await window.api.checkStatus()
     setR2Status({ 
@@ -74,12 +81,48 @@ export default function DashboardPage() {
       addNotification({ message: `获取最近活动失败: ${activitiesResult.error}`, type: 'error' })
     }
 
-    setLoading(false)
+    if (!keepLoading) {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
     fetchData()
+    
+    const removeListener = window.api.onActivityUpdated(() => {
+        fetchData(true);
+    });
+
+    return () => removeListener();
+
   }, [])
+
+  useEffect(() => {
+    if (loadMoreButtonRef.current) {
+      loadMoreButtonRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [visibleActivityCount]);
+
+  const handleDeleteActivity = async (activityId) => {
+    const result = await window.api.deleteRecentActivity(activityId);
+    if (result.success) {
+      setActivities(prev => prev.filter(a => a.id !== activityId));
+      addNotification({ message: '活动记录已删除', type: 'success' });
+    } else {
+      addNotification({ message: `删除失败: ${result.error}`, type: 'error' });
+    }
+  };
+
+  const handleClearActivities = async () => {
+    const result = await window.api.clearRecentActivities();
+    if (result.success) {
+      setActivities([]);
+      setVisibleActivityCount(5); // Reset on clear
+      addNotification({ message: '最近活动已清除', type: 'success' });
+    } else {
+      addNotification({ message: `清除失败: ${result.error}`, type: 'error' });
+    }
+  };
 
   const totalQuotaBytes = (stats.storageQuotaGB || 0) * 1024 * 1024 * 1024;
   const storageUsagePercent = totalQuotaBytes > 0 ? (stats.totalSize / totalQuotaBytes) * 100 : 0;
@@ -97,7 +140,7 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">仪表盘</h2>
         <div className="flex items-center space-x-2">
-          <Button onClick={fetchData} disabled={loading}>
+          <Button onClick={() => fetchData()} disabled={loading}>
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             刷新数据
           </Button>
@@ -184,8 +227,8 @@ export default function DashboardPage() {
         </Card>
       </div>
       
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
+      <div className="grid grid-cols-1 gap-4">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <span>存储使用情况</span>
@@ -207,28 +250,50 @@ export default function DashboardPage() {
             </div>
           </CardContent>
         </Card>
-        <Card className="col-span-4 lg:col-span-3">
+        
+        <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <span>最近活动</span>
-              <Activity className="h-5 w-5 text-muted-foreground" />
-            </CardTitle>
+            <div className="flex justify-between items-center">
+              <CardTitle className="flex items-center gap-2">
+                <span>最近活动</span>
+                <Activity className="h-5 w-5 text-muted-foreground" />
+              </CardTitle>
+              <Button variant="destructive" size="sm" onClick={handleClearActivities} disabled={activities.length === 0}>
+                <Trash2 className="h-4 w-4 mr-1" />
+                清除记录
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="text-center text-muted-foreground">正在加载活动...</div>
             ) : activities.length > 0 ? (
-              <div className="space-y-4">
-                {activities.map((activity) => (
-                  <div key={activity.id} className="flex items-center">
-                    <ActivityIcon type={activity.type} />
-                    <div className="ml-4 flex-1 min-w-0">
-                      <p className="text-sm font-medium leading-none truncate" title={activity.message}>{activity.message}</p>
-                      <p className="text-sm text-muted-foreground">{timeAgo(activity.timestamp)}</p>
-                    </div>
+              <>
+                <div className="space-y-4">
+                  {activities.slice(0, visibleActivityCount).map((activity, index) => (
+                    <Fragment key={activity.id}>
+                      <div className="flex items-center">
+                        <ActivityIcon type={activity.type} />
+                        <div className="ml-4 flex-1 min-w-0">
+                          <p className="text-sm font-medium leading-none truncate" title={activity.message}>{activity.message}</p>
+                          <p className="text-sm text-muted-foreground">{timeAgo(activity.timestamp)}</p>
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 ml-2" onClick={() => handleDeleteActivity(activity.id)}>
+                          <XCircle className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                        </Button>
+                      </div>
+                      {index < activities.slice(0, visibleActivityCount).length - 1 && <Separator />}
+                    </Fragment>
+                  ))}
+                </div>
+                {visibleActivityCount < activities.length && (
+                  <div className="flex justify-center mt-4" ref={loadMoreButtonRef}>
+                    <Button variant="outline" onClick={() => setVisibleActivityCount(prev => prev + 5)}>
+                      加载更多
+                    </Button>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             ) : (
               <div className="text-center text-muted-foreground py-4">暂无最近活动</div>
             )}

@@ -36,6 +36,7 @@ function addRecentActivity(type, message, status) {
   };
   const updatedActivities = [newActivity, ...activities].slice(0, MAX_ACTIVITIES);
   store.set('recent-activities', updatedActivities);
+  mainWindow?.webContents.send('activity-updated');
 }
 
 // --- Data Migration ---
@@ -778,4 +779,26 @@ ipcMain.handle('get-recent-activities', async () => {
 
 ipcMain.handle('is-window-maximized', () => {
   return mainWindow?.isMaximized() || false;
+});
+
+ipcMain.handle('clear-recent-activities', () => {
+  try {
+    store.set('recent-activities', []);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to clear recent activities:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('delete-recent-activity', (event, activityId) => {
+  try {
+    const activities = store.get('recent-activities', []);
+    const updatedActivities = activities.filter(a => a.id !== activityId);
+    store.set('recent-activities', updatedActivities);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to delete recent activity:', error);
+    return { success: false, error: error.message };
+  }
 });

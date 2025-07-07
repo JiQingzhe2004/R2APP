@@ -67,10 +67,15 @@ module.exports = {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
+        "pulse-glow": {
+          "0%, 100%": { "box-shadow": "0 0 8px 2px rgba(139, 92, 246, 0.2)" },
+          "50%": { "box-shadow": "0 0 16px 6px rgba(139, 92, 246, 0.4)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "pulse-glow": "pulse-glow 2.5s ease-in-out infinite",
       },
     },
   },
