@@ -93,12 +93,6 @@
         "provider": "github",
         "owner": "JiQingzhe2004",
         "repo": "R2APP"
-      },
-      {
-        "provider": "gitee",
-        "owner": "jiqingzhe",
-        "repo": "r2-app",
-        "releaseType": "release"
       }
     ]
   }

@@ -23,9 +23,8 @@ const githubProvider = {
 
 // 请确保这里的 owner 和 repo 与您 package.json 中的一致
 const giteeProvider = {
-  provider: 'gitee',
-  owner: 'your-gitee-username',
-  repo: 'your-gitee-repo-name',
+  provider: 'generic',
+  url: 'https://gitee.com/jiqingzhe/r2-app/releases'
 };
 
 const loadURL = serve({
