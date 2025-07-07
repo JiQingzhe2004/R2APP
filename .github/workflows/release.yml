@@ -24,7 +24,8 @@ jobs:
 
       - name: Build and release
         env:
-          # GH_TOKEN 是您下一步需要在 GitHub Secrets 中设置的名字
+          # GH_TOKEN 和 GITEE_TOKEN 都需要预先在 GitHub Secrets 中设置
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
         # 这里我们假设先发布 Windows 版本，您可以为其他平台创建类似的 job
         run: npm run release:win 

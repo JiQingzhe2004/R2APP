@@ -1,6 +1,6 @@
 {
   "name": "CS-Explorer",
-  "version": "3.2.5",
+  "version": "3.2.6",
   "description": "一个用于管理在线云存储的现代化桌面应用。",
   "main": "out/main/index.js",
   "author": "吉庆喆",
@@ -93,6 +93,12 @@
         "provider": "github",
         "owner": "JiQingzhe2004",
         "repo": "R2APP"
+      },
+      {
+        "provider": "gitee",
+        "owner": "jiqingzhe",
+        "repo": "r2-app",
+        "releaseType": "release"
       }
     ]
   }

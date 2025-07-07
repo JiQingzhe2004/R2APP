@@ -13,6 +13,21 @@ import { autoUpdater } from 'electron-updater';
 
 autoUpdater.autoDownload = false;
 
+let currentProvider = 'github'; // 'github' or 'gitee'
+
+const githubProvider = {
+  provider: 'github',
+  owner: 'JiQingzhe2004',
+  repo: 'R2APP',
+};
+
+// 请确保这里的 owner 和 repo 与您 package.json 中的一致
+const giteeProvider = {
+  provider: 'gitee',
+  owner: 'your-gitee-username',
+  repo: 'your-gitee-repo-name',
+};
+
 const loadURL = serve({
   directory: join(__dirname, '../renderer')
 });
@@ -132,7 +147,9 @@ app.whenReady().then(() => {
     console.log('Updater: Development mode detected. Using dev-app-update.yml for configuration.');
     autoUpdater.forceDevUpdateConfig = true;
   } else {
-    console.log('Updater: Production mode. Will use package.json provider (GitHub).');
+    console.log('Updater: Production mode. Setting initial provider to GitHub.');
+    currentProvider = 'github';
+    autoUpdater.setFeedURL(githubProvider);
   }
 
   globalShortcut.register('F5', () => {
@@ -144,6 +161,10 @@ app.whenReady().then(() => {
 
   createWindow()
   setupAutoUpdater()
+
+  // In production, this will now try GitHub first, then fallback to Gitee.
+  // In dev, it will use the local config.
+  autoUpdater.checkForUpdates();
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -189,14 +210,32 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on('error', (err) => {
-    console.error('Updater: Error in auto-updater.', err);
-    mainWindow?.webContents.send('update-error', err);
+    console.error(`Updater: Error from ${currentProvider}:`, err);
+    // If GitHub fails, try Gitee as a fallback.
+    if (currentProvider === 'github') {
+      console.log('Updater: GitHub provider failed. Trying Gitee as a fallback...');
+      currentProvider = 'gitee';
+      autoUpdater.setFeedURL(giteeProvider);
+      autoUpdater.checkForUpdates();
+    } else {
+      // If Gitee also fails, then send the final error to the renderer.
+      console.error('Updater: Gitee provider also failed. Reporting error to renderer.');
+      mainWindow?.webContents.send('update-error', err);
+    }
   });
 }
 
 ipcMain.handle('check-for-updates', () => {
-  console.log('IPC: Received "check-for-updates". Triggering updater.');
-  autoUpdater.checkForUpdates();
+  console.log('IPC: Received "check-for-updates". Triggering updater with GitHub as primary.');
+  // Always start with GitHub when manually checking
+  currentProvider = 'github';
+  if (is.dev) {
+     // In dev, we use the local yml file, which simulates one provider.
+     autoUpdater.checkForUpdates();
+  } else {
+     autoUpdater.setFeedURL(githubProvider);
+     autoUpdater.checkForUpdates();
+  }
 });
 
 ipcMain.handle('download-update', () => {
