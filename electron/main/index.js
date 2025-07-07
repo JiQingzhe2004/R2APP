@@ -10,6 +10,10 @@ import serve from 'electron-serve';
 import packageJson from '../../package.json' assert { type: 'json' };
 import OSS from 'ali-oss';
 
+const loadURL = serve({
+  directory: join(__dirname, '../renderer')
+});
+
 // This is the correct way to disable sandbox for the entire app.
 app.commandLine.appendSwitch('no-sandbox');
 
@@ -113,7 +117,7 @@ function createWindow() {
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
-    mainWindow.loadFile(join(__dirname, '../../dist/index.html'))
+    loadURL(mainWindow);
   }
 }
 
