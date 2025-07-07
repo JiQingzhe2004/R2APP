@@ -24,7 +24,7 @@ const githubProvider = {
 // 请确保这里的 owner 和 repo 与您 package.json 中的一致
 const giteeProvider = {
   provider: 'generic',
-  url: 'https://gitee.com/jiqingzhe/r2-app/releases'
+  url: 'https://wpaiupload.aiqji.com'
 };
 
 const loadURL = serve({
