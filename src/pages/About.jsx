@@ -48,7 +48,12 @@ function UpdateManager() {
   const renderAction = () => {
     switch (status) {
       case 'available':
-        return <Button onClick={downloadUpdate}><Download className="mr-2 h-4 w-4" />下载更新</Button>;
+        return (
+          <div className="flex gap-2">
+            <Button onClick={checkForUpdates} variant="outline" disabled={status === 'checking'}><RefreshCw className="mr-2 h-4 w-4" />重新检查</Button>
+            <Button onClick={downloadUpdate}><Download className="mr-2 h-4 w-4" />下载更新</Button>
+          </div>
+        );
       case 'not-available':
       case 'error':
       case 'idle':
