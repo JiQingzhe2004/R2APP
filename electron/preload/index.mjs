@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 const api = {
   // Settings
@@ -48,7 +48,9 @@ const api = {
     ipcRenderer.on('upload-progress', handler);
     return () => ipcRenderer.removeListener('upload-progress', handler);
   },
-  getFilePaths: (files) => ipcRenderer.invoke('get-file-paths', files),
+  
+  // The correct way to get file path from a dropped file object
+  getPathForFile: (file) => webUtils.getPathForFile(file),
 
   // Window Controls
   isWindowMaximized: () => ipcRenderer.invoke('is-window-maximized'),

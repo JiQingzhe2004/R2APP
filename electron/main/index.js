@@ -714,10 +714,6 @@ ipcMain.handle('show-item-in-folder', (event, filePath) => {
   shell.showItemInFolder(filePath);
 });
 
-ipcMain.handle('get-file-paths', (event, files) => {
-  return files.map(f => f.path);
-});
-
 ipcMain.on('minimize-window', () => {
   mainWindow?.minimize();
 });

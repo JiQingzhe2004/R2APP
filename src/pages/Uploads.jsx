@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
 import { Progress } from '@/components/ui/Progress';
@@ -31,7 +32,7 @@ export default function UploadsPage() {
   const addUploads = (newUploads) => {
     // Filter out uploads that are already in the list (same remote key)
     const uniqueNewUploads = newUploads.filter(
-      (newUpload) => !filesToUpload.some((existing) => existing.key === newUpload.key)
+      (newUpload) => !filesToUpload.some((existing) => existing.path === newUpload.path)
     );
 
     if (uniqueNewUploads.length > 0) {
@@ -43,6 +44,7 @@ export default function UploadsPage() {
     const selectedPaths = await window.api.showOpenDialog();
     if (selectedPaths) {
       const newUploads = selectedPaths.map((path) => ({
+        id: uuidv4(),
         path,
         key: path.split(/[\\/]/).pop(), // remote key is filename for root upload
         status: 'pending',
@@ -58,7 +60,7 @@ export default function UploadsPage() {
         return null;
       };
       const key = path.split(/[\\/]/).pop();
-      return { path, key, status: 'pending' };
+      return { id: uuidv4(), path, key, status: 'pending' };
     }).filter(Boolean);
 
     addUploads(newUploads);
@@ -96,17 +98,37 @@ export default function UploadsPage() {
     setIsDragging(false);
   };
 
-  const handleDrop = (e) => {
+  const handleDrop = async (e) => {
+    console.log('开始处理拖拽事件');
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    
-    const paths = Array.from(e.dataTransfer.files).map(f => f.path);
 
-    if (paths.length > 0 && paths.every(p => p)) {
-      addFilesByPath(paths);
-    } else {
-       console.error("Could not get file path from drop event. This indicates a sandbox issue.");
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      const filePaths = [];
+      for (const file of files) {
+        console.log('文件信息:', { name: file.name, type: file.type, size: file.size });
+        try {
+          console.log('尝试获取真实路径');
+          const filePath = await window.api.getPathForFile(file);
+          console.log('获取到的路径:', filePath);
+          
+          if (filePath) {
+            console.log('✅ 成功获取真实路径');
+            filePaths.push(filePath);
+          } else {
+            console.log('路径为空，可能是不支持的文件或出现问题。');
+          }
+        } catch (err) {
+          console.error('获取文件路径失败:', err);
+          addNotification({ message: `获取 ${file.name} 的路径失败`, type: 'error' });
+        }
+      }
+
+      if (filePaths.length > 0) {
+        addFilesByPath(filePaths);
+      }
     }
   };
 
@@ -147,24 +169,18 @@ export default function UploadsPage() {
     }
   };
   
-  const removeFile = (key) => {
-    setFilesToUpload(files => files.filter(f => f.key !== key));
-    setUploadProgress(progress => {
-      const newProgress = { ...progress };
-      delete newProgress[key];
-      return newProgress;
-    });
-  };
-
-  // This useEffect will trigger the upload automatically when new files are added.
-  useEffect(() => {
-    // We only want to auto-start uploads if there's at least one "pending" file
-    // and we are not already in the process of uploading.
-    const hasPendingFiles = filesToUpload.some(f => f.status === 'pending');
-    if (hasPendingFiles && !isUploading) {
-      handleUpload();
+  const removeFile = (id) => {
+    setFilesToUpload(files => files.filter(f => f.id !== id));
+    
+    const fileToRemove = filesToUpload.find(f => f.id === id);
+    if (fileToRemove) {
+      setUploadProgress(progress => {
+        const newProgress = { ...progress };
+        delete newProgress[fileToRemove.key];
+        return newProgress;
+      });
     }
-  }, [filesToUpload]);
+  };
 
   return (
     <div className="space-y-6">
@@ -174,7 +190,7 @@ export default function UploadsPage() {
       </div>
 
       <Card 
-        className={`p-8 border-2 border-dashed ${isDragging ? 'border-primary' : ''}`}
+        className={`p-8 border-2 border-dashed ${isDragging ? 'border-primary' : 'border-border'}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -197,10 +213,11 @@ export default function UploadsPage() {
               const progress = uploadProgress[file.key];
               const displayName = file.key.split('/').pop();
               return (
-                <Card key={file.key} className="p-4 flex items-center space-x-4">
+                <Card key={file.id} className="p-4 flex items-center space-x-4">
                   <File className="h-6 w-6 text-muted-foreground" />
-                  <div className="flex-1 space-y-1">
-                    <p className="text-sm font-medium leading-none" title={file.key}>{displayName}</p>
+                  <div className="flex-1 space-y-1 min-w-0">
+                    <p className="text-sm font-medium leading-none truncate" title={displayName}>{displayName}</p>
+                    <p className="text-xs text-muted-foreground truncate" title={file.path}>{file.path}</p>
                     {progress && progress.status !== 'pending' && (
                         <Progress value={progress.percentage} className="h-2" />
                     )}
@@ -211,7 +228,7 @@ export default function UploadsPage() {
                   {progress && progress.status === 'completed' ? (
                      <CheckCircle className="h-6 w-6 text-green-500" />
                   ) : (
-                    <Button variant="ghost" size="icon" onClick={() => removeFile(file.key)} disabled={isUploading}>
+                    <Button variant="ghost" size="icon" onClick={() => removeFile(file.id)} disabled={isUploading}>
                       <X className="h-4 w-4" />
                     </Button>
                   )}
