@@ -1,8 +1,8 @@
-version: 3.2.0
+version: 3.2.1
 files:
-  - url: CS-Explorer-Setup-3.2.0.exe
-    sha512: CLkpcQ7RRXQ7vQE8JvYmR9/npyrXgXuihDxZl+OKGHpO1FTCfGDEtsX9g9qM6dJ6GZWFay1jwDlRLzz3U1V+Ww==
-    size: 95534730
-path: CS-Explorer-Setup-3.2.0.exe
-sha512: CLkpcQ7RRXQ7vQE8JvYmR9/npyrXgXuihDxZl+OKGHpO1FTCfGDEtsX9g9qM6dJ6GZWFay1jwDlRLzz3U1V+Ww==
-releaseDate: '2025-07-07T20:25:36.074Z'
+  - url: CS-Explorer-Setup-3.2.1.exe
+    sha512: A3sKcS6J7j8KOCMPRCiE7RPerUK3CUxjWylJdhTVkjmgGK9Mct8IxBPCYNkNhlsLi+x4aDr7SFDVGD6eGFPEbQ==
+    size: 95533819
+path: CS-Explorer-Setup-3.2.1.exe
+sha512: A3sKcS6J7j8KOCMPRCiE7RPerUK3CUxjWylJdhTVkjmgGK9Mct8IxBPCYNkNhlsLi+x4aDr7SFDVGD6eGFPEbQ==
+releaseDate: '2025-07-07T20:39:36.120Z'

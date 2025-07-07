@@ -99,6 +99,7 @@ export default function AboutPage() {
 
   return (
     <div className="p-4 sm:p-6 flex flex-col items-center gap-4">
+      <UpdateManager />
       <Card className="w-full max-w-2xl">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
@@ -151,7 +152,6 @@ export default function AboutPage() {
           </div>
         </CardFooter>
       </Card>
-      <UpdateManager />
       <div className="text-center mt-6 text-xs text-muted-foreground space-y-2">
          <div className="flex items-center justify-center gap-x-4">
             <span>版本: {versionData.version}</span>
