@@ -108,8 +108,8 @@ export default function AboutPage() {
       <Card className="w-full max-w-2xl">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <img src={BlackLogo} alt="App Logo" className="w-32 h-32 hidden dark:block" />
-            <img src={WhiteLogo} alt="App Logo" className="w-32 h-32 dark:hidden" />
+            <img src={BlackLogo} alt="App Logo" className="w-32 h-32 hidden dark:block" draggable="false" />
+            <img src={WhiteLogo} alt="App Logo" className="w-32 h-32 dark:hidden" draggable="false" />
           </div>
           <CardTitle className="text-3xl font-bold">{appInfo.name}</CardTitle>
         </CardHeader>

@@ -52,9 +52,9 @@ export function Sidebar({ isCollapsed, onToggle }) {
         "h-14 flex items-center border-b px-4 gap-2",
         isCollapsed && "px-0 justify-center"
       )}>
-        <img src={BlackLogo} alt="Logo" className="h-6 w-6 hidden dark:block" />
-        <img src={WhiteLogo} alt="Logo" className="h-6 w-6 dark:hidden" />
-        <h1 className={cn("text-lg font-bold", isCollapsed && "hidden")}>CS-Explorer</h1>
+        <img src={BlackLogo} alt="Logo" className="h-6 w-6 hidden dark:block" draggable="false" />
+        <img src={WhiteLogo} alt="Logo" className="h-6 w-6 dark:hidden" draggable="false" />
+        <h1 className={cn("text-lg font-bold select-none", isCollapsed && "hidden")}>CS-Explorer</h1>
       </div>
       <nav className="flex-1 py-4 px-4">
         <ul className="space-y-1 h-full flex flex-col">
@@ -82,7 +82,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
                 {disabled ? (
                   <span
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground opacity-50 cursor-not-allowed",
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground opacity-50 cursor-not-allowed select-none",
                       isCollapsed && "justify-center"
                     )}
                   >
@@ -93,7 +93,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
                     to={href}
                     title={isCollapsed ? label : ''}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary select-none",
                       isActive && 'bg-primary text-primary-foreground hover:text-primary-foreground',
                       isCollapsed && "justify-center"
                     )}
@@ -109,7 +109,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
       <div className="p-4 border-t">
         <div
             className={cn(
-              "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground cursor-pointer hover:text-primary transition-all",
+              "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground cursor-pointer hover:text-primary transition-all select-none",
               isCollapsed && "justify-center"
             )}
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
@@ -119,7 +119,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
         </div>
          <div
             className={cn(
-              "mt-2 flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground cursor-pointer hover:text-primary transition-all",
+              "mt-2 flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground cursor-pointer hover:text-primary transition-all select-none",
                isCollapsed && "justify-center"
             )}
             onClick={onToggle}
