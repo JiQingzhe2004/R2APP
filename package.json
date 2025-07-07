@@ -14,9 +14,9 @@
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "npm run build && electron-builder --mac",
     "build:linux": "npm run build && electron-builder --linux",
-    "release:win": "npm run build && electron-builder --win -p always -r dotenv/config",
-    "release:mac": "npm run build && electron-builder --mac -p always -r dotenv/config",
-    "release:linux": "npm run build && electron-builder --linux -p always -r dotenv/config"
+    "release:win": "npm run build && electron-builder --win -p always",
+    "release:mac": "npm run build && electron-builder --mac -p always",
+    "release:linux": "npm run build && electron-builder --linux -p always"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.569.0",
