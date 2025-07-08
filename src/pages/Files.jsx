@@ -151,6 +151,7 @@ export default function FilesPage() {
   const [isCreateFolderDialogOpen, setIsCreateFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [selectedFiles, setSelectedFiles] = useState(new Set());
+  const [isSearching, setIsSearching] = useState(false);
   const { addNotification } = useNotifications();
   const { addUploads } = useUploads();
   const observer = useRef();
@@ -172,16 +173,56 @@ export default function FilesPage() {
     }
   };
 
+  const fetchFiles = useCallback(async (prefix, options = {}) => {
+    const { isLoadMore = false, isSearch = false } = options;
+
+    if (!activeProfileId) {
+      setLoading(false);
+      setError('没有活动的存储桶配置。');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const fetchPrefix = typeof prefix === 'string' ? prefix : currentPrefix;
+      const token = isLoadMore ? nextToken : undefined;
+      const result = await window.api.listObjects({ 
+        continuationToken: token, 
+        prefix: fetchPrefix, 
+        delimiter: isSearch ? undefined : '/' 
+      });
+
+      if (result.success) {
+        let newFiles = result.data.files;
+        if (fetchPrefix && !isSearch) {
+          newFiles = newFiles.filter(f => (f.key || f.Key) !== fetchPrefix);
+        }
+        setFiles(prev => isLoadMore ? [...prev, ...newFiles] : newFiles);
+        setNextToken(result.data.nextContinuationToken);
+      } else {
+        setError(result.error);
+        setFiles([]);
+        setNextToken(null);
+      }
+    } catch (err) {
+      setError(err.message);
+      setFiles([]);
+      setNextToken(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [nextToken, currentPrefix, activeProfileId]);
+
   const lastFileElementRef = useCallback(node => {
     if (loading) return;
     if (observer.current) observer.current.disconnect();
     observer.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && nextToken) {
-        fetchFiles(currentPrefix, true);
+      if (entries[0].isIntersecting && nextToken && !isSearching) {
+        fetchFiles(searchTerm || currentPrefix, { isLoadMore: true, isSearch: !!searchTerm });
       }
     });
     if (node) observer.current.observe(node);
-  }, [loading, nextToken, currentPrefix]);
+  }, [loading, nextToken, currentPrefix, searchTerm, fetchFiles]);
 
   useEffect(() => {
     const getActiveSettings = async () => {
@@ -202,53 +243,56 @@ export default function FilesPage() {
       setInputSearchTerm('');
       setFiles([]);
       setNextToken(null);
-      fetchFiles('', false);
+      fetchFiles('', { isSearch: false });
     };
 
     initialize();
   }, [activeProfileId]);
 
-  const fetchFiles = useCallback(async (prefix, isLoadMore = false) => {
-    if (!activeProfileId) {
+  useEffect(() => {
+    if (!isSearching) return;
+
+    const handleResults = (results) => {
+      setLoading(true);
+      setFiles(prev => [...prev, ...results]);
+    };
+    const handleEnd = () => {
       setLoading(false);
-      setError('没有活动的存储桶配置。');
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const fetchPrefix = typeof prefix === 'string' ? prefix : currentPrefix;
-      const token = isLoadMore ? nextToken : undefined;
-      const result = await window.api.listObjects({ continuationToken: token, prefix: fetchPrefix, delimiter: '/' });
-      if (result.success) {
-        let newFiles = result.data.files;
-        if (fetchPrefix) {
-          newFiles = newFiles.filter(f => (f.key || f.Key) !== fetchPrefix);
-        }
-        setFiles(prev => isLoadMore ? [...prev, ...newFiles] : newFiles);
-        setNextToken(result.data.nextContinuationToken);
-      } else {
-        setError(result.error);
-        setFiles([]);
-        setNextToken(null);
-      }
-    } catch (err) {
-      setError(err.message);
-      setFiles([]);
-      setNextToken(null);
-    } finally {
+      setIsSearching(false);
+    };
+    const handleError = (error) => {
+      setError(error);
       setLoading(false);
-    }
-  }, [nextToken, currentPrefix, activeProfileId]);
+      setIsSearching(false);
+    };
+
+    const removeResultsListener = window.api.onSearchResults(handleResults);
+    const removeEndListener = window.api.onSearchEnd(handleEnd);
+    const removeErrorListener = window.api.onSearchError(handleError);
+    
+    return () => {
+      removeResultsListener();
+      removeEndListener();
+      removeErrorListener();
+    };
+  }, [isSearching]);
 
   const handleSearch = () => {
     setIsSearchDialogOpen(false);
     setFiles([]);
     setNextToken(null);
+    setCurrentPrefix('');
     const newSearchTerm = inputSearchTerm;
     setSearchTerm(newSearchTerm);
-    setCurrentPrefix('');
-    fetchFiles(newSearchTerm, false);
+    
+    if (newSearchTerm) {
+      setIsSearching(true);
+      setError(null);
+      setLoading(true);
+      window.api.startSearch(newSearchTerm);
+    } else {
+      fetchFiles('', { isSearch: false });
+    }
   };
 
   const clearSearch = () => {
@@ -257,7 +301,7 @@ export default function FilesPage() {
     setFiles([]);
     setNextToken(null);
     setCurrentPrefix('');
-    fetchFiles('', false);
+    fetchFiles('', { isSearch: false });
   };
 
   const handleCreateFolder = async () => {
@@ -272,7 +316,7 @@ export default function FilesPage() {
     if (result.success) {
       toast.success(`文件夹 "${newFolderName}" 创建成功`);
       addNotification({ message: `文件夹 "${newFolderName}" 已创建`, type: 'success' });
-      fetchFiles(currentPrefix);
+      fetchFiles(currentPrefix, { isSearch: false });
     } else {
       toast.error(`创建失败: ${result.error}`);
       addNotification({ message: `创建文件夹 "${newFolderName}" 失败`, type: 'error' });
@@ -287,7 +331,7 @@ export default function FilesPage() {
     setCurrentPrefix(newPrefix);
     setFiles([]);
     setNextToken(null);
-    fetchFiles(newPrefix, false);
+    fetchFiles(newPrefix, { isSearch: false });
   };
 
   const handleDeleteClick = (key) => {
@@ -308,10 +352,10 @@ export default function FilesPage() {
       addNotification({ message: message.replace('成功', '已删除'), type: 'success' });
       
       if (isDir) {
-        fetchFiles(currentPrefix);
+        fetchFiles(currentPrefix, { isSearch: false });
       }
       // After a delete, always refresh the current view from scratch.
-      fetchFiles(currentPrefix);
+      fetchFiles(currentPrefix, { isSearch: false });
     } else {
       const message = `删除失败: ${result.error}`;
       toast.error(message);
@@ -355,7 +399,7 @@ export default function FilesPage() {
     }
 
     setSelectedFiles(new Set());
-    fetchFiles(currentPrefix);
+    fetchFiles(currentPrefix, { isSearch: false });
   };
 
   const handleCopyUrl = (url) => {
@@ -663,7 +707,7 @@ export default function FilesPage() {
                 <TooltipProvider delayDuration={0}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="outline" size="icon" onClick={() => fetchFiles(currentPrefix, false)} disabled={loading}>
+                      <Button variant="outline" size="icon" onClick={() => fetchFiles(currentPrefix, { isSearch: false })} disabled={loading}>
                   <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                 </Button>
                     </TooltipTrigger>

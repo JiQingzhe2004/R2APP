@@ -19,11 +19,11 @@ export const api = {
   getBucketStats: () => ipcRenderer.invoke('get-bucket-stats'),
   getRecentActivities: () => ipcRenderer.invoke('get-recent-activities'),
   clearRecentActivities: () => ipcRenderer.invoke('clear-recent-activities'),
-  deleteRecentActivity: (activityId) => ipcRenderer.invoke('delete-recent-activity', activityId),
+  deleteRecentActivity: (id) => ipcRenderer.invoke('delete-recent-activity', id),
   onActivityUpdated: (callback) => {
-    const listener = (event, ...args) => callback(...args);
-    ipcRenderer.on('activity-updated', listener);
-    return () => ipcRenderer.removeListener('activity-updated', listener);
+    const handler = (event, ...args) => callback(...args);
+    ipcRenderer.on('activity-updated', handler);
+    return () => ipcRenderer.removeListener('activity-updated', handler);
   },
   listObjects: (options) => ipcRenderer.invoke('list-objects', options),
   deleteObject: (key) => ipcRenderer.invoke('delete-object', key),
@@ -56,6 +56,10 @@ export const api = {
     ipcRenderer.on('upload-progress', handler);
     return () => ipcRenderer.removeListener('upload-progress', handler);
   },
+  getUploadsState: () => ipcRenderer.invoke('get-uploads-state'),
+  setUploadsState: (uploads) => ipcRenderer.invoke('set-uploads-state', uploads),
+  pauseUpload: (key) => ipcRenderer.invoke('pause-upload', key),
+  resumeUpload: (data) => ipcRenderer.invoke('resume-upload', data),
   
   // The correct way to get file path from a dropped file object
   getPathForFile: (file) => webUtils.getPathForFile(file),
@@ -112,6 +116,24 @@ export const api = {
   
   // App settings
   setSetting: (key, value) => ipcRenderer.invoke('set-setting', key, value),
+
+  // New methods
+  startSearch: (searchTerm) => ipcRenderer.send('start-search', searchTerm),
+  onSearchResults: (callback) => {
+    const handler = (event, results) => callback(results);
+    ipcRenderer.on('search-results-chunk', handler);
+    return () => ipcRenderer.removeListener('search-results-chunk', handler);
+  },
+  onSearchEnd: (callback) => {
+    const handler = (event) => callback();
+    ipcRenderer.on('search-end', handler);
+    return () => ipcRenderer.removeListener('search-end', handler);
+  },
+  onSearchError: (callback) => {
+    const handler = (event, error) => callback(error);
+    ipcRenderer.on('search-error', handler);
+    return () => ipcRenderer.removeListener('search-error', handler);
+  },
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

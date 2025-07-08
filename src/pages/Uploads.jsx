@@ -3,9 +3,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Progress } from '@/components/ui/Progress';
 import { Card } from '@/components/ui/Card';
-import { UploadCloud, File, X, CheckCircle } from 'lucide-react';
+import { UploadCloud, File, X, CheckCircle, PauseCircle, PlayCircle } from 'lucide-react';
 import { useUploads } from '@/contexts/UploadsContext';
 import { useNotifications } from '@/contexts/NotificationContext';
+import { cn } from '@/lib/utils';
 
 export default function UploadsPage() {
   const [isDragging, setIsDragging] = useState(false);
@@ -15,7 +16,9 @@ export default function UploadsPage() {
     addUploads, 
     startAllUploads, 
     removeUpload, 
-    clearAll 
+    clearAll,
+    pauseUpload,
+    resumeUpload
   } = useUploads();
   const { addNotification } = useNotifications();
   const location = useLocation();
@@ -117,6 +120,17 @@ export default function UploadsPage() {
       </Card>
 
       {uploads.length > 0 && (
+        <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={clearAll} disabled={isUploading}>
+                清空列表
+            </Button>
+            <Button onClick={startAllUploads} disabled={isUploading || uploads.every(u => u.status !== 'pending')}>
+                {isUploading ? '正在上传...' : '全部上传'}
+            </Button>
+        </div>
+      )}
+
+      {uploads.length > 0 && (
         <div className="space-y-4">
            <h2 className="text-xl font-semibold">待上传列表</h2>
           <div className="space-y-2">
@@ -128,8 +142,17 @@ export default function UploadsPage() {
                   <div className="flex-1 space-y-1 min-w-0">
                     <p className="text-sm font-medium leading-none truncate" title={displayName}>{displayName}</p>
                     <p className="text-xs text-muted-foreground truncate" title={file.path}>{file.path}</p>
-                    {file.status !== 'pending' && (
-                        <Progress value={file.progress} className="h-2" />
+                    {file.status !== 'pending' && file.status !== 'completed' && file.status !== 'error' && (
+                        <div className="flex items-center space-x-2">
+                            <Progress 
+                                value={file.progress} 
+                                className="h-2 flex-1" 
+                                indicatorClassName={cn({
+                                    'bg-gray-400 animate-none': file.status === 'paused',
+                                })}
+                            />
+                            {file.status === 'paused' && <span className="text-xs text-muted-foreground">已暂停</span>}
+                        </div>
                     )}
                     {file.status === 'error' && (
                         <p className="text-xs text-red-500">{file.error}</p>
@@ -138,21 +161,25 @@ export default function UploadsPage() {
                   {file.status === 'completed' ? (
                      <CheckCircle className="h-6 w-6 text-green-500" />
                   ) : (
-                    <Button variant="ghost" size="icon" onClick={() => removeUpload(file.id)} disabled={isUploading && file.status === 'uploading'}>
-                      <X className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center">
+                      {file.status === 'uploading' && (
+                        <Button variant="ghost" size="icon" onClick={() => pauseUpload(file.id)}>
+                          <PauseCircle className="h-6 w-6" />
+                        </Button>
+                      )}
+                      {file.status === 'paused' && (
+                        <Button variant="ghost" size="icon" onClick={() => resumeUpload(file.id)}>
+                          <PlayCircle className="h-6 w-6" />
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="icon" onClick={() => removeUpload(file.id)} disabled={file.status === 'uploading'}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                   )}
                 </Card>
               );
             })}
-          </div>
-          <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={clearAll} disabled={isUploading}>
-                  清空列表
-              </Button>
-              <Button onClick={startAllUploads} disabled={isUploading || uploads.every(u => u.status !== 'pending')}>
-                  {isUploading ? '正在上传...' : '全部上传'}
-              </Button>
           </div>
         </div>
       )}

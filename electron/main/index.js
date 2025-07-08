@@ -12,6 +12,8 @@ import packageJson from '../../package.json' assert { type: 'json' };
 import OSS from 'ali-oss';
 import { autoUpdater } from 'electron-updater';
 
+const activeUploads = new Map();
+
 autoUpdater.autoDownload = false;
 
 let currentProvider = 'github'; // 'github' or 'gitee'
@@ -55,6 +57,64 @@ function addRecentActivity(type, message, status) {
   const updatedActivities = [newActivity, ...activities].slice(0, MAX_ACTIVITIES);
   store.set('recent-activities', updatedActivities);
   mainWindow?.webContents.send('activity-updated');
+}
+
+async function startUpload(filePath, key) {
+  const storage = await getStorageClient();
+  if (!storage) {
+    const errorMsg = '请先在设置中配置您的存储桶。';
+    mainWindow.webContents.send('upload-progress', { key, error: errorMsg });
+    addRecentActivity('upload', `文件 ${key} 上传失败: ${errorMsg}`, 'error');
+    return;
+  }
+
+  try {
+    if (storage.type === 'r2') {
+      const fileStream = fs.createReadStream(filePath);
+      const upload = new Upload({
+        client: storage.client,
+        params: { Bucket: storage.bucket, Key: key, Body: fileStream },
+        queueSize: 4,
+        partSize: 1024 * 1024 * 5, // 5MB
+      });
+
+      activeUploads.set(key, upload);
+
+      upload.on('httpUploadProgress', (p) => {
+        if (p.total) {
+          const percentage = Math.round((p.loaded / p.total) * 100);
+          mainWindow.webContents.send('upload-progress', { key, percentage });
+        }
+      });
+
+      await upload.done();
+      mainWindow.webContents.send('upload-progress', { key, percentage: 100 });
+      addRecentActivity('upload', `文件 ${key} 上传成功。`, 'success');
+
+    } else if (storage.type === 'oss') {
+      await storage.client.multipartUpload(key, filePath, {
+        progress: (p) => {
+          mainWindow.webContents.send('upload-progress', { key, percentage: Math.round(p * 100) });
+        }
+      });
+      mainWindow.webContents.send('upload-progress', { key, percentage: 100 });
+      addRecentActivity('upload', `文件 ${key} 上传成功。`, 'success');
+    }
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      console.log(`Upload of ${key} was aborted.`);
+      mainWindow.webContents.send('upload-progress', { key, status: 'paused', error: '上传已暂停' });
+      addRecentActivity('upload', `文件 ${key} 上传已暂停。`, 'info');
+    } else {
+      console.error(`Upload failed for ${key}:`, error);
+      mainWindow.webContents.send('upload-progress', { key, error: error.message });
+      addRecentActivity('upload', `文件 ${key} 上传失败: ${error.message}`, 'error');
+    }
+  } finally {
+    if (activeUploads.has(key)) {
+      activeUploads.delete(key);
+    }
+  }
 }
 
 // --- Data Migration ---
@@ -480,14 +540,19 @@ ipcMain.handle('get-bucket-stats', async () => {
   }
 });
 
-ipcMain.handle('list-objects', async (_, { continuationToken, prefix, delimiter }) => {
+ipcMain.handle('list-objects', async (event, options) => {
+  const { continuationToken, prefix, delimiter } = options || {};
   const storage = await getStorageClient();
   if (!storage) {
-    return { success: false, error: '未找到活动的存储配置' };
+    return { success: false, error: 'S3 client not initialized' };
   }
 
+  const isSearch = delimiter !== '/';
+  const apiPrefix = isSearch ? '' : prefix;
+  const apiDelimiter = isSearch ? undefined : delimiter;
+
   try {
-    let files = [];
+    let rawFiles = [];
     let folders = [];
     let nextContinuationToken = null;
 
@@ -495,47 +560,44 @@ ipcMain.handle('list-objects', async (_, { continuationToken, prefix, delimiter 
       const command = new ListObjectsV2Command({
         Bucket: storage.bucket,
         ContinuationToken: continuationToken,
-        Prefix: prefix,
-        Delimiter: delimiter,
-        MaxKeys: 50,
+        Prefix: apiPrefix,
+        Delimiter: apiDelimiter,
       });
       const response = await storage.client.send(command);
-      files = (response.Contents || []).map(f => ({
-        key: f.Key,
-        lastModified: f.LastModified,
-        size: f.Size,
-        etag: f.ETag
-      }));
-      folders = (response.CommonPrefixes || []).map(p => ({
-        key: p.Prefix,
-        type: 'folder'
-      }));
+      rawFiles = response.Contents || [];
+      folders = (response.CommonPrefixes || []).map(p => ({ key: p.Prefix, isFolder: true }));
       nextContinuationToken = response.NextContinuationToken;
     } else if (storage.type === 'oss') {
       const response = await storage.client.list({
         marker: continuationToken,
-        prefix: prefix,
-        delimiter: delimiter,
-        'max-keys': 50
+        prefix: apiPrefix,
+        delimiter: apiDelimiter,
+        'max-keys': 100
       });
-      files = (response.objects || []).map(f => ({
-        key: f.name,
-        lastModified: f.lastModified,
-        size: f.size,
-        etag: f.etag
-      }));
-      folders = (response.prefixes || []).map(p => ({
-        key: p,
-        type: 'folder'
-      }));
+      rawFiles = (response.objects || []).map(f => ({ Key: f.name, LastModified: f.lastModified, Size: f.size, ETag: f.etag }));
+      folders = (response.prefixes || []).map(p => ({ key: p, isFolder: true }));
       nextContinuationToken = response.nextMarker;
     }
     
-    // Combine folders and files, with folders first
-    const combined = [
-      ...folders.map(f => ({ ...f, isFolder: true })),
-      ...files.map(f => ({ ...f, isFolder: false }))
-    ].filter(item => item.key !== prefix); // Don't show the current folder itself
+    let filteredFiles = rawFiles;
+    if (isSearch && prefix) {
+      const lowerCasePrefix = prefix.toLowerCase();
+      filteredFiles = rawFiles.filter(item => 
+        item.Key.toLowerCase().includes(lowerCasePrefix)
+      );
+    }
+    
+    const files = filteredFiles.map(item => ({
+      key: item.Key,
+      size: item.Size,
+      lastModified: item.LastModified,
+      etag: item.ETag,
+      isFolder: false,
+    }));
+
+    const combined = [...folders, ...files]
+      .sort((a, b) => a.key.localeCompare(b.key))
+      .filter(item => !isSearch && item.key === prefix ? false : true);
 
     return { success: true, data: { files: combined, nextContinuationToken } };
   } catch (error) {
@@ -715,38 +777,19 @@ ipcMain.handle('show-open-dialog', async () => {
 });
 
 ipcMain.handle('upload-file', async (_, { filePath, key }) => {
-  const storage = await getStorageClient();
-  if (!storage) {
-     return { success: false, error: '请先在设置中配置您的存储桶。' };
-   }
+  startUpload(filePath, key);
+});
 
-   try {
-    if (storage.type === 'r2') {
-     const fileStream = fs.createReadStream(filePath);
-     const upload = new Upload({
-        client: storage.client,
-        params: { Bucket: storage.bucket, Key: key, Body: fileStream },
-     });
-      upload.on('httpUploadProgress', (p) => {
-        if (p.total) {
-          mainWindow.webContents.send('upload-progress', { key, percentage: Math.round((p.loaded / p.total) * 100) });
-       }
-     });
- 
-     await upload.done();
-    } else if (storage.type === 'oss') {
-      await storage.client.multipartUpload(key, filePath, {
-        progress: (p) => {
-            mainWindow.webContents.send('upload-progress', { key, percentage: Math.round(p * 100) });
-        }
-      });
-    }
-     return { success: true };
-   } catch (error) {
-     console.error('Upload failed:', error);
-     return { success: false, error: `文件上传失败: ${error.message}` };
-   }
- });
+ipcMain.handle('pause-upload', async (_, key) => {
+  const upload = activeUploads.get(key);
+  if (upload) {
+    await upload.abort();
+  }
+});
+
+ipcMain.handle('resume-upload', async (_, { filePath, key }) => {
+  startUpload(filePath, key);
+});
 
 ipcMain.on('download-file', async (event, key) => {
   const storage = await getStorageClient();
@@ -1007,4 +1050,63 @@ ipcMain.handle('get-presigned-url', async (event, bucket, key) => {
     console.error(`Failed to get presigned URL for ${key}:`, error);
     return null;
   }
+});
+
+ipcMain.on('start-search', async (event, searchTerm) => {
+  const storage = await getStorageClient();
+  if (!storage) {
+    event.sender.send('search-error', 'S3 client not initialized');
+    return;
+  }
+
+  const lowerCaseSearchTerm = searchTerm.toLowerCase();
+  let continuationToken = undefined;
+
+  try {
+    do {
+      let response;
+      if (storage.type === 'r2') {
+        response = await storage.client.send(new ListObjectsV2Command({
+          Bucket: storage.bucket,
+          ContinuationToken: continuationToken,
+        }));
+      } else if (storage.type === 'oss') {
+        const ossResponse = await storage.client.list({ marker: continuationToken, 'max-keys': 1000 });
+        response = { 
+          Contents: (ossResponse.objects || []).map(f => ({ Key: f.name, LastModified: f.lastModified, Size: f.size, ETag: f.etag })),
+          NextContinuationToken: ossResponse.nextMarker
+        };
+      }
+
+      const rawFiles = response.Contents || [];
+      const filteredChunk = rawFiles.filter(item => 
+        item.Key.toLowerCase().includes(lowerCaseSearchTerm)
+      );
+
+      if (filteredChunk.length > 0) {
+        const filesChunk = filteredChunk.map(item => ({
+          key: item.Key,
+          size: item.Size,
+          lastModified: item.LastModified,
+          etag: item.ETag,
+          isFolder: false,
+        }));
+        event.sender.send('search-results-chunk', filesChunk);
+      }
+      
+      continuationToken = response.NextContinuationToken;
+    } while (continuationToken);
+
+    event.sender.send('search-end');
+  } catch (error) {
+    event.sender.send('search-error', `搜索失败: ${error.message}`);
+  }
+});
+
+ipcMain.handle('get-uploads-state', () => {
+  return store.get('uploads-state', []);
+});
+
+ipcMain.handle('set-uploads-state', (_, uploads) => {
+  store.set('uploads-state', uploads);
 });
