@@ -1,25 +1,25 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { v4 as uuidv4 } from 'uuid';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
 import { Progress } from '@/components/ui/Progress';
-import { Card, CardContent } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { UploadCloud, File, X, CheckCircle } from 'lucide-react';
+import { useUploads } from '@/contexts/UploadsContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 
 export default function UploadsPage() {
-  const [filesToUpload, setFilesToUpload] = useState([]);
-  const [uploadProgress, setUploadProgress] = useState({});
-  const [isUploading, setIsUploading] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const { 
+    uploads, 
+    isUploading, 
+    addUploads, 
+    startAllUploads, 
+    removeUpload, 
+    clearAll 
+  } = useUploads();
   const { addNotification } = useNotifications();
   const location = useLocation();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    console.log('UploadsPage mounted. Checking window.api:', window.api);
-  }, []);
 
   useEffect(() => {
     if (location.state?.newUploads) {
@@ -27,27 +27,14 @@ export default function UploadsPage() {
       // Clear the state to prevent re-adding files on refresh
       navigate(location.pathname, { replace: true, state: {} });
     }
-  }, [location, navigate]);
-
-  const addUploads = (newUploads) => {
-    // Filter out uploads that are already in the list (same remote key)
-    const uniqueNewUploads = newUploads.filter(
-      (newUpload) => !filesToUpload.some((existing) => existing.path === newUpload.path)
-    );
-
-    if (uniqueNewUploads.length > 0) {
-      setFilesToUpload((prev) => [...prev, ...uniqueNewUploads]);
-    }
-  };
+  }, [location, navigate, addUploads]);
 
   const handleFileSelect = async () => {
     const selectedPaths = await window.api.showOpenDialog();
     if (selectedPaths) {
       const newUploads = selectedPaths.map((path) => ({
-        id: uuidv4(),
         path,
-        key: path.split(/[\\/]/).pop(), // remote key is filename for root upload
-        status: 'pending',
+        key: path.split(/[\\/]/).pop(),
       }));
       addUploads(newUploads);
     }
@@ -60,31 +47,11 @@ export default function UploadsPage() {
         return null;
       };
       const key = path.split(/[\\/]/).pop();
-      return { id: uuidv4(), path, key, status: 'pending' };
+      return { path, key };
     }).filter(Boolean);
 
     addUploads(newUploads);
   };
-
-  useEffect(() => {
-    const removeProgressListener = window.api.onUploadProgress(({ key, percentage, error }) => {
-      if (error) {
-        setUploadProgress(prev => ({
-          ...prev,
-          [key]: { ...prev[key], status: 'error', error: error }
-        }));
-        return;
-      }
-      setUploadProgress(prev => ({
-        ...prev,
-        [key]: { ...prev[key], percentage, status: percentage === 100 ? 'completed' : 'uploading' }
-      }));
-    });
-
-    return () => {
-      removeProgressListener();
-    };
-  }, []);
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -99,86 +66,30 @@ export default function UploadsPage() {
   };
 
   const handleDrop = async (e) => {
-    console.log('开始处理拖拽事件');
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-
+    
     const files = e.dataTransfer?.files;
     if (files && files.length > 0) {
       const filePaths = [];
       for (const file of files) {
-        console.log('文件信息:', { name: file.name, type: file.type, size: file.size });
         try {
-          console.log('尝试获取真实路径');
           const filePath = await window.api.getPathForFile(file);
-          console.log('获取到的路径:', filePath);
-          
           if (filePath) {
-            console.log('✅ 成功获取真实路径');
             filePaths.push(filePath);
           } else {
-            console.log('路径为空，可能是不支持的文件或出现问题。');
+            addNotification({ message: `获取 ${file.name} 的路径失败`, type: 'error' });
           }
         } catch (err) {
           console.error('获取文件路径失败:', err);
-          addNotification({ message: `获取 ${file.name} 的路径失败`, type: 'error' });
+          addNotification({ message: `获取 ${file.name} 的路径失败: ${err.message}`, type: 'error' });
         }
       }
 
       if (filePaths.length > 0) {
         addFilesByPath(filePaths);
       }
-    }
-  };
-
-  const handleUpload = async () => {
-    setIsUploading(true);
-    let successCount = 0;
-    let errorCount = 0;
-
-    for (const file of filesToUpload) {
-      if (file.status === 'pending') {
-        setUploadProgress(prev => ({ ...prev, [file.key]: { percentage: 0, status: 'uploading' } }));
-        const result = await window.api.uploadFile(file.path, file.key);
-        if (result.success) {
-          successCount++;
-        } else {
-          errorCount++;
-        }
-      }
-    }
-    
-    setIsUploading(false);
-
-    if (errorCount > 0) {
-      toast.error(`${errorCount} 个文件上传失败。`);
-      addNotification({ message: `${errorCount} 个文件上传失败`, type: 'error' });
-    } 
-    
-    if (successCount > 0) {
-       toast.success(`${successCount} 个文件上传成功！`);
-       addNotification({ message: `${successCount} 个文件上传成功`, type: 'success' });
-    }
-
-    if (errorCount === 0 && successCount > 0) {
-        setTimeout(() => {
-            setFilesToUpload([]);
-            setUploadProgress({});
-        }, 2000);
-    }
-  };
-  
-  const removeFile = (id) => {
-    setFilesToUpload(files => files.filter(f => f.id !== id));
-    
-    const fileToRemove = filesToUpload.find(f => f.id === id);
-    if (fileToRemove) {
-      setUploadProgress(progress => {
-        const newProgress = { ...progress };
-        delete newProgress[fileToRemove.key];
-        return newProgress;
-      });
     }
   };
 
@@ -205,12 +116,11 @@ export default function UploadsPage() {
         </div>
       </Card>
 
-      {filesToUpload.length > 0 && (
+      {uploads.length > 0 && (
         <div className="space-y-4">
            <h2 className="text-xl font-semibold">待上传列表</h2>
           <div className="space-y-2">
-            {filesToUpload.map(file => {
-              const progress = uploadProgress[file.key];
+            {uploads.map(file => {
               const displayName = file.key.split('/').pop();
               return (
                 <Card key={file.id} className="p-4 flex items-center space-x-4">
@@ -218,17 +128,17 @@ export default function UploadsPage() {
                   <div className="flex-1 space-y-1 min-w-0">
                     <p className="text-sm font-medium leading-none truncate" title={displayName}>{displayName}</p>
                     <p className="text-xs text-muted-foreground truncate" title={file.path}>{file.path}</p>
-                    {progress && progress.status !== 'pending' && (
-                        <Progress value={progress.percentage} className="h-2" />
+                    {file.status !== 'pending' && (
+                        <Progress value={file.progress} className="h-2" />
                     )}
-                    {progress && progress.status === 'error' && (
-                        <p className="text-xs text-red-500">{progress.error}</p>
+                    {file.status === 'error' && (
+                        <p className="text-xs text-red-500">{file.error}</p>
                     )}
                   </div>
-                  {progress && progress.status === 'completed' ? (
+                  {file.status === 'completed' ? (
                      <CheckCircle className="h-6 w-6 text-green-500" />
                   ) : (
-                    <Button variant="ghost" size="icon" onClick={() => removeFile(file.id)} disabled={isUploading}>
+                    <Button variant="ghost" size="icon" onClick={() => removeUpload(file.id)} disabled={isUploading && file.status === 'uploading'}>
                       <X className="h-4 w-4" />
                     </Button>
                   )}
@@ -237,10 +147,10 @@ export default function UploadsPage() {
             })}
           </div>
           <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => { setFilesToUpload([]); setUploadProgress({}); }} disabled={isUploading}>
+              <Button variant="outline" onClick={clearAll} disabled={isUploading}>
                   清空列表
               </Button>
-              <Button onClick={handleUpload} disabled={isUploading || filesToUpload.every(f => f.status !== 'pending')}>
+              <Button onClick={startAllUploads} disabled={isUploading || uploads.every(u => u.status !== 'pending')}>
                   {isUploading ? '正在上传...' : '全部上传'}
               </Button>
           </div>

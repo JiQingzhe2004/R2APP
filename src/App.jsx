@@ -7,6 +7,7 @@ import { Header } from '@/components/header'
 import { HashRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { NotificationProvider, useNotifications } from './contexts/NotificationContext';
 import { UpdateProvider, useUpdate } from './contexts/UpdateContext';
+import { UploadsProvider } from './contexts/UploadsContext';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -101,35 +102,35 @@ function AppContent() {
 
   return (
     <>
-      <Layout>
-        <Sidebar isCollapsed={isSidebarCollapsed} onToggle={toggleSidebar} />
-        <LayoutBody>
-          <Header 
-            onSearchClick={() => setIsSearchDialogOpen(true)} 
-            r2Status={r2Status}
-            profiles={profiles}
-            activeProfileId={activeProfileId}
-            onProfileSwitch={handleProfileSwitch}
-            notifications={notifications}
-            unreadCount={unreadCount}
-            onMarkAllRead={markAllAsRead}
-            onClearNotifications={clearNotifications}
-            onRemoveNotification={removeNotification}
-          />
-          <main className="relative flex-1 overflow-auto p-6">
-            <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<DashboardPage key={activeProfileId} />} />
-              <Route path="/files" element={<FilesPage key={activeProfileId} isSearchOpen={isSearchDialogOpen} onSearchOpenChange={setIsSearchDialogOpen} />} />
-              <Route path="/uploads" aname="uploads" element={<UploadsPage />} />
-              <Route path="/downloads" element={<DownloadsPage />} />
-              <Route path="/settings" element={<SettingsPage onSettingsSaved={refreshState} />} />
-              <Route path="/about" element={<AboutPage />} />
-              <Route path="/releasenotes" element={<ReleaseNotesPage />} />
-            </Routes>
-          </main>
-        </LayoutBody>
-      </Layout>
+    <Layout>
+      <Sidebar isCollapsed={isSidebarCollapsed} onToggle={toggleSidebar} />
+      <LayoutBody>
+        <Header 
+          onSearchClick={() => setIsSearchDialogOpen(true)} 
+          r2Status={r2Status}
+          profiles={profiles}
+          activeProfileId={activeProfileId}
+          onProfileSwitch={handleProfileSwitch}
+          notifications={notifications}
+          unreadCount={unreadCount}
+          onMarkAllRead={markAllAsRead}
+          onClearNotifications={clearNotifications}
+          onRemoveNotification={removeNotification}
+        />
+        <main className="relative flex-1 overflow-auto p-6">
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<DashboardPage key={activeProfileId} />} />
+            <Route path="/files" element={<FilesPage key={activeProfileId} isSearchOpen={isSearchDialogOpen} onSearchOpenChange={setIsSearchDialogOpen} />} />
+            <Route path="/uploads" aname="uploads" element={<UploadsPage />} />
+            <Route path="/downloads" element={<DownloadsPage />} />
+            <Route path="/settings" element={<SettingsPage onSettingsSaved={refreshState} />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/releasenotes" element={<ReleaseNotesPage />} />
+          </Routes>
+        </main>
+      </LayoutBody>
+    </Layout>
       <AppUpdateDialog />
     </>
   );
@@ -137,16 +138,18 @@ function AppContent() {
 
 function App() {
   return (
-    <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-      <Toaster richColors position="top-center" />
-      <NotificationProvider>
+    <Router>
+      <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
         <UpdateProvider>
-          <Router>
-            <AppContent />
-          </Router>
+          <NotificationProvider>
+            <UploadsProvider>
+              <Toaster richColors position="top-center" />
+              <AppContent />
+            </UploadsProvider>
+          </NotificationProvider>
         </UpdateProvider>
-      </NotificationProvider>
-    </ThemeProvider>
+      </ThemeProvider>
+    </Router>
   )
 }
 

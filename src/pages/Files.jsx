@@ -40,6 +40,14 @@ import {
 import { formatBytes, getFileIcon, getFileTypeDescription } from '@/lib/file-utils.jsx';
 import { useNotifications } from '@/contexts/NotificationContext';
 import FilePreview from '@/components/FilePreview';
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useUploads } from '@/contexts/UploadsContext';
 
 export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
   const [files, setFiles] = useState([]);
@@ -56,7 +64,9 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
   const [isCreateFolderDialogOpen, setIsCreateFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [previewFile, setPreviewFile] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState(new Set());
   const { addNotification } = useNotifications();
+  const { addUploads } = useUploads();
   const observer = useRef();
   const navigate = useNavigate();
 
@@ -64,17 +74,14 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
     const selectedPaths = await window.api.showOpenDialog();
     if (selectedPaths) {
       const newUploads = selectedPaths.map(path => {
-        const fileName = path.split(/[\\/]/).pop();
-        const key = `${currentPrefix}${fileName}`;
-        // Do NOT start the upload here.
-        // Let UploadsPage handle the initiation.
-        return { path, key, status: 'pending' };
+        const key = `${currentPrefix}${path.split(/[\\/]/).pop()}`;
+        return { path, key };
       });
 
       if (newUploads.length > 0) {
+        addUploads(newUploads);
         toast.info(`${newUploads.length} 个文件已加入上传队列。`);
-        // Navigate to uploads page with all the necessary info
-        navigate('/uploads', { state: { newUploads: newUploads } });
+        navigate('/uploads');
       }
     }
   };
@@ -212,6 +219,44 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
     setFileToDelete(null);
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedFiles.size === 0) return;
+
+    const filesToDelete = Array.from(selectedFiles);
+    const promises = filesToDelete.map(key => {
+      const isDir = key.endsWith('/');
+      return isDir ? window.api.deleteFolder(key) : window.api.deleteObject(key);
+    });
+
+    const results = await Promise.all(promises);
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    results.forEach((result, index) => {
+      const key = filesToDelete[index];
+      if (result.success) {
+        successCount++;
+        const message = key.endsWith('/') ? `文件夹 "${key}" 已删除` : `文件 "${key}" 已删除`;
+        addNotification({ message, type: 'success' });
+      } else {
+        errorCount++;
+        const message = `删除 "${key}" 失败: ${result.error}`;
+        addNotification({ message, type: 'error' });
+      }
+    });
+    
+    if (successCount > 0) {
+      toast.success(`${successCount} 个项目已成功删除。`);
+    }
+    if (errorCount > 0){
+      toast.error(`${errorCount} 个项目删除失败。`);
+    }
+
+    setSelectedFiles(new Set());
+    fetchFiles(currentPrefix);
+  };
+
   const handleCopyUrl = (url) => {
     navigator.clipboard.writeText(url).then(() => {
         toast.success('URL 已复制到剪贴板');
@@ -248,35 +293,89 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
   const handleDownload = (key) => {
       window.api.downloadFile(key);
       toast.success(`已加入下载队列: ${key}`);
-      navigate('/downloads');
   }
+
+  const handleBulkDownload = () => {
+    if (selectedFiles.size === 0) return;
+    const filesToDownload = Array.from(selectedFiles).filter(key => {
+      const file = files.find(f => (f.key || f.Key) === key);
+      return file && !file.isFolder;
+    });
+    
+    filesToDownload.forEach(key => {
+      window.api.downloadFile(key);
+    });
+
+    if (filesToDownload.length > 0) {
+      toast.success(`${filesToDownload.length} 个文件已加入下载队列。`);
+    }
+    
+    setSelectedFiles(new Set());
+    navigate('/downloads');
+  };
+
+  const handleSelectionChange = (key, checked) => {
+    setSelectedFiles(prev => {
+      const newSelected = new Set(prev);
+      if (checked) {
+        newSelected.add(key);
+      } else {
+        newSelected.delete(key);
+      }
+      return newSelected;
+    });
+  };
+
+  const handleSelectAll = (checked) => {
+    if (checked) {
+      const allFileKeys = files.filter(f => !f.isFolder).map(f => f.key || f.Key);
+      setSelectedFiles(new Set(allFileKeys));
+    } else {
+      setSelectedFiles(new Set());
+    }
+  };
 
   const renderBreadcrumbs = () => {
     if (searchTerm) return null;
 
     const parts = currentPrefix.split('/').filter(p => p);
     return (
-      <div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-4 px-1">
-        <span
-          className="cursor-pointer hover:text-primary"
-          onClick={() => handlePrefixChange('')}
-        >
-          全部文件
-        </span>
-        {parts.map((part, index) => {
-          const path = parts.slice(0, index + 1).join('/') + '/';
-          return (
-            <span key={path} className="flex items-center gap-1.5">
-              <span>/</span>
-              <span
-                className="cursor-pointer hover:text-primary"
-                onClick={() => handlePrefixChange(path)}
-              >
-                {part}
+      <div className="flex justify-between items-center mb-4 px-1">
+        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <span
+            className="cursor-pointer hover:text-primary"
+            onClick={() => handlePrefixChange('')}
+          >
+            全部文件
+          </span>
+          {parts.map((part, index) => {
+            const path = parts.slice(0, index + 1).join('/') + '/';
+            return (
+              <span key={path} className="flex items-center gap-1.5">
+                <span>/</span>
+                <span
+                  className="cursor-pointer hover:text-primary"
+                  onClick={() => handlePrefixChange(path)}
+                >
+                  {part}
+                </span>
               </span>
-            </span>
-          );
-        })}
+            );
+          })}
+        </div>
+        {viewMode === 'card' && (
+          <div className="flex items-center">
+            <Checkbox
+              id="card-select-all-breadcrumb"
+              checked={files.length > 0 && files.filter(f => !f.isFolder).length > 0 && selectedFiles.size === files.filter(f => !f.isFolder).length}
+              onCheckedChange={handleSelectAll}
+              aria-label="Select all"
+            />
+            <Label htmlFor="card-select-all-breadcrumb" className="ml-2 font-medium text-sm">
+              全选
+            </Label>
+          </div>
+        )}
       </div>
     );
   };
@@ -301,7 +400,7 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
         };
 
         return (
-          <Card key={key} ref={isLastElement ? lastFileElementRef : null} className="p-4" onClick={handleCardClick} style={{ cursor: isDir ? 'pointer' : 'default' }}>
+          <Card key={key} ref={isLastElement ? lastFileElementRef : null} className={`p-4 ${selectedFiles.has(key) ? 'border-primary' : ''}`} onClick={handleCardClick} style={{ cursor: isDir ? 'pointer' : 'default' }}>
             <div className="flex items-start gap-4">
               {isDir ? <FolderClosed /> : getFileIcon(file)}
               <div className="flex-1 min-w-0">
@@ -313,6 +412,15 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
                   {!isDir && <span>{formatBytes(size)}</span>}
                   <span>上次修改: {new Date(lastModified).toLocaleDateString()}</span>
                 </div>
+              </div>
+              <div className="flex-shrink-0 pt-1">
+                <Checkbox
+                  id={`card-checkbox-${key}`}
+                  checked={selectedFiles.has(key)}
+                  onCheckedChange={(checked) => handleSelectionChange(key, checked)}
+                  onClick={(e) => e.stopPropagation()}
+                  disabled={isDir}
+                />
               </div>
             </div>
             {!isDir && publicUrl && (
@@ -349,6 +457,13 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
         <Table>
             <TableHeader>
                 <TableRow>
+                    <TableHead className="w-[40px]">
+                      <Checkbox
+                        checked={files.length > 0 && files.filter(f => !f.isFolder).length > 0 && selectedFiles.size === files.filter(f => !f.isFolder).length}
+                        onCheckedChange={handleSelectAll}
+                        aria-label="Select all"
+                      />
+                    </TableHead>
                     <TableHead className="w-[50px]"></TableHead>
                     <TableHead>文件名</TableHead>
                     <TableHead>大小</TableHead>
@@ -374,7 +489,21 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
                     };
 
                     return (
-                        <TableRow key={key} ref={isLastElement ? lastFileElementRef : null} onClick={handleRowClick} style={{ cursor: isDir ? 'pointer' : 'default' }}>
+                        <TableRow 
+                          key={key} 
+                          ref={isLastElement ? lastFileElementRef : null} 
+                          onClick={handleRowClick} 
+                          style={{ cursor: isDir ? 'pointer' : 'default' }}
+                          className={selectedFiles.has(key) ? 'bg-muted/50' : ''}
+                        >
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              <Checkbox
+                                id={`list-checkbox-${key}`}
+                                checked={selectedFiles.has(key)}
+                                onCheckedChange={(checked) => handleSelectionChange(key, checked)}
+                                disabled={isDir}
+                              />
+                            </TableCell>
                             <TableCell>{isDir ? <FolderClosed /> : getFileIcon(file)}</TableCell>
                             <TableCell className="font-semibold max-w-xs truncate" title={key}>
                                 {isDir ? key.replace(currentPrefix, '').slice(0, -1) : key.replace(currentPrefix, '')}
@@ -407,7 +536,7 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
         <div className="flex-shrink-0 mb-4">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-bold">存储的文件</h1>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">{files.length} 个文件</span>
                 
                 <ToggleGroup type="single" value={viewMode} onValueChange={setViewMode} aria-label="View mode">
@@ -419,15 +548,38 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
                   </ToggleGroupItem>
                 </ToggleGroup>
 
-                <Button variant="outline" onClick={() => fetchFiles(currentPrefix, false)} disabled={loading}>
-                  <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                </Button>
-                <Button variant="outline" size="icon" onClick={() => setIsCreateFolderDialogOpen(true)}>
-                  <FolderPlus className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="icon" onClick={handleFileSelectAndUpload}>
-                  <UploadCloud className="h-4 w-4" />
-                </Button>
+                <TooltipProvider delayDuration={0}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="outline" size="icon" onClick={() => fetchFiles(currentPrefix, false)} disabled={loading}>
+                        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>刷新列表</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="outline" size="icon" onClick={() => setIsCreateFolderDialogOpen(true)}>
+                        <FolderPlus className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>创建文件夹</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="outline" size="icon" onClick={handleFileSelectAndUpload}>
+                        <UploadCloud className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>上传文件</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
             </div>
           </div>
           {searchTerm && (
@@ -443,6 +595,20 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
         </div>
 
         {renderBreadcrumbs()}
+
+        {selectedFiles.size > 0 && (
+          <div className="flex items-center gap-2 my-2">
+            <span className="text-sm text-muted-foreground">已选择 {selectedFiles.size} 个项目</span>
+            <Button variant="outline" size="sm" onClick={handleBulkDownload}>
+              <Download className="mr-2 h-4 w-4" />
+              下载所选
+            </Button>
+            <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              删除所选
+            </Button>
+          </div>
+        )}
 
         <div className="flex-1 overflow-auto">
           {viewMode === 'card' ? renderFileCards() : renderFileList()}
