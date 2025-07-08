@@ -1,32 +1,22 @@
 import {
-  Home,
   File,
-  Upload,
-  Download,
+  HardDriveDownload,
   Settings,
   Sun,
   Moon,
   PanelLeftClose,
   PanelRightClose,
-  PackageOpen,
-  FolderUp,
-  FolderDown,
-  ChevronLeft,
-  ChevronRight,
   LayoutDashboard,
-  Folder,
-  DownloadCloud,
-  Info,
-  MessageSquare,
-  ScrollText
+  ScrollText,
+  UploadCloud,
+  BadgeInfo,
+  CloudDownload
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useTheme } from "./theme-provider"
 import { cn } from "@/lib/utils"
 import WhiteLogo from '@/assets/WhiteLOGO.png'
 import BlackLogo from '@/assets/BlackLOGO.png'
-import { NavLink } from "./nav-link"
-import { Separator } from "@/components/ui/separator"
 import {
   Tooltip,
   TooltipContent,
@@ -42,11 +32,12 @@ export function Sidebar({ isCollapsed, onToggle }) {
   const navItems = [
     { id: 'dashboard', href: '/dashboard', icon: LayoutDashboard, label: '仪表盘' },
     { id: 'files', href: '/files', icon: File, label: '文件管理' },
-    { id: 'uploads', href: '/uploads', icon: Upload, label: '文件上传' },
-    { id: 'downloads', href: '/downloads', icon: DownloadCloud, label: '下载管理' },
+    { id: 'uploads', href: '/uploads', icon: UploadCloud, label: '上传' },
+    { id: 'downloads', href: '/downloads', icon: CloudDownload, label: '下载' },
     { id: 'settings', href: '/settings', icon: Settings, label: '设置' },
-    { id: 'about', href: '/about', icon: Info, label: '关于应用' },
+    { id: 'update', href: '/update', icon: HardDriveDownload, label: '应用更新' },
     { id: 'releasenotes', href: '/releasenotes', icon: ScrollText, label: '更新日志' },
+    { id: 'about', href: '/about', icon: BadgeInfo, label: '关于' },
   ]
 
   return (

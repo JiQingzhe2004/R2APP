@@ -249,12 +249,12 @@ function setupAutoUpdater() {
 
   autoUpdater.on('update-available', (info) => {
     console.log('Updater: Update available.', info);
-    mainWindow?.webContents.send('update-available', info);
-  });
+    mainWindow.webContents.send('update-available', info);
+  })
 
-  autoUpdater.on('update-not-available', () => {
-    console.log('Updater: Update not available.');
-    mainWindow?.webContents.send('update-not-available');
+  autoUpdater.on('update-not-available', (info) => {
+    console.log('Updater: Update not available.', info);
+    mainWindow.webContents.send('update-not-available');
   });
 
   autoUpdater.on('download-progress', (progressObj) => {

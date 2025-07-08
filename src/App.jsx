@@ -26,6 +26,7 @@ import DownloadsPage from './pages/Downloads';
 import AboutPage from './pages/About';
 import ReleaseNotesPage from './pages/ReleaseNotes';
 import PreviewPage from './pages/PreviewPage';
+import UpdatePage from './pages/Update';
 
 function AppUpdateDialog() {
   const { updateInfo, isUpdateModalOpen, setIsUpdateModalOpen } = useUpdate();
@@ -143,6 +144,7 @@ function App() {
                   <Route path="/settings" element={<SettingsPage />} />
                   <Route path="/about" element={<AboutPage />} />
                   <Route path="/releasenotes" element={<ReleaseNotesPage />} />
+                  <Route path="/update" element={<UpdatePage />} />
                 </Route>
                 <Route path="/preview" element={<PreviewPage />} />
               </Routes>

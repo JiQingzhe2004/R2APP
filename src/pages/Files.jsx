@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogFooter,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog"
 import { 
   Table,
@@ -35,7 +36,7 @@ import {
   ToggleGroupItem,
 } from "@/components/ui/toggle-group"
 import { 
-  RefreshCw, Trash2, Download, Copy, List, LayoutGrid, TextSearch, XCircle, FolderPlus, UploadCloud, FolderClosed, EllipsisVertical
+  RefreshCw, Trash2, Download, Copy, List, LayoutGrid, TextSearch, XCircle, FolderPlus, UploadCloud, FolderClosed, EllipsisVertical, Search
 } from 'lucide-react';
 import { formatBytes, getFileIcon, getFileTypeDescription } from '@/lib/file-utils.jsx';
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -48,9 +49,94 @@ import {
 } from "@/components/ui/tooltip";
 import { useUploads } from '@/contexts/UploadsContext';
 import { useOutletContext } from 'react-router-dom';
+import { Skeleton } from '@/components/ui/skeleton';
+
+function FilesSkeletonLoader({ viewMode }) {
+  if (viewMode === 'list') {
+    return (
+      <Card>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[40px]">
+                <Skeleton className="h-5 w-5" />
+              </TableHead>
+              <TableHead className="w-[50px]">
+                <Skeleton className="h-6 w-6" />
+              </TableHead>
+              <TableHead>
+                <Skeleton className="h-4 w-24" />
+              </TableHead>
+              <TableHead>
+                <Skeleton className="h-4 w-16" />
+              </TableHead>
+              <TableHead>
+                <Skeleton className="h-4 w-20" />
+              </TableHead>
+              <TableHead className="text-right">
+                <Skeleton className="h-4 w-12" />
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {[...Array(8)].map((_, i) => (
+              <TableRow key={i}>
+                <TableCell>
+                  <Skeleton className="h-5 w-5" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-6 w-6" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-full" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-3/4" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-5/6" />
+                </TableCell>
+                <TableCell>
+                  <div className="flex justify-end gap-2">
+                    <Skeleton className="h-8 w-8" />
+                    <Skeleton className="h-8 w-8" />
+                    <Skeleton className="h-8 w-8" />
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {[...Array(5)].map((_, i) => (
+        <Card key={i} className="p-4">
+          <div className="flex items-start gap-4">
+            <Skeleton className="h-10 w-10" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-full" />
+            </div>
+            <Skeleton className="h-5 w-5 rounded-sm" />
+          </div>
+          <div className="mt-4 flex items-center gap-2">
+            <Skeleton className="h-9 flex-1" />
+            <Skeleton className="h-9 w-9" />
+            <Skeleton className="h-9 w-9" />
+            <Skeleton className="h-9 w-9" />
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
 
 export default function FilesPage() {
-  const { activeProfileId, isSearchOpen, onSearchOpenChange, bucket } = useOutletContext();
+  const { activeProfileId, isSearchDialogOpen, setIsSearchDialogOpen, bucket } = useOutletContext();
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -98,21 +184,36 @@ export default function FilesPage() {
   }, [loading, nextToken, currentPrefix]);
 
   useEffect(() => {
-    const getActiveSettings = (fullSettings) => {
+    const getActiveSettings = async () => {
+        const fullSettings = await window.api.getSettings();
         if (!fullSettings || !fullSettings.activeProfileId || !fullSettings.profiles) return null;
         const baseSettings = fullSettings.settings || {};
         const activeProfile = fullSettings.profiles.find(p => p.id === fullSettings.activeProfileId);
         if (!activeProfile) return null;
-        return { ...baseSettings, ...activeProfile };
+        const newSettings = { ...baseSettings, ...activeProfile };
+        setSettings(newSettings);
+        return newSettings;
     };
-    window.api.getSettings().then(fullSettings => {
-        const activeSettings = getActiveSettings(fullSettings);
-        setSettings(activeSettings);
-    });
-    fetchFiles('', false);
-  }, []);
+    
+    const initialize = async () => {
+      await getActiveSettings();
+      setCurrentPrefix('');
+      setSearchTerm('');
+      setInputSearchTerm('');
+      setFiles([]);
+      setNextToken(null);
+      fetchFiles('', false);
+    };
+
+    initialize();
+  }, [activeProfileId]);
 
   const fetchFiles = useCallback(async (prefix, isLoadMore = false) => {
+    if (!activeProfileId) {
+      setLoading(false);
+      setError('没有活动的存储桶配置。');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -138,10 +239,10 @@ export default function FilesPage() {
     } finally {
       setLoading(false);
     }
-  }, [nextToken, currentPrefix]);
+  }, [nextToken, currentPrefix, activeProfileId]);
 
   const handleSearch = () => {
-    onSearchOpenChange(false);
+    setIsSearchDialogOpen(false);
     setFiles([]);
     setNextToken(null);
     const newSearchTerm = inputSearchTerm;
@@ -605,47 +706,75 @@ export default function FilesPage() {
           )}
         </div>
 
-        {renderBreadcrumbs()}
-
-        {selectedFiles.size > 0 && (
-          <div className="flex items-center gap-2 my-2">
-            <span className="text-sm text-muted-foreground">已选择 {selectedFiles.size} 个项目</span>
-            <Button variant="outline" size="sm" onClick={handleBulkDownload}>
-              <Download className="mr-2 h-4 w-4" />
-              下载所选
-            </Button>
-            <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
-              <Trash2 className="mr-2 h-4 w-4" />
-              删除所选
-            </Button>
+        {loading && files.length === 0 ? (
+          <FilesSkeletonLoader viewMode={viewMode} />
+        ) : error ? (
+          <div className="flex-1 flex items-center justify-center p-4 text-red-500">
+            错误: {error}
           </div>
-        )}
+        ) : (
+          <>
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                {renderBreadcrumbs()}
+              </div>
+              <div className="flex items-center gap-2">
+                {selectedFiles.size > 0 && (
+                  <>
+                    <span className="text-sm text-muted-foreground">已选择 {selectedFiles.size} 个项目</span>
+                    <Button variant="outline" size="sm" onClick={handleBulkDownload}>
+                      <Download className="mr-2 h-4 w-4" />
+                      下载所选
+                    </Button>
+                    <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      删除所选
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
 
-        <div className="flex-1 overflow-auto">
-          {viewMode === 'card' ? renderFileCards() : renderFileList()}
-          {loading && <div className="text-center p-4">加载中...</div>}
-          {error && <div className="text-center p-4 text-red-500">错误: {error}</div>}
-          {!loading && files.length === 0 && <div className="text-center p-4">没有文件</div>}
-        </div>
+            <div className="flex-1 overflow-auto">
+              {files.length > 0 ? (
+                <>
+                  {viewMode === 'card' ? renderFileCards() : renderFileList()}
+                  {loading && <div className="text-center p-4">加载中...</div>}
+                </>
+              ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  没有文件
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
       
-      <Dialog open={isSearchOpen} onOpenChange={onSearchOpenChange}>
+      <Dialog open={isSearchDialogOpen} onOpenChange={setIsSearchDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>搜索文件</DialogTitle>
+            <DialogDescription>
+              搜索当前存储桶文件
+            </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Input
-              id="search"
-              value={inputSearchTerm}
-              onChange={(e) => setInputSearchTerm(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              placeholder="输入文件前缀进行搜索..."
-            />
+          <div className="py-4 flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+              <Input
+                id="search"
+                value={inputSearchTerm}
+                onChange={(e) => setInputSearchTerm(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                placeholder="输入文件名或前缀进行搜索..."
+                className="pl-10"
+              />
+            </div>
+            <Button onClick={handleSearch} size="icon">
+              <Search className="h-5 w-5" />
+            </Button>
           </div>
-          <DialogFooter>
-            <Button onClick={handleSearch}>搜索</Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
       
@@ -667,22 +796,21 @@ export default function FilesPage() {
       <Dialog open={isCreateFolderDialogOpen} onOpenChange={setIsCreateFolderDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>创建新文件夹</DialogTitle>
+            <DialogTitle>新建文件夹</DialogTitle>
+            <DialogDescription>
+              输入新文件夹的名称。它将被创建在当前目录下
+            </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="folder-name" className="text-right">
-                文件夹名称
-              </Label>
-              <Input
-                id="folder-name"
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                className="col-span-3"
-                onKeyPress={(e) => e.key === 'Enter' && handleCreateFolder()}
-                placeholder="例如：我的照片"
-              />
-            </div>
+          <div className="py-4">
+            <Label htmlFor="folder-name"></Label>
+            <Input
+              id="folder-name"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              className="col-span-3"
+              onKeyPress={(e) => e.key === 'Enter' && handleCreateFolder()}
+              placeholder="例如：我的照片"
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsCreateFolderDialogOpen(false)}>取消</Button>

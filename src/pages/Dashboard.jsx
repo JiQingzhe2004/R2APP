@@ -1,45 +1,103 @@
-import { useState, useEffect, useRef, Fragment } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
+import React, { useState, useEffect, useRef, Fragment } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { cn } from "@/lib/utils"
 import { Progress } from "@/components/ui/Progress"
 import { Button } from '@/components/ui/Button'
-import { FileText, HardDrive, ChartColumnBig, Activity, Server, RefreshCw, Upload, Download, Trash2, CheckCircle, XCircle, AlertCircle, PackageSearch, ChevronDown, ChevronUp } from 'lucide-react'
+import { FileText, HardDrive, ChartColumnBig, Activity, Server, RefreshCw, Upload, Download, Trash2, CheckCircle, XCircle, AlertCircle, PackageSearch } from 'lucide-react'
 import { formatBytes } from '@/lib/file-utils.jsx'
 import { useNotifications } from '@/contexts/NotificationContext'
-import { cn } from '@/lib/utils'
 import { Separator } from "@/components/ui/separator"
-import React from 'react'
+import { Skeleton } from '@/components/ui/skeleton';
 
 function timeAgo(dateString) {
-  const date = new Date(dateString)
-  const seconds = Math.floor((new Date() - date) / 1000)
-  let interval = seconds / 31536000
-  if (interval > 1) return Math.floor(interval) + " 年前"
-  interval = seconds / 2592000
-  if (interval > 1) return Math.floor(interval) + " 个月前"
-  interval = seconds / 86400
-  if (interval > 1) return Math.floor(interval) + " 天前"
-  interval = seconds / 3600
-  if (interval > 1) return Math.floor(interval) + " 小时前"
-  interval = seconds / 60
-  if (interval > 1) return Math.floor(interval) + " 分钟前"
-  return "刚刚"
+  const date = new Date(dateString);
+  const now = new Date();
+  const seconds = Math.floor((now - date) / 1000);
+  let interval = seconds / 31536000;
+  if (interval > 1) return Math.floor(interval) + " 年前";
+  interval = seconds / 2592000;
+  if (interval > 1) return Math.floor(interval) + " 月前";
+  interval = seconds / 86400;
+  if (interval > 1) return Math.floor(interval) + " 天前";
+  interval = seconds / 3600;
+  if (interval > 1) return Math.floor(interval) + " 小时前";
+  interval = seconds / 60;
+  if (interval > 1) return Math.floor(interval) + " 分钟前";
+  return Math.floor(seconds) + " 秒前";
 }
 
-const ActivityIcon = ({ type }) => {
-  switch (type) {
-    case 'upload':
-      return <Upload className="h-4 w-4 text-green-500" />
-    case 'download':
-      return <Download className="h-4 w-4 text-blue-500" />
-    case 'delete':
-      return <Trash2 className="h-4 w-4 text-red-500" />
-    default:
-      return <FileText className="h-4 w-4 text-gray-500" />
-  }
+function DashboardSkeleton() {
+  return (
+    <div className="flex-1 space-y-4 p-4 sm:p-6">
+      <div className="flex items-center justify-between space-y-2">
+        <Skeleton className="h-9 w-48" />
+        <Skeleton className="h-10 w-32" />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {[...Array(4)].map((_, i) => (
+          <Card key={i}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-8 w-8 rounded-full" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-8 w-24" />
+              <Skeleton className="h-4 w-full mt-2" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4">
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-40" />
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex justify-between">
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+            <Skeleton className="h-4 w-full" />
+            <div className="flex justify-between">
+              <Skeleton className="h-4 w-8" />
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-4 w-8" />
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <Skeleton className="h-6 w-32" />
+              <Skeleton className="h-9 w-28" />
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {[...Array(3)].map((_, i) => (
+              <Fragment key={i}>
+                <div className="flex items-center">
+                  <Skeleton className="h-6 w-6 rounded-full" />
+                  <div className="ml-4 flex-1 space-y-2">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                  </div>
+                </div>
+                {i < 2 && <Separator />}
+              </Fragment>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
 }
+
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState({ totalCount: 0, totalSize: 0, bucketName: '' })
+  const [stats, setStats] = useState({ totalCount: 0, totalSize: 0, bucketName: '', storageQuotaGB: 0 })
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
   const [r2Status, setR2Status] = useState({ loading: true, success: false, message: '正在检查连接...' })
@@ -53,7 +111,7 @@ export default function DashboardPage() {
       setLoading(true)
     }
     setError(null)
-    setVisibleActivityCount(5) // Reset on refresh
+    setVisibleActivityCount(5)
 
     const statusResult = await window.api.checkStatus()
     setR2Status({ 
@@ -71,7 +129,7 @@ export default function DashboardPage() {
         addNotification({ message: `获取统计信息失败: ${statsResult.error}`, type: 'error' })
       }
     } else {
-      setStats({ totalCount: 0, totalSize: 0, bucketName: 'N/A' })
+      setStats({ totalCount: 0, totalSize: 0, bucketName: 'N/A', storageQuotaGB: 0 })
     }
 
     const activitiesResult = await window.api.getRecentActivities()
@@ -117,7 +175,7 @@ export default function DashboardPage() {
     const result = await window.api.clearRecentActivities();
     if (result.success) {
       setActivities([]);
-      setVisibleActivityCount(5); // Reset on clear
+      setVisibleActivityCount(5);
       addNotification({ message: '最近活动已清除', type: 'success' });
     } else {
       addNotification({ message: `清除失败: ${result.error}`, type: 'error' });
@@ -134,6 +192,17 @@ export default function DashboardPage() {
     }
     return <XCircle className="h-5 w-5 text-red-500" />;
   };
+  
+  const ActivityIcon = ({ type }) => {
+    if (type.startsWith('upload')) return <Upload className="h-5 w-5 text-blue-500" />;
+    if (type.startsWith('download')) return <Download className="h-5 w-5 text-green-500" />;
+    if (type.startsWith('delete')) return <Trash2 className="h-5 w-5 text-red-500" />;
+    return <AlertCircle className="h-5 w-5 text-yellow-500" />;
+  };
+
+  if (loading) {
+    return <DashboardSkeleton />;
+  }
 
   return (
     <div className="flex-1 space-y-4 p-4 sm:p-6">
@@ -166,7 +235,7 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{loading ? '...' : stats.totalCount}</div>
+            <div className="text-2xl font-bold">{stats.totalCount}</div>
             <p className="text-xs text-muted-foreground">当前存储桶中的对象总数</p>
           </CardContent>
         </Card>
@@ -178,7 +247,7 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{loading ? '...' : formatBytes(stats.totalSize)}</div>
+            <div className="text-2xl font-bold">{formatBytes(stats.totalSize)}</div>
             <p className="text-xs text-muted-foreground">当前存储桶的总大小</p>
           </CardContent>
         </Card>
@@ -217,7 +286,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold truncate" title={stats.bucketName}>
-              {loading ? '...' : stats.bucketName || 'N/A'}
+              {stats.bucketName || 'N/A'}
             </div>
             <div className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
               {getStatusIcon()} 
@@ -228,14 +297,14 @@ export default function DashboardPage() {
       </div>
       
       <div className="grid grid-cols-1 gap-4">
-        <Card>
-          <CardHeader>
+       <Card>
+         <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <span>存储使用情况</span>
               <PackageSearch className="h-5 w-5 text-muted-foreground" />
             </CardTitle>
-          </CardHeader>
-          <CardContent>
+         </CardHeader>
+         <CardContent>
              <div className="space-y-2">
                 <div className="flex justify-between text-sm text-muted-foreground">
                     <span>已用空间</span>
@@ -265,9 +334,7 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {loading ? (
-              <div className="text-center text-muted-foreground">正在加载活动...</div>
-            ) : activities.length > 0 ? (
+            {activities.length > 0 ? (
               <>
                 <div className="space-y-4">
                   {activities.slice(0, visibleActivityCount).map((activity, index) => (

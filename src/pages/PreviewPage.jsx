@@ -3,6 +3,8 @@ import { getFileIcon, isImage, isVideo, isAudio } from '@/lib/file-utils';
 import { PreviewHeader } from '@/components/PreviewHeader';
 import CodePreview from '@/components/CodePreview';
 
+const compressedExtensions = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'iso'];
+
 const LoadingSpinner = () => (
   <svg className="animate-spin -ml-1 mr-3 h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -28,6 +30,15 @@ export default function PreviewPage() {
       try {
         const params = new URLSearchParams(window.location.hash.split('?')[1]);
         const fileName = params.get('fileName');
+
+        const extension = fileName?.split('.').pop().toLowerCase();
+        if (fileName && compressedExtensions.includes(extension)) {
+          setFile({ fileName });
+          setError('压缩文件请下载后查看');
+          setLoading(false);
+          return;
+        }
+
         const filePath = params.get('filePath');
         const bucket = params.get('bucket');
 
