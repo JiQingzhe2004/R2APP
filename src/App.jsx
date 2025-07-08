@@ -4,7 +4,7 @@ import { Toaster, toast } from 'sonner';
 import { Layout, LayoutBody } from '@/components/ui/layout'
 import { Sidebar } from '@/components/sidebar'
 import { Header } from '@/components/header'
-import { HashRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate, useNavigate, Outlet } from 'react-router-dom';
 import { NotificationProvider, useNotifications } from './contexts/NotificationContext';
 import { UpdateProvider, useUpdate } from './contexts/UpdateContext';
 import { UploadsProvider } from './contexts/UploadsContext';
@@ -25,6 +25,7 @@ import UploadsPage from './pages/Uploads';
 import DownloadsPage from './pages/Downloads';
 import AboutPage from './pages/About';
 import ReleaseNotesPage from './pages/ReleaseNotes';
+import PreviewPage from './pages/PreviewPage';
 
 function AppUpdateDialog() {
   const { updateInfo, isUpdateModalOpen, setIsUpdateModalOpen } = useUpdate();
@@ -53,7 +54,7 @@ function AppUpdateDialog() {
   )
 }
 
-function AppContent() {
+function MainLayout() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
   const [r2Status, setR2Status] = useState({ loading: true, success: false, message: '正在检查连接...' });
@@ -101,7 +102,6 @@ function AppContent() {
   }
 
   return (
-    <>
     <Layout>
       <Sidebar isCollapsed={isSidebarCollapsed} onToggle={toggleSidebar} />
       <LayoutBody>
@@ -118,21 +118,10 @@ function AppContent() {
           onRemoveNotification={removeNotification}
         />
         <main className="relative flex-1 overflow-auto p-6">
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<DashboardPage key={activeProfileId} />} />
-            <Route path="/files" element={<FilesPage key={activeProfileId} isSearchOpen={isSearchDialogOpen} onSearchOpenChange={setIsSearchDialogOpen} />} />
-            <Route path="/uploads" aname="uploads" element={<UploadsPage />} />
-            <Route path="/downloads" element={<DownloadsPage />} />
-            <Route path="/settings" element={<SettingsPage onSettingsSaved={refreshState} />} />
-            <Route path="/about" element={<AboutPage />} />
-            <Route path="/releasenotes" element={<ReleaseNotesPage />} />
-          </Routes>
+          <Outlet context={{ activeProfileId, isSearchDialogOpen, setIsSearchDialogOpen, refreshState }}/>
         </main>
       </LayoutBody>
     </Layout>
-      <AppUpdateDialog />
-    </>
   );
 }
 
@@ -143,12 +132,25 @@ function App() {
         <UpdateProvider>
           <NotificationProvider>
             <UploadsProvider>
-              <Toaster richColors position="top-center" />
-              <AppContent />
+      <Toaster richColors position="top-center" />
+              <Routes>
+                <Route element={<MainLayout />}>
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/files" element={<FilesPage />} />
+                  <Route path="/uploads" element={<UploadsPage />} />
+                  <Route path="/downloads" element={<DownloadsPage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/about" element={<AboutPage />} />
+                  <Route path="/releasenotes" element={<ReleaseNotesPage />} />
+                </Route>
+                <Route path="/preview" element={<PreviewPage />} />
+              </Routes>
+              <AppUpdateDialog />
             </UploadsProvider>
-          </NotificationProvider>
+      </NotificationProvider>
         </UpdateProvider>
-      </ThemeProvider>
+    </ThemeProvider>
     </Router>
   )
 }

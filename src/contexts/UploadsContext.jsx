@@ -58,7 +58,7 @@ export const UploadsProvider = ({ children }) => {
     
     for (const upload of pendingUploads) {
       setUploads(prev => prev.map(u => u.id === upload.id ? { ...u, status: 'uploading' } : u));
-      await window.api.uploadFile(upload.path, upload.key);
+      await window.api.uploadFile({ filePath: upload.path, key: upload.key });
     }
 
     setIsUploading(false);

@@ -78,7 +78,7 @@ export default function UploadsPage() {
           const filePath = await window.api.getPathForFile(file);
           if (filePath) {
             filePaths.push(filePath);
-          } else {
+    } else {
             addNotification({ message: `获取 ${file.name} 的路径失败`, type: 'error' });
           }
         } catch (err) {
@@ -89,7 +89,7 @@ export default function UploadsPage() {
 
       if (filePaths.length > 0) {
         addFilesByPath(filePaths);
-      }
+    }
     }
   };
 

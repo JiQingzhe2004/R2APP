@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { useNotifications } from '@/contexts/NotificationContext';
 import { User, KeyRound, Container, Globe, Plug, Save, PlusCircle, Trash2, Cloud, Server } from 'lucide-react'
 import { v4 as uuidv4 } from 'uuid';
+import { useOutletContext } from 'react-router-dom';
 
 const R2_TEMPLATE = {
   type: 'r2',
@@ -32,7 +33,42 @@ const OSS_TEMPLATE = {
   storageQuotaGB: 10,
 };
 
-export default function SettingsPage({ onSettingsSaved }) {
+const ProfileForm = ({ profile, onSave, onRemove, onTest }) => {
+  const [formData, setFormData] = useState(profile);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  return (
+    <>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor={`accountId-${profile.id}`}>账户 ID (Account ID)</Label>
+          <Input id={`accountId-${profile.id}`} name="accountId" value={formData.accountId} onChange={handleChange} placeholder="您的 Cloudflare 账户 ID" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`bucketName-${profile.id}`}>存储桶名称</Label>
+          <Input id={`bucketName-${profile.id}`} name="bucketName" value={formData.bucketName} onChange={handleChange} placeholder="您的 R2 存储桶名称" />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor={`accessKeyId-${profile.id}`}>访问密钥 ID</Label>
+          <Input id={`accessKeyId-${profile.id}`} name="accessKeyId" value={formData.accessKeyId} onChange={handleChange} placeholder="您的 R2 访问密钥 ID" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`secretAccessKey-${profile.id}`}>秘密访问密钥</Label>
+          <Input id={`secretAccessKey-${profile.id}`} name="secretAccessKey" type="password" value={formData.secretAccessKey} onChange={handleChange} placeholder="您的 R2 秘密访问密钥" />
+        </div>
+      </div>
+    </>
+  );
+};
+
+export default function SettingsPage() {
+  const { refreshState } = useOutletContext();
   const [profiles, setProfiles] = useState([]);
   const [activeProfileId, setActiveProfileId] = useState(null);
   const { addNotification } = useNotifications();
@@ -123,8 +159,9 @@ export default function SettingsPage({ onSettingsSaved }) {
     if (result.success) {
       toast.success('所有设置已成功保存！', { id: toastId });
       addNotification({ message: '设置已成功保存', type: 'success' });
-      if (onSettingsSaved) {
-        onSettingsSaved();
+      await fetchSettings();
+      if (refreshState) {
+        refreshState();
       }
     } else {
       toast.error(result.error || '保存失败，请检查配置并重试。', { id: toastId });

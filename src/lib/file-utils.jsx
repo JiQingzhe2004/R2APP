@@ -44,5 +44,49 @@ export const getFileIcon = (file) => {
 };
 
 export const getFileTypeDescription = (file) => {
-  return getFileMeta(file).description;
-} 
+  const key = file.key || file.Key; // Handle both 'key' and 'Key'
+  if (!key) return '未知文件类型';
+  
+  const extension = key.split('.').pop().toLowerCase();
+  if (!extension) return '未知文件类型';
+
+  for (const mapping of fileTypeMappings) {
+    if (mapping.extensions.includes(extension)) {
+      return mapping.type;
+    }
+  }
+
+  switch (extension) {
+    case 'md':
+      return 'Markdown 文档';
+    default:
+      return '未知文件类型';
+  }
+};
+
+export const isImage = (fileName = '') => {
+  const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
+  const lowercasedName = fileName.toLowerCase();
+  return imageExtensions.some(ext => lowercasedName.endsWith(ext));
+};
+
+export const isVideo = (fileName = '') => {
+  const videoExtensions = ['.mp4', '.webm', '.ogg', '.mov'];
+  const lowercasedName = fileName.toLowerCase();
+  return videoExtensions.some(ext => lowercasedName.endsWith(ext));
+};
+
+export const isAudio = (fileName = '') => {
+  const audioExtensions = ['.mp3', '.wav', '.ogg', '.m4a'];
+  const lowercasedName = fileName.toLowerCase();
+  return audioExtensions.some(ext => lowercasedName.endsWith(ext));
+};
+
+export const isCode = (fileName = '') => {
+  const codeExtensions = [
+    '.js', '.jsx', '.ts', '.tsx', '.json', '.css', '.scss', '.html', '.py', '.java',
+    '.c', '.cpp', '.cs', '.go', '.rb', '.php', '.rs', '.swift', '.kt', '.md'
+  ];
+  const lowercasedName = fileName.toLowerCase();
+  return codeExtensions.some(ext => lowercasedName.endsWith(ext));
+}; 

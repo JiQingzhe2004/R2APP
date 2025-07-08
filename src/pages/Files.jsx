@@ -35,11 +35,10 @@ import {
   ToggleGroupItem,
 } from "@/components/ui/toggle-group"
 import { 
-  RefreshCw, Trash2, Download, Copy, List, LayoutGrid, TextSearch, XCircle, FolderPlus, UploadCloud, FolderClosed
+  RefreshCw, Trash2, Download, Copy, List, LayoutGrid, TextSearch, XCircle, FolderPlus, UploadCloud, FolderClosed, EllipsisVertical
 } from 'lucide-react';
 import { formatBytes, getFileIcon, getFileTypeDescription } from '@/lib/file-utils.jsx';
 import { useNotifications } from '@/contexts/NotificationContext';
-import FilePreview from '@/components/FilePreview';
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Tooltip,
@@ -48,8 +47,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useUploads } from '@/contexts/UploadsContext';
+import { useOutletContext } from 'react-router-dom';
 
-export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
+export default function FilesPage() {
+  const { activeProfileId, isSearchOpen, onSearchOpenChange, bucket } = useOutletContext();
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -63,7 +64,6 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
   const [currentPrefix, setCurrentPrefix] = useState('');
   const [isCreateFolderDialogOpen, setIsCreateFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
-  const [previewFile, setPreviewFile] = useState(null);
   const [selectedFiles, setSelectedFiles] = useState(new Set());
   const { addNotification } = useNotifications();
   const { addUploads } = useUploads();
@@ -311,7 +311,7 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
     }
     
     setSelectedFiles(new Set());
-    navigate('/downloads');
+      navigate('/downloads');
   };
 
   const handleSelectionChange = (key, checked) => {
@@ -342,26 +342,26 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
     return (
       <div className="flex justify-between items-center mb-4 px-1">
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <span
-            className="cursor-pointer hover:text-primary"
-            onClick={() => handlePrefixChange('')}
-          >
-            全部文件
-          </span>
-          {parts.map((part, index) => {
-            const path = parts.slice(0, index + 1).join('/') + '/';
-            return (
-              <span key={path} className="flex items-center gap-1.5">
-                <span>/</span>
-                <span
-                  className="cursor-pointer hover:text-primary"
-                  onClick={() => handlePrefixChange(path)}
-                >
-                  {part}
-                </span>
+        <span
+          className="cursor-pointer hover:text-primary"
+          onClick={() => handlePrefixChange('')}
+        >
+          全部文件
+        </span>
+        {parts.map((part, index) => {
+          const path = parts.slice(0, index + 1).join('/') + '/';
+          return (
+            <span key={path} className="flex items-center gap-1.5">
+              <span>/</span>
+              <span
+                className="cursor-pointer hover:text-primary"
+                onClick={() => handlePrefixChange(path)}
+              >
+                {part}
               </span>
-            );
-          })}
+            </span>
+          );
+        })}
         </div>
         {viewMode === 'card' && (
           <div className="flex items-center">
@@ -391,11 +391,17 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
         const isDir = file.isFolder;
 
         const handleCardClick = (e) => {
-          if (e.target.closest('button')) return;
+          if (e.target.closest('button') || e.target.closest('input[type="checkbox"]')) return;
+          
           if (isDir) {
             handlePrefixChange(key);
           } else {
-            setPreviewFile(file);
+            const fileName = key.split('/').pop();
+            window.api.openPreviewWindow({
+              fileName: fileName,
+              filePath: currentPrefix,
+              bucket: bucket
+            });
           }
         };
 
@@ -484,7 +490,12 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
                       if (isDir) {
                         handlePrefixChange(key);
                       } else {
-                        setPreviewFile(file);
+                        const fileName = key.split('/').pop();
+                        window.api.openPreviewWindow({
+                          fileName: fileName,
+                          filePath: currentPrefix,
+                          bucket: bucket,
+                        });
                       }
                     };
 
@@ -552,8 +563,8 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button variant="outline" size="icon" onClick={() => fetchFiles(currentPrefix, false)} disabled={loading}>
-                        <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-                      </Button>
+                  <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                </Button>
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>刷新列表</p>
@@ -561,9 +572,9 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="outline" size="icon" onClick={() => setIsCreateFolderDialogOpen(true)}>
-                        <FolderPlus className="h-4 w-4" />
-                      </Button>
+                <Button variant="outline" size="icon" onClick={() => setIsCreateFolderDialogOpen(true)}>
+                  <FolderPlus className="h-4 w-4" />
+                </Button>
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>创建文件夹</p>
@@ -571,9 +582,9 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
                   </Tooltip>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button variant="outline" size="icon" onClick={handleFileSelectAndUpload}>
-                        <UploadCloud className="h-4 w-4" />
-                      </Button>
+                <Button variant="outline" size="icon" onClick={handleFileSelectAndUpload}>
+                  <UploadCloud className="h-4 w-4" />
+                </Button>
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>上传文件</p>
@@ -679,13 +690,6 @@ export default function FilesPage({ isSearchOpen, onSearchOpenChange }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <FilePreview
-        file={previewFile}
-        publicUrl={previewFile ? getPublicUrl(previewFile.key) : null}
-        open={!!previewFile}
-        onOpenChange={() => setPreviewFile(null)}
-      />
     </>
   );
 } 

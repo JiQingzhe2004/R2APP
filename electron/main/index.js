@@ -1,8 +1,9 @@
-import { app, shell, BrowserWindow, ipcMain, dialog, globalShortcut } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog, globalShortcut, screen } from 'electron'
 import { join, parse } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
 import Store from 'electron-store'
 import { S3Client, ListObjectsV2Command, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, DeleteObjectsCommand } from '@aws-sdk/client-s3'
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Upload } from "@aws-sdk/lib-storage";
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
@@ -95,6 +96,55 @@ function runMigration() {
 runMigration();
 
 let mainWindow;
+const previewWindows = new Map();
+let initialFileInfo = null;
+
+function createPreviewWindow(fileName, filePath, bucket) {
+  const key = `${bucket}/${filePath}/${fileName}`;
+
+  if (previewWindows.has(key)) {
+    const existingWindow = previewWindows.get(key);
+    if (existingWindow && !existingWindow.isDestroyed()) {
+      existingWindow.focus();
+      return;
+    }
+  }
+
+  const previewWindow = new BrowserWindow({
+    width: 800,
+    height: 600,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.mjs'),
+      sandbox: false,
+      contextIsolation: true,
+    },
+    show: false,
+    frame: false,
+    titleBarStyle: 'hidden'
+  });
+
+  previewWindow.on('ready-to-show', () => {
+    previewWindow.show()
+  })
+  
+  previewWindow.on('closed', () => {
+    previewWindows.delete(key);
+  });
+
+  // Pass file info via query parameters
+  const query = new URLSearchParams({
+    fileName,
+    filePath,
+    bucket
+  });
+
+  const previewUrl = is.dev && process.env['ELECTRON_RENDERER_URL']
+    ? `${process.env['ELECTRON_RENDERER_URL']}/#/preview?${query.toString()}`
+    : `file://${join(__dirname, '../renderer/index.html')}#/preview?${query.toString()}`;
+  
+  previewWindow.loadURL(previewUrl);
+  previewWindows.set(key, previewWindow);
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -129,11 +179,20 @@ function createWindow() {
     return { action: 'deny' }
   })
   
+  mainWindow.on('close', () => {
+    if (mainWindow.isMainWindow) {
+        // Quit the app if the main window is closed
+        app.quit();
+    }
+  });
+  
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
     loadURL(mainWindow);
   }
+
+  mainWindow.isMainWindow = true;
 }
 
 app.whenReady().then(() => {
@@ -601,19 +660,21 @@ ipcMain.handle('create-folder', async (event, folderName) => {
 
 const PREVIEW_FILE_SIZE_LIMIT = 1024 * 1024; // 1MB
 
-ipcMain.handle('get-object-content', async (event, key) => {
+ipcMain.handle('get-object-content', async (event, bucket, key) => {
   const storage = await getStorageClient();
   if (!storage) {
     return { success: false, error: '未找到有效的存储配置' };
   }
-  const { client, type, bucket } = storage;
+  
+  // Use the bucket from the client, not the one passed in, for security.
+  const { client, type, bucket: clientBucket } = storage;
 
   try {
     let content = '';
     let fileTooLarge = false;
 
     if (type === 'r2') {
-      const command = new GetObjectCommand({ Bucket: bucket, Key: key });
+      const command = new GetObjectCommand({ Bucket: clientBucket, Key: key });
       const response = await client.send(command);
 
       if (response.ContentLength > PREVIEW_FILE_SIZE_LIMIT) {
@@ -812,20 +873,25 @@ ipcMain.handle('show-item-in-folder', (event, filePath) => {
   shell.showItemInFolder(filePath);
 });
 
-ipcMain.on('minimize-window', () => {
-  mainWindow?.minimize();
+ipcMain.on('minimize-window', (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (window) window.minimize();
 });
 
-ipcMain.on('maximize-window', () => {
-  if (mainWindow?.isMaximized()) {
-    mainWindow.unmaximize();
+ipcMain.on('maximize-window', (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (window) {
+    if (window.isMaximized()) {
+      window.unmaximize();
   } else {
-    mainWindow?.maximize();
+      window.maximize();
+    }
   }
 });
 
-ipcMain.on('close-window', () => {
-  mainWindow?.close();
+ipcMain.on('close-window', (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (window) window.close();
 });
 
 ipcMain.handle('get-app-info', () => {
@@ -894,5 +960,51 @@ ipcMain.handle('delete-recent-activity', (event, activityId) => {
   } catch (error) {
     console.error('Failed to delete recent activity:', error);
     return { success: false, error: error.message };
+  }
+});
+
+ipcMain.on('resize-preview-window', (event, { width, height }) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (window) {
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+
+    const windowWidth = Math.min(Math.round(width), screenWidth - 50);
+    const windowHeight = Math.min(Math.round(height + 32), screenHeight - 50); // Add 32px for custom title bar
+
+    window.setSize(windowWidth, windowHeight, true); // true for animate
+    window.center();
+  }
+});
+
+ipcMain.on('open-preview-window', (event, fileInfo) => {
+  const { fileName, filePath, bucket } = fileInfo;
+  createPreviewWindow(fileName, filePath, bucket);
+});
+
+ipcMain.on('get-initial-file-info', (event) => {
+  event.reply('file-info-for-preview', initialFileInfo);
+});
+
+ipcMain.handle('get-presigned-url', async (event, bucket, key) => {
+  const storage = await getStorageClient();
+  if (!storage) {
+    return { success: false, error: '未找到有效的存储配置' };
+  }
+
+  try {
+    let url = '';
+    if (storage.type === 'r2') {
+      const command = new GetObjectCommand({ Bucket: bucket, Key: key });
+      // The URL will be valid for 15 minutes.
+      url = await getSignedUrl(storage.client, command, { expiresIn: 900 });
+    } else if (storage.type === 'oss') {
+      // The URL will be valid for 15 minutes.
+      url = storage.client.signatureUrl(key, { expires: 900 });
+    }
+    return url;
+  } catch (error) {
+    console.error(`Failed to get presigned URL for ${key}:`, error);
+    return null;
   }
 });
