@@ -22,8 +22,7 @@
 
 1.  **克隆仓库** (或下载源代码)。
     ```sh
-    git clone https://github.com/your-username/r2-desktop-app.git
-    cd r2-desktop-app
+    git clone https://gitee.com/jiqingzhe/r2-app.git
     ```
 
 2.  **安装 NPM 依赖包**。
