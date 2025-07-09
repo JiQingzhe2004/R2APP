@@ -36,33 +36,36 @@ export const UploadsProvider = ({ children }) => {
   // Save state to store whenever it changes
   useEffect(() => {
     if (!isInitialLoad.current) {
-      window.api.setUploadsState(uploads);
+      // Don't save AbortController signals or other non-serializable objects
+      const uploadsToSave = uploads.map(({ ...rest }) => rest);
+      window.api.setUploadsState(uploadsToSave);
     }
   }, [uploads]);
 
   useEffect(() => {
-    const removeProgressListener = window.api.onUploadProgress(({ key, percentage, error, status }) => {
+    const removeProgressListener = window.api.onUploadProgress(({ key, percentage, error, status, checkpoint }) => {
       setUploads(prevUploads => {
         return prevUploads.map(upload => {
           if (upload.key === key) {
-            const baseProgress = upload.resumed_from || 0;
-            const newProgress = percentage || 0;
-            // Calculate total progress based on what was already uploaded + new progress
-            const totalProgress = baseProgress + (newProgress * (100 - baseProgress) / 100);
-
             // A specific status from the main process (like 'paused') takes precedence.
             if (status) {
               return { 
                 ...upload, 
                 status: status, 
-                error: error, // Can still hold a message like "Upload paused"
-                progress: totalProgress,
+                error: error,
+                // When paused, progress might not be sent, so keep existing progress.
+                progress: percentage !== undefined ? percentage : upload.progress,
+                checkpoint: checkpoint || upload.checkpoint,
               };
             }
 
+            const baseProgress = upload.resumed_from || 0;
+            const newProgress = percentage || 0;
+            const totalProgress = baseProgress + (newProgress * (100 - baseProgress) / 100);
+
             // If there's an error without a specific status, it's a failure.
             if (error) {
-              return { ...upload, status: 'error', error, resumed_from: 0 };
+              return { ...upload, status: 'error', error, resumed_from: 0, checkpoint: null };
             }
             
             // Otherwise, it's a normal progress update.
@@ -71,8 +74,9 @@ export const UploadsProvider = ({ children }) => {
               ...upload,
               status: isCompleted ? 'completed' : 'uploading',
               progress: isCompleted ? 100 : totalProgress,
-              error: null, // Clear previous errors on new progress
+              error: null, 
               resumed_from: isCompleted ? 0 : upload.resumed_from,
+              checkpoint: isCompleted ? null : (checkpoint || upload.checkpoint),
             };
           }
           return upload;
@@ -95,7 +99,8 @@ export const UploadsProvider = ({ children }) => {
         key: uploadData.key,
         status: 'pending',
         progress: 0,
-        resumed_from: 0, // Track progress to resume from
+        resumed_from: 0, 
+        checkpoint: null, // Add checkpoint for OSS
       }))
       .filter(newUpload => !uploads.some(existing => existing.path === newUpload.path));
 
@@ -110,7 +115,7 @@ export const UploadsProvider = ({ children }) => {
     
     for (const upload of pendingUploads) {
       setUploads(prev => prev.map(u => u.id === upload.id ? { ...u, status: 'uploading' } : u));
-      await window.api.uploadFile({ filePath: upload.path, key: upload.key });
+      await window.api.uploadFile({ filePath: upload.path, key: upload.key, checkpoint: upload.checkpoint });
     }
 
     setIsUploading(false);
@@ -127,9 +132,9 @@ export const UploadsProvider = ({ children }) => {
 
   const resumeUpload = async (id) => {
     const upload = uploads.find(u => u.id === id);
-    if (upload && upload.status === 'paused') {
-      await window.api.resumeUpload({ filePath: upload.path, key: upload.key });
-      setUploads(prev => prev.map(u => u.id === id ? { ...u, status: 'uploading' } : u));
+    if (upload && (upload.status === 'paused' || upload.status === 'error')) {
+      setUploads(prev => prev.map(u => u.id === id ? { ...u, status: 'uploading', error: null } : u));
+      await window.api.resumeUpload({ filePath: upload.path, key: upload.key, checkpoint: upload.checkpoint });
     }
   };
 

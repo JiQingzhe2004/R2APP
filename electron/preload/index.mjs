@@ -59,7 +59,7 @@ export const api = {
   getUploadsState: () => ipcRenderer.invoke('get-uploads-state'),
   setUploadsState: (uploads) => ipcRenderer.invoke('set-uploads-state', uploads),
   pauseUpload: (key) => ipcRenderer.invoke('pause-upload', key),
-  resumeUpload: (data) => ipcRenderer.invoke('resume-upload', data),
+  resumeUpload: (uploadData) => ipcRenderer.invoke('resume-upload', uploadData),
   
   // The correct way to get file path from a dropped file object
   getPathForFile: (file) => webUtils.getPathForFile(file),

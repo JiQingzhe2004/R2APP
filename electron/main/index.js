@@ -59,7 +59,7 @@ function addRecentActivity(type, message, status) {
   mainWindow?.webContents.send('activity-updated');
 }
 
-async function startUpload(filePath, key) {
+async function startUpload(filePath, key, checkpoint) {
   const storage = await getStorageClient();
   if (!storage) {
     const errorMsg = '请先在设置中配置您的存储桶。';
@@ -92,17 +92,27 @@ async function startUpload(filePath, key) {
       addRecentActivity('upload', `文件 ${key} 上传成功。`, 'success');
 
     } else if (storage.type === 'oss') {
+      const controller = new AbortController();
+      activeUploads.set(key, controller);
+      
       await storage.client.multipartUpload(key, filePath, {
-        progress: (p) => {
-          mainWindow.webContents.send('upload-progress', { key, percentage: Math.round(p * 100) });
+        signal: controller.signal,
+        checkpoint: checkpoint,
+        progress: async (p, cpt) => {
+          mainWindow.webContents.send('upload-progress', { 
+            key, 
+            percentage: Math.round(p * 100),
+            checkpoint: cpt 
+          });
         }
       });
+
       mainWindow.webContents.send('upload-progress', { key, percentage: 100 });
       addRecentActivity('upload', `文件 ${key} 上传成功。`, 'success');
     }
   } catch (error) {
-    if (error.name === 'AbortError') {
-      console.log(`Upload of ${key} was aborted.`);
+    if (error.name === 'AbortError' || error.name === 'CancelError') {
+      console.log(`Upload of ${key} was aborted/cancelled.`);
       mainWindow.webContents.send('upload-progress', { key, status: 'paused', error: '上传已暂停' });
       addRecentActivity('upload', `文件 ${key} 上传已暂停。`, 'info');
     } else {
@@ -776,19 +786,19 @@ ipcMain.handle('show-open-dialog', async () => {
   return result.filePaths;
 });
 
-ipcMain.handle('upload-file', async (_, { filePath, key }) => {
-  startUpload(filePath, key);
+ipcMain.handle('upload-file', async (_, { filePath, key, checkpoint }) => {
+  startUpload(filePath, key, checkpoint);
 });
 
 ipcMain.handle('pause-upload', async (_, key) => {
-  const upload = activeUploads.get(key);
-  if (upload) {
-    await upload.abort();
+  const uploadOrController = activeUploads.get(key);
+  if (uploadOrController) {
+    await uploadOrController.abort();
   }
 });
 
-ipcMain.handle('resume-upload', async (_, { filePath, key }) => {
-  startUpload(filePath, key);
+ipcMain.handle('resume-upload', async (_, { filePath, key, checkpoint }) => {
+  startUpload(filePath, key, checkpoint);
 });
 
 ipcMain.on('download-file', async (event, key) => {
