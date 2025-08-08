@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
@@ -35,8 +35,18 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@/components/ui/toggle-group"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from "@/components/ui/dropdown-menu"
 import { 
-  RefreshCw, Trash2, Download, Copy, List, LayoutGrid, TextSearch, XCircle, FolderPlus, UploadCloud, FolderClosed, EllipsisVertical, Search
+  RefreshCw, Trash2, Download, Copy, List, LayoutGrid, TextSearch, XCircle, FolderPlus, UploadCloud, FolderClosed, EllipsisVertical, Search, ArrowUpDown
 } from 'lucide-react';
 import { formatBytes, getFileIcon, getFileTypeDescription } from '@/lib/file-utils.jsx';
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -152,6 +162,8 @@ export default function FilesPage() {
   const [newFolderName, setNewFolderName] = useState('');
   const [selectedFiles, setSelectedFiles] = useState(new Set());
   const [isSearching, setIsSearching] = useState(false);
+  const [sortField, setSortField] = useState('date'); // 'date' | 'size' | 'name'
+  const [sortOrder, setSortOrder] = useState('desc'); // 'asc' | 'desc'
   const { addNotification } = useNotifications();
   const { addUploads } = useUploads();
   const observer = useRef();
@@ -480,6 +492,48 @@ export default function FilesPage() {
     }
   };
 
+  const sortedFiles = useMemo(() => {
+    const items = [...files];
+    const compare = (a, b) => {
+      const aIsDir = !!a.isFolder;
+      const bIsDir = !!b.isFolder;
+      if (aIsDir !== bIsDir) return aIsDir ? -1 : 1;
+
+      const aKey = (a.key || a.Key) || '';
+      const bKey = (b.key || b.Key) || '';
+
+      if (sortField === 'name') {
+        const aNameRel = aKey.startsWith(currentPrefix) ? aKey.slice(currentPrefix.length) : aKey;
+        const bNameRel = bKey.startsWith(currentPrefix) ? bKey.slice(currentPrefix.length) : bKey;
+        const aName = a.isFolder ? aNameRel.slice(0, -1) : aNameRel;
+        const bName = b.isFolder ? bNameRel.slice(0, -1) : bNameRel;
+        const aVal = (aName || '').toLowerCase();
+        const bVal = (bName || '').toLowerCase();
+        if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+        return 0;
+      }
+
+      let aVal;
+      let bVal;
+      if (sortField === 'size') {
+        aVal = a.size ?? a.Size ?? 0;
+        bVal = b.size ?? b.Size ?? 0;
+      } else { // date
+        const aDate = a.lastModified ?? a.LastModified;
+        const bDate = b.lastModified ?? b.LastModified;
+        aVal = aDate ? new Date(aDate).getTime() : 0;
+        bVal = bDate ? new Date(bDate).getTime() : 0;
+      }
+
+      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+      return aKey.localeCompare(bKey);
+    };
+
+    return items.sort(compare);
+  }, [files, sortField, sortOrder, currentPrefix]);
+
   const renderBreadcrumbs = () => {
     if (searchTerm) return null;
 
@@ -527,8 +581,8 @@ export default function FilesPage() {
 
   const renderFileCards = () => (
     <div className="space-y-4">
-      {files.map((file, index) => {
-        const isLastElement = files.length === index + 1;
+      {sortedFiles.map((file, index) => {
+        const isLastElement = sortedFiles.length === index + 1;
         const key = file.key || file.Key;
         const size = file.size || file.Size;
         const lastModified = file.lastModified || file.LastModified;
@@ -623,8 +677,8 @@ export default function FilesPage() {
                 </TableRow>
             </TableHeader>
             <TableBody>
-                {files.map((file, index) => {
-                    const isLastElement = files.length === index + 1;
+                {sortedFiles.map((file, index) => {
+                    const isLastElement = sortedFiles.length === index + 1;
                     const key = file.key || file.Key;
                     const size = file.size || file.Size;
                     const lastModified = file.lastModified || file.LastModified;
@@ -703,6 +757,28 @@ export default function FilesPage() {
                     <List className="h-4 w-4" />
                   </ToggleGroupItem>
                 </ToggleGroup>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="icon" aria-label="排序">
+                        <ArrowUpDown className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuLabel>排序方式</DropdownMenuLabel>
+                      <DropdownMenuRadioGroup value={sortField} onValueChange={setSortField}>
+                        <DropdownMenuRadioItem value="date">按日期</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="size">按大小</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="name">按名称</DropdownMenuRadioItem>
+                      </DropdownMenuRadioGroup>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel>顺序</DropdownMenuLabel>
+                      <DropdownMenuRadioGroup value={sortOrder} onValueChange={setSortOrder}>
+                        <DropdownMenuRadioItem value="desc">降序</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="asc">升序</DropdownMenuRadioItem>
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
 
                 <TooltipProvider delayDuration={0}>
                   <Tooltip>
