@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/Button"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { toast } from 'sonner'
 import { useNotifications } from '@/contexts/NotificationContext';
-import { User, KeyRound, Container, Globe, Plug, Save, PlusCircle, Trash2, Cloud, Server } from 'lucide-react'
+import { User, KeyRound, Container, Globe, Plug, Save, PlusCircle, Trash2, Cloud, Server, Settings as SettingsIcon } from 'lucide-react'
+import AppSettings from './AppSettings';
 import { v4 as uuidv4 } from 'uuid';
 import { useOutletContext } from 'react-router-dom';
 
@@ -75,6 +76,7 @@ export default function SettingsPage() {
   
   const [isTesting, setIsTesting] = useState({}); // Track by profile id
   const [isSaving, setIsSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState('profiles'); // profiles | app
 
   const fetchSettings = useCallback(async () => {
     // This will need to be adjusted once the main process is updated
@@ -229,6 +231,16 @@ export default function SettingsPage() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
+      <div className="flex items-center gap-2">
+        <Button variant={activeTab === 'profiles' ? 'default' : 'outline'} onClick={() => setActiveTab('profiles')}>
+          <Cloud className="mr-2 h-4 w-4" /> 桶配置
+        </Button>
+        <Button variant={activeTab === 'app' ? 'default' : 'outline'} onClick={() => setActiveTab('app')}>
+          <SettingsIcon className="mr-2 h-4 w-4" /> 应用设置
+        </Button>
+      </div>
+
+      {activeTab === 'profiles' && (
       <Card>
         <CardHeader>
           <CardTitle>存储库配置</CardTitle>
@@ -303,6 +315,11 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+      )}
+
+      {activeTab === 'app' && (
+        <AppSettings />
+      )}
 
       <div className="flex justify-end">
         <Button size="lg" type="button" onClick={handleSaveAll} disabled={isSaving}>

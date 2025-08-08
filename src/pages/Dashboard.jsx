@@ -318,10 +318,14 @@ export default function DashboardPage() {
                     <span>已用空间</span>
                     <span>{`${formatBytes(stats.totalSize)} / ${stats.storageQuotaGB ? stats.storageQuotaGB + ' GB' : '未设置'}`}</span>
                 </div>
-                <Progress value={storageUsagePercent} />
-                <div className="flex justify-between text-sm text-muted-foreground">
+                <div className="relative">
+                  <Progress value={storageUsagePercent} />
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-semibold">
+                    {storageUsagePercent.toFixed(1)}%
+                  </div>
+                </div>
+                <div className="flex justify-between text-xs text-muted-foreground">
                     <span>0%</span>
-                    <span>{storageUsagePercent.toFixed(1)}% 已使用</span>
                     <span>100%</span>
                 </div>
             </div>

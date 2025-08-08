@@ -75,6 +75,17 @@
   }
 }
 
+/* Disable global focus outlines and rings */
+@layer base {
+  *:focus {
+    outline: none !important;
+  }
+  *:focus-visible {
+    outline: none !important;
+    box-shadow: none !important; /* neutralize Tailwind ring-based focus styles */
+  }
+}
+
 /* Custom Scrollbar Styles */
 @layer base {
   ::-webkit-scrollbar {

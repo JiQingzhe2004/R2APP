@@ -116,6 +116,7 @@ export const api = {
   
   // App settings
   setSetting: (key, value) => ipcRenderer.invoke('set-setting', key, value),
+  getSetting: (key) => ipcRenderer.invoke('get-setting', key),
 
   // New methods
   startSearch: (searchTerm) => ipcRenderer.send('start-search', searchTerm),

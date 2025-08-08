@@ -589,19 +589,28 @@ export default function FilesPage() {
         const publicUrl = getPublicUrl(key);
         const isDir = file.isFolder;
 
-        const handleCardClick = (e) => {
+        const handleCardClick = async (e) => {
           if (e.target.closest('button') || e.target.closest('input[type="checkbox"]')) return;
           
           if (isDir) {
             handlePrefixChange(key);
           } else {
             const fileName = key.split('/').pop();
-            const resolvedBucket = settings?.bucketName || settings?.bucket || bucket;
-            window.api.openPreviewWindow({
-              fileName: fileName,
-              filePath: currentPrefix,
-              bucket: resolvedBucket
-            });
+            let behavior = 'preview';
+            try {
+              const result = await window.api.getSetting('open-behavior');
+              behavior = (result && result.success && result.value) ? result.value : 'preview';
+            } catch {}
+            if (behavior === 'download') {
+              handleDownload(key);
+            } else {
+              const resolvedBucket = settings?.bucketName || settings?.bucket || bucket;
+              window.api.openPreviewWindow({
+                fileName: fileName,
+                filePath: currentPrefix,
+                bucket: resolvedBucket
+              });
+            }
           }
         };
 
@@ -632,24 +641,72 @@ export default function FilesPage() {
             {!isDir && publicUrl && (
               <div className="mt-4 flex items-center gap-2">
                   <Input readOnly value={publicUrl} className="bg-muted flex-1"/>
-                  <Button variant="outline" size="icon" onClick={() => handleCopyUrl(publicUrl)}><Copy className="h-4 w-4"/></Button>
-                  <Button variant="outline" size="icon" onClick={() => handleDownload(key)} disabled={downloading[key]}>
-                      <Download className="h-4 w-4"/>
-                  </Button>
-                  <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(key)} disabled={downloading[key]}><Trash2 className="h-4 w-4"/></Button>
+                  <TooltipProvider delayDuration={0}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="outline" size="icon" onClick={() => handleCopyUrl(publicUrl)}><Copy className="h-4 w-4"/></Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>复制链接</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="outline" size="icon" onClick={() => handleDownload(key)} disabled={downloading[key]}>
+                          <Download className="h-4 w-4"/>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>下载</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(key)} disabled={downloading[key]}><Trash2 className="h-4 w-4"/></Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>删除</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
               </div>
             )}
             {!isDir && !publicUrl && (
                <div className="mt-4 flex items-center justify-end gap-2">
-                  <Button variant="outline" size="icon" onClick={() => handleDownload(key)} disabled={downloading[key]}>
-                      <Download className="h-4 w-4"/>
-                  </Button>
-                  <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(key)} disabled={downloading[key]}><Trash2 className="h-4 w-4"/></Button>
+                  <TooltipProvider delayDuration={0}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="outline" size="icon" onClick={() => handleDownload(key)} disabled={downloading[key]}>
+                          <Download className="h-4 w-4"/>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>下载</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(key)} disabled={downloading[key]}><Trash2 className="h-4 w-4"/></Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>删除</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
               </div>
             )}
              {isDir && (
                 <div className="mt-4 flex items-center justify-end gap-2">
-                    <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(key)}><Trash2 className="h-4 w-4"/></Button>
+                  <TooltipProvider delayDuration={0}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(key)}><Trash2 className="h-4 w-4"/></Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>删除文件夹</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 </div>
             )}
           </Card>
@@ -686,17 +743,26 @@ export default function FilesPage() {
                     const publicUrl = getPublicUrl(key);
                     const isDir = file.isFolder;
                     
-                    const handleRowClick = () => {
+                    const handleRowClick = async () => {
                       if (isDir) {
                         handlePrefixChange(key);
                       } else {
                         const fileName = key.split('/').pop();
-                        const resolvedBucket = settings?.bucketName || settings?.bucket || bucket;
-                        window.api.openPreviewWindow({
-                          fileName: fileName,
-                          filePath: currentPrefix,
-                          bucket: resolvedBucket,
-                        });
+                        let behavior = 'preview';
+                        try {
+                          const result = await window.api.getSetting('open-behavior');
+                          behavior = (result && result.success && result.value) ? result.value : 'preview';
+                        } catch {}
+                        if (behavior === 'download') {
+                          handleDownload(key);
+                        } else {
+                          const resolvedBucket = settings?.bucketName || settings?.bucket || bucket;
+                          window.api.openPreviewWindow({
+                            fileName: fileName,
+                            filePath: currentPrefix,
+                            bucket: resolvedBucket,
+                          });
+                        }
                       }
                     };
 
@@ -724,14 +790,44 @@ export default function FilesPage() {
                             <TableCell>{new Date(lastModified).toLocaleDateString()}</TableCell>
                             <TableCell className="text-right">
                                 {!isDir && (
-                                  <>
-                                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleCopyUrl(publicUrl); }}><Copy className="h-4 w-4"/></Button>
-                                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDownload(key);}} disabled={downloading[key]}><Download className="h-4 w-4"/></Button>
-                                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDeleteClick(key);}} disabled={downloading[key]}><Trash2 className="h-4 w-4" color="hsl(var(--destructive))"/></Button>
-                                  </>
+                                  <TooltipProvider delayDuration={0}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleCopyUrl(publicUrl); }}><Copy className="h-4 w-4"/></Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>复制链接</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDownload(key);}} disabled={downloading[key]}><Download className="h-4 w-4"/></Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>下载</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDeleteClick(key);}} disabled={downloading[key]}><Trash2 className="h-4 w-4" color="hsl(var(--destructive))"/></Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>删除</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
                                 )}
                                 {isDir && (
-                                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDeleteClick(key); }}><Trash2 className="h-4 w-4" color="hsl(var(--destructive))"/></Button>
+                                  <TooltipProvider delayDuration={0}>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDeleteClick(key); }}><Trash2 className="h-4 w-4" color="hsl(var(--destructive))"/></Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>删除文件夹</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
                                 )}
                             </TableCell>
                         </TableRow>
@@ -751,14 +847,43 @@ export default function FilesPage() {
             <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">{files.length} 个文件</span>
                 
-                <ToggleGroup type="single" value={viewMode} onValueChange={setViewMode} aria-label="View mode">
-                  <ToggleGroupItem value="card" aria-label="Card view">
-                    <LayoutGrid className="h-4 w-4" />
-                  </ToggleGroupItem>
-                  <ToggleGroupItem value="list" aria-label="List view">
-                    <List className="h-4 w-4" />
-                  </ToggleGroupItem>
-                </ToggleGroup>
+                <TooltipProvider delayDuration={0}>
+                  <ToggleGroup
+                    type="single"
+                    value={viewMode}
+                    onValueChange={(val) => val && setViewMode(val)}
+                    aria-label="View mode"
+                  >
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <ToggleGroupItem
+                          value="card"
+                          aria-label="Card view"
+                          className={`rounded-lg px-3 h-10 ${viewMode === 'card' ? 'bg-primary text-primary-foreground' : 'bg-transparent'}`}
+                        >
+                          <LayoutGrid className="h-4 w-4" />
+                        </ToggleGroupItem>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>卡片视图</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <ToggleGroupItem
+                          value="list"
+                          aria-label="List view"
+                          className={`rounded-lg px-3 h-10 ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'bg-transparent'}`}
+                        >
+                          <List className="h-4 w-4" />
+                        </ToggleGroupItem>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>列表视图</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </ToggleGroup>
+                </TooltipProvider>
 
                 <TooltipProvider delayDuration={0}>
                   <DropdownMenu>
@@ -887,21 +1012,21 @@ export default function FilesPage() {
               搜索当前存储桶文件
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4 flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          <div className="py-4">
+            <div className="relative flex w-full max-w-3xl mx-auto items-center">
+              <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <Input
                 id="search"
                 value={inputSearchTerm}
                 onChange={(e) => setInputSearchTerm(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 placeholder="输入文件名或前缀进行搜索..."
-                className="pl-10"
+                className="pl-12 h-12 rounded-l-full rounded-r-none border-r-0"
               />
+              <Button onClick={handleSearch} className="h-12 px-6 rounded-l-none rounded-r-full" aria-label="执行搜索">
+                <Search className="h-5 w-5" />
+              </Button>
             </div>
-            <Button onClick={handleSearch} size="icon">
-              <Search className="h-5 w-5" />
-            </Button>
           </div>
         </DialogContent>
       </Dialog>

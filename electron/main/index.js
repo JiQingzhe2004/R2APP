@@ -397,6 +397,27 @@ ipcMain.handle('get-settings', () => {
   }
 })
 
+// App-level key/value settings persistence
+ipcMain.handle('set-setting', (event, key, value) => {
+  try {
+    const appSettings = store.get('app-settings', {});
+    appSettings[key] = value;
+    store.set('app-settings', appSettings);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('get-setting', (event, key) => {
+  try {
+    const appSettings = store.get('app-settings', {});
+    return { success: true, value: appSettings[key] };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('save-profiles', (event, { profiles, activeProfileId }) => {
   try {
     store.set('profiles', profiles);
