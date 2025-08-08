@@ -9,6 +9,8 @@ export default function AppSettings() {
   const { theme, setTheme } = useTheme();
   const [openBehavior, setOpenBehavior] = useState('preview');
   const [closeAction, setCloseAction] = useState('minimize-to-tray');
+  const [trayIcon, setTrayIcon] = useState('');
+  const [trayIconChoice, setTrayIconChoice] = useState('default');
 
   useEffect(() => {
     let mounted = true;
@@ -28,6 +30,11 @@ export default function AppSettings() {
         if (!closeRes || !closeRes.value) {
           await window.api.setSetting('close-action', 'minimize-to-tray');
         }
+
+        const trayChoiceRes = await window.api.getSetting('tray-icon-choice');
+        if (mounted && trayChoiceRes && trayChoiceRes.success && trayChoiceRes.value) {
+          setTrayIconChoice(trayChoiceRes.value);
+        }
       } catch {
         // fall back silently
       }
@@ -46,6 +53,14 @@ export default function AppSettings() {
     try {
       window.api.setSetting('close-action', value);
       setCloseAction(value);
+    } catch {}
+  };
+
+  const resetTrayIcon = async () => {
+    try {
+      await window.api.setSetting('tray-icon-choice', 'default');
+      setTrayIconChoice('default');
+      toast.success('已切换为默认原生图标');
     } catch {}
   };
 
@@ -79,6 +94,28 @@ export default function AppSettings() {
               <Button size="sm" variant={openBehavior==='download' ? 'default' : 'outline'} onClick={() => saveOpenBehavior('download')}>直接下载</Button>
             </div>
           </div>
+        </div>
+
+        <div className="space-y-2 border-t pt-4 mt-2">
+          <Label>托盘图标</Label>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant={trayIconChoice === 'default' ? 'default' : 'outline'}
+              onClick={async () => { await window.api.setSetting('tray-icon-choice', 'default'); setTrayIconChoice('default'); }}
+            >默认原生</Button>
+            <Button
+              size="sm"
+              variant={trayIconChoice === 'light' ? 'default' : 'outline'}
+              onClick={async () => { await window.api.setSetting('tray-icon-choice', 'light'); setTrayIconChoice('light'); }}
+            >浅色图标（黑色LOGO）</Button>
+            <Button
+              size="sm"
+              variant={trayIconChoice === 'dark' ? 'default' : 'outline'}
+              onClick={async () => { await window.api.setSetting('tray-icon-choice', 'dark'); setTrayIconChoice('dark'); }}
+            >深色图标（白色LOGO）</Button>
+          </div>
+          <div className="text-xs text-muted-foreground">选择托盘图标：默认为彩色图标，可根据喜好&系统颜色选择！😁</div>
         </div>
 
         <div className="space-y-2">

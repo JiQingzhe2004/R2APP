@@ -1,6 +1,6 @@
 {
   "name": "CS-Explorer",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "一个用于管理在线云存储的现代化桌面应用。",
   "main": "out/main/index.js",
   "author": "吉庆喆",
@@ -78,6 +78,11 @@
     "artifactName": "${productName}-Setup-${version}.${ext}",
     "files": [
       "out/**"
+    ],
+    "extraResources": [
+      { "from": "resources/icon.ico", "to": "icon.ico" },
+      { "from": "src/assets/BlackLOGO.ico", "to": "BlackLOGO.ico" },
+      { "from": "src/assets/WhiteLOGO.ico", "to": "WhiteLOGO.ico" }
     ],
     "win": {
       "icon": "resources/icon.ico",

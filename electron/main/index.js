@@ -172,6 +172,38 @@ runMigration();
 let mainWindow;
 const previewWindows = new Map();
 let tray = null;
+let userTrayIconPath = null; // absolute path selected by user
+
+function resolveTrayImage() {
+  try {
+    const appSettings = store.get('app-settings', {});
+    const choice = appSettings['tray-icon-choice'] || 'default'; // 'default' | 'light' | 'dark'
+
+    let image;
+    if (choice === 'light') {
+      // 浅色托盘背景下需要深色图标以保证对比度
+      const p = app.isPackaged ? join(process.resourcesPath, 'BlackLOGO.ico') : join(__dirname, '../../src/assets/BlackLOGO.ico');
+      image = nativeImage.createFromPath(p);
+    } else if (choice === 'dark') {
+      // 深色托盘背景下需要浅色图标以保证对比度
+      const p = app.isPackaged ? join(process.resourcesPath, 'WhiteLOGO.ico') : join(__dirname, '../../src/assets/WhiteLOGO.ico');
+      image = nativeImage.createFromPath(p);
+    }
+    if (!image || image.isEmpty()) {
+      // Fallback to default icon.ico
+      const fallbackPath = app.isPackaged
+        ? join(process.resourcesPath, 'icon.ico')
+        : join(__dirname, '../../resources/icon.ico');
+      image = nativeImage.createFromPath(fallbackPath);
+    }
+    if (!image || image.isEmpty()) {
+      image = nativeImage.createEmpty();
+    }
+    return image;
+  } catch (_) {
+    return nativeImage.createEmpty();
+  }
+}
 
 function pauseAllActiveUploads() {
   try {
@@ -244,6 +276,11 @@ function createPreviewWindow(fileName, filePath, bucket) {
 }
 
 function createWindow() {
+  // Resolve icon path for packaged vs dev
+  const resolvedIconPath = app.isPackaged
+    ? join(process.resourcesPath, process.platform === 'win32' ? 'icon.ico' : 'icon.png')
+    : join(__dirname, '../../resources/icon.ico');
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -252,7 +289,7 @@ function createWindow() {
     show: false,
     autoHideMenuBar: true,
     frame: false,
-    ...(process.platform === 'linux' ? {} : { icon: join(__dirname, '../../resources/icon.ico') }),
+    ...(process.platform === 'linux' ? {} : { icon: resolvedIconPath }),
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),
       sandbox: false,
@@ -433,8 +470,7 @@ app.whenReady().then(() => {
 
   // Create tray icon
   if (process.platform !== 'linux' && !tray) {
-    const iconPath = join(__dirname, '../../resources/icon.ico');
-    const image = nativeImage.createFromPath(iconPath);
+    const image = resolveTrayImage();
     tray = new Tray(image);
     const contextMenu = Menu.buildFromTemplate([
       {
@@ -646,6 +682,13 @@ ipcMain.handle('set-setting', (event, key, value) => {
     const appSettings = store.get('app-settings', {});
     appSettings[key] = value;
     store.set('app-settings', appSettings);
+    // Side effects for some keys
+    if (key === 'tray-icon-choice' || key === 'tray-icon') {
+      userTrayIconPath = key === 'tray-icon' ? value : userTrayIconPath;
+      if (tray) {
+        tray.setImage(resolveTrayImage());
+      }
+    }
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -1042,12 +1085,14 @@ ipcMain.handle('get-downloads', (event) => {
   return store.get('downloads', []);
 });
 
-ipcMain.handle('show-open-dialog', async () => {
-  if (!mainWindow) return;
+ipcMain.handle('show-open-dialog', async (_, options) => {
+  if (!mainWindow) return [];
   const result = await dialog.showOpenDialog(mainWindow, {
-    properties: ['openFile', 'multiSelections']
+    properties: ['openFile', 'multiSelections'],
+    ...options
   });
-  return result.filePaths;
+  // Keep backward compatibility: sometimes older renderer expects array directly
+  return result.filePaths || [];
 });
 
 ipcMain.handle('upload-file', async (_, { filePath, key, checkpoint }) => {
