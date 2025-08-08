@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, Fragment } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { cn } from "@/lib/utils"
 import { Progress } from "@/components/ui/Progress"
@@ -97,6 +98,7 @@ function DashboardSkeleton() {
 
 
 export default function DashboardPage() {
+  const { activeProfileId } = useOutletContext();
   const [stats, setStats] = useState({ totalCount: 0, totalSize: 0, bucketName: '', storageQuotaGB: 0 })
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
@@ -154,6 +156,12 @@ export default function DashboardPage() {
     return () => removeListener();
 
   }, [])
+
+  // 存储桶切换时进行无感刷新（保留页面，不闪烁）
+  useEffect(() => {
+    if (!activeProfileId) return;
+    fetchData(true);
+  }, [activeProfileId])
 
   useEffect(() => {
     if (loadMoreButtonRef.current) {

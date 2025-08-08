@@ -18,6 +18,7 @@ export default function PreviewPage() {
   const [error, setError] = useState('');
   const [isText, setIsText] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [posterUrl, setPosterUrl] = useState('');
 
   useEffect(() => {
     const getFileFromURL = async () => {
@@ -68,6 +69,8 @@ export default function PreviewPage() {
           img.src = publicUrl;
         } else if (isVideo(fileName)) {
           const video = document.createElement('video');
+          // 更快拿到元数据以便尽快调整窗口尺寸
+          video.preload = 'metadata';
           video.onloadedmetadata = () => {
              window.api.resizePreviewWindow({ width: video.videoWidth, height: video.videoHeight });
              setLoading(false);
@@ -77,6 +80,39 @@ export default function PreviewPage() {
             setLoading(false);
           }
           video.src = publicUrl;
+
+          // 异步尝试查找首帧海报（同路径同名的 .jpg/.png/.webp）
+          const baseKey = `${filePath}${fileName}`;
+          const dotIndex = baseKey.lastIndexOf('.');
+          const withoutExt = dotIndex > -1 ? baseKey.slice(0, dotIndex) : baseKey;
+          const posterKeys = [
+            `${withoutExt}.jpg`,
+            `${withoutExt}.png`,
+            `${withoutExt}.webp`,
+          ];
+          const testImage = (url) => new Promise((resolve) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => resolve(true);
+            img.onerror = () => resolve(false);
+            img.src = url;
+          });
+          (async () => {
+            for (const k of posterKeys) {
+              try {
+                const signed = await window.api.getPresignedUrl(bucket, k);
+                if (signed) {
+                  const ok = await testImage(signed);
+                  if (ok) {
+                    setPosterUrl(signed);
+                    break;
+                  }
+                }
+              } catch (_) {
+                // ignore and try next
+              }
+            }
+          })();
         } else if (isAudio(fileName)) {
             // For audio, we don't need to wait for metadata to show the player
             setLoading(false);
@@ -128,6 +164,9 @@ export default function PreviewPage() {
         className="max-w-full max-h-full object-contain select-none"
         draggable="false"
         onDragStart={(e) => e.preventDefault()}
+        loading="eager"
+        decoding="async"
+        fetchPriority="high"
       />;
     }
     if (isVideo(file.fileName)) {
@@ -135,6 +174,9 @@ export default function PreviewPage() {
         src={file.publicUrl} 
         controls 
         autoPlay 
+        playsInline
+        preload="auto"
+        poster={posterUrl || undefined}
         className="max-w-full max-h-full select-none"
         draggable="false"
         onDragStart={(e) => e.preventDefault()}

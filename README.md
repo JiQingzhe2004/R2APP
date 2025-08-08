@@ -79,3 +79,6 @@ npm run build:linux
 
 ```bash
 npm run dev
+
+
+git push origin {标签}

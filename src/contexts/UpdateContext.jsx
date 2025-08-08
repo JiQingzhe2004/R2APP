@@ -12,11 +12,19 @@ export function UpdateProvider({ children }) {
   const [progressInfo, setProgressInfo] = useState({ percent: 0 });
   const [errorInfo, setErrorInfo] = useState(null);
   const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [lastCheckedTime, setLastCheckedTime] = useState(() => {
+    try {
+      return localStorage.getItem('last-checked-update-time') || null;
+    } catch (_) {
+      return null;
+    }
+  });
 
   useEffect(() => {
     // This effect should run only once to set up listeners and initial check
     console.log('UpdateProvider mounted. Setting up listeners and checking for updates.');
-    window.api.checkForUpdates();
+    // Trigger initial check with timestamp record
+    checkForUpdates();
 
     const listeners = [
       window.api.onUpdateAvailable((info) => {
@@ -60,6 +68,11 @@ export function UpdateProvider({ children }) {
 
   const checkForUpdates = () => {
     setStatus('checking');
+    const now = new Date().toLocaleString();
+    setLastCheckedTime(now);
+    try {
+      localStorage.setItem('last-checked-update-time', now);
+    } catch (_) {}
     window.api.checkForUpdates();
   };
 
@@ -81,7 +94,8 @@ export function UpdateProvider({ children }) {
     setIsUpdateModalOpen,
     checkForUpdates,
     downloadUpdate,
-    quitAndInstallUpdate
+    quitAndInstallUpdate,
+    lastCheckedTime,
   };
 
   return (

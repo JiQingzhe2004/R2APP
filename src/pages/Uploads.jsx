@@ -17,6 +17,7 @@ export default function UploadsPage() {
     startAllUploads, 
     removeUpload, 
     clearAll,
+    clearCompleted,
     pauseUpload,
     resumeUpload
   } = useUploads();
@@ -121,6 +122,11 @@ export default function UploadsPage() {
 
       {uploads.length > 0 && (
         <div className="flex justify-end gap-2 mt-4">
+            {uploads.some(u => u.status === 'completed' || u.status === 'error') && (
+              <Button variant="outline" onClick={clearCompleted} disabled={isUploading}>
+                清除已完成/失败
+              </Button>
+            )}
             <Button variant="outline" onClick={clearAll} disabled={isUploading}>
                 清空列表
             </Button>
@@ -159,7 +165,12 @@ export default function UploadsPage() {
                     )}
                   </div>
                   {file.status === 'completed' ? (
-                     <CheckCircle className="h-6 w-6 text-green-500" />
+                    <div className="flex items-center">
+                      <CheckCircle className="h-6 w-6 text-green-500 mr-1" />
+                      <Button variant="ghost" size="icon" onClick={() => removeUpload(file.id)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
                   ) : (
                     <div className="flex items-center">
                       {file.status === 'uploading' && (

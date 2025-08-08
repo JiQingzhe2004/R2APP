@@ -596,10 +596,11 @@ export default function FilesPage() {
             handlePrefixChange(key);
           } else {
             const fileName = key.split('/').pop();
+            const resolvedBucket = settings?.bucketName || settings?.bucket || bucket;
             window.api.openPreviewWindow({
               fileName: fileName,
               filePath: currentPrefix,
-              bucket: bucket
+              bucket: resolvedBucket
             });
           }
         };
@@ -690,10 +691,11 @@ export default function FilesPage() {
                         handlePrefixChange(key);
                       } else {
                         const fileName = key.split('/').pop();
+                        const resolvedBucket = settings?.bucketName || settings?.bucket || bucket;
                         window.api.openPreviewWindow({
                           fileName: fileName,
                           filePath: currentPrefix,
-                          bucket: bucket,
+                          bucket: resolvedBucket,
                         });
                       }
                     };
@@ -758,12 +760,20 @@ export default function FilesPage() {
                   </ToggleGroupItem>
                 </ToggleGroup>
 
+                <TooltipProvider delayDuration={0}>
                   <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="icon" aria-label="排序">
-                        <ArrowUpDown className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
+                    <Tooltip>
+                      <DropdownMenuTrigger asChild>
+                        <TooltipTrigger asChild>
+                          <Button variant="outline" size="icon" aria-label="排序">
+                            <ArrowUpDown className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                      </DropdownMenuTrigger>
+                      <TooltipContent>
+                        <p>排序</p>
+                      </TooltipContent>
+                    </Tooltip>
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>排序方式</DropdownMenuLabel>
                       <DropdownMenuRadioGroup value={sortField} onValueChange={setSortField}>
@@ -779,8 +789,6 @@ export default function FilesPage() {
                       </DropdownMenuRadioGroup>
                     </DropdownMenuContent>
                   </DropdownMenu>
-
-                <TooltipProvider delayDuration={0}>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button variant="outline" size="icon" onClick={() => fetchFiles(currentPrefix, { isSearch: false })} disabled={loading}>

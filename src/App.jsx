@@ -33,7 +33,7 @@ function AppUpdateDialog() {
   const navigate = useNavigate();
 
   const handleGoToUpdate = () => {
-    navigate('/about');
+    navigate('/update');
     setIsUpdateModalOpen(false);
   }
 
@@ -43,7 +43,7 @@ function AppUpdateDialog() {
         <AlertDialogHeader>
           <AlertDialogTitle>发现新版本！</AlertDialogTitle>
           <AlertDialogDescription>
-            已检测到新版本 {updateInfo?.version}。是否立即前往"关于"页面进行更新？
+            已检测到新版本 {updateInfo?.version}。是否立即前往应用更新页面进行更新？
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
