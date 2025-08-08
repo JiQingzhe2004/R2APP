@@ -105,6 +105,12 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchSettings();
+    // 处理从托盘传来的导航状态（通过 App.jsx 传递 state）
+    const { state } = window.history; // react-router 会把 state 放进 history.state.usr
+    const usr = state && state.usr ? state.usr : null;
+    if (usr && usr.tab) {
+      setActiveTab(usr.tab);
+    }
   }, [fetchSettings]);
 
   const handleProfileChange = (id, e) => {
@@ -123,6 +129,8 @@ export default function SettingsPage() {
     if (newProfiles.length === 1) {
       setActiveProfileId(newProfile.id);
     }
+    // 如果来自托盘“新增配置”，默认停留在 profiles 页签
+    setActiveTab('profiles');
   };
 
   const handleRemoveProfile = (id) => {

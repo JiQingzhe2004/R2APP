@@ -118,6 +118,22 @@ export const api = {
   setSetting: (key, value) => ipcRenderer.invoke('set-setting', key, value),
   getSetting: (key) => ipcRenderer.invoke('get-setting', key),
 
+  // Shell integration (Windows)
+  registerShellUploadMenu: () => ipcRenderer.invoke('register-shell-upload-menu'),
+  unregisterShellUploadMenu: () => ipcRenderer.invoke('unregister-shell-upload-menu'),
+
+  // Navigation from main
+  onNavigate: (callback) => {
+    const handler = (event, path) => callback(path);
+    ipcRenderer.on('navigate', handler);
+    return () => ipcRenderer.removeListener('navigate', handler);
+  },
+  onTrayCommand: (callback) => {
+    const handler = (event, command) => callback(command);
+    ipcRenderer.on('tray-command', handler);
+    return () => ipcRenderer.removeListener('tray-command', handler);
+  },
+
   // New methods
   startSearch: (searchTerm) => ipcRenderer.send('start-search', searchTerm),
   onSearchResults: (callback) => {

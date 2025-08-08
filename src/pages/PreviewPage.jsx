@@ -1,7 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getFileIcon, isImage, isVideo, isAudio } from '@/lib/file-utils';
 import { PreviewHeader } from '@/components/PreviewHeader';
 import CodePreview from '@/components/CodePreview';
+import { toast } from 'sonner';
+import QRCode from 'qrcode';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+// removed inline context menu
 
 const compressedExtensions = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'iso'];
 
@@ -19,6 +23,12 @@ export default function PreviewPage() {
   const [isText, setIsText] = useState(false);
   const [loading, setLoading] = useState(true);
   const [posterUrl, setPosterUrl] = useState('');
+  const imgRef = useRef(null);
+  const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState('');
+  // removed inline context menu state
 
   useEffect(() => {
     const getFileFromURL = async () => {
@@ -143,6 +153,51 @@ export default function PreviewPage() {
     getFileFromURL();
   }, [window.location.hash]);
 
+  const handleZoom = (delta) => {
+    setZoom(prev => Math.min(5, Math.max(0.1, parseFloat((prev + delta).toFixed(2)))));
+  };
+
+  const handleRotate = () => {
+    setRotation(prev => (prev + 90) % 360);
+  };
+
+  const handleDownload = async () => {
+    if (!file) return;
+    const key = `${file.filePath}${file.fileName}`;
+    window.api.downloadFile(key);
+  };
+
+  const handleShare = async () => {
+    if (!file) return;
+    try {
+      const dataUrl = await QRCode.toDataURL(file.publicUrl, { width: 200, margin: 1 });
+      setQrDataUrl(dataUrl);
+      setIsShareOpen(true);
+    } catch {
+      // 退化到复制
+      try {
+        await navigator.clipboard.writeText(file.publicUrl);
+        toast.success('已复制预览链接到剪贴板');
+      } catch {
+        toast.error('分享失败');
+      }
+    }
+  };
+
+  // removed inline context menu handlers
+
+  useEffect(() => {
+    const el = imgRef.current;
+    if (!el) return;
+    const onWheel = (e) => {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 0.1 : -0.1;
+      handleZoom(delta);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [imgRef.current]);
+
   const renderPreview = () => {
     if (loading) {
         return <LoadingSpinner />;
@@ -159,8 +214,10 @@ export default function PreviewPage() {
 
     if (isImage(file.fileName)) {
       return <img 
+        ref={imgRef}
         src={file.publicUrl} 
         alt={file.fileName} 
+        style={{ transform: `scale(${zoom}) rotate(${rotation}deg)`, transformOrigin: 'center center' }}
         className="max-w-full max-h-full object-contain select-none"
         draggable="false"
         onDragStart={(e) => e.preventDefault()}
@@ -200,10 +257,38 @@ export default function PreviewPage() {
 
   return (
     <div className="flex flex-col h-screen bg-background">
-      <PreviewHeader fileName={file ? file.fileName : '...'} />
+      <PreviewHeader 
+        fileName={file ? file.fileName : '...'} 
+        isImage={file ? isImage(file.fileName) : false}
+        onZoomIn={() => handleZoom(0.1)}
+        onZoomOut={() => handleZoom(-0.1)}
+        onRotate={handleRotate}
+        onDownload={handleDownload}
+        onShare={handleShare}
+      />
       <main className="flex-1 flex items-center justify-center overflow-hidden">
         {renderPreview()}
       </main>
+
+      <Dialog open={isShareOpen} onOpenChange={setIsShareOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>分享</DialogTitle>
+            <DialogDescription>使用手机微信扫描二维码，或复制链接发送。</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-3 py-2">
+            {qrDataUrl && <img src={qrDataUrl} alt="分享二维码" className="w-48 h-48" />}
+            <div className="text-xs text-muted-foreground">链接有效期约 15 分钟</div>
+            <button
+              className="px-3 py-2 rounded-md border hover:bg-accent"
+              onClick={async () => {
+                try { await navigator.clipboard.writeText(file.publicUrl); toast.success('链接已复制'); }
+                catch { toast.error('复制失败'); }
+              }}
+            >复制链接</button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

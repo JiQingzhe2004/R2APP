@@ -62,6 +62,7 @@ function MainLayout() {
   const [profiles, setProfiles] = useState([]);
   const [activeProfileId, setActiveProfileId] = useState(null);
   const { notifications, unreadCount, addNotification, markAllAsRead, clearNotifications, removeNotification } = useNotifications();
+  const navigate = useNavigate();
 
   const checkStatus = useCallback(async () => {
     setR2Status({ loading: true, success: false, message: '正在检查连接...' });
@@ -86,6 +87,23 @@ function MainLayout() {
 
     return () => clearInterval(intervalId);
   }, [refreshState, checkStatus]);
+
+  // 接收主进程的导航指令（用于右键上传唤醒后跳转到上传页）
+  useEffect(() => {
+    const remove = window.api.onNavigate((path) => {
+      if (typeof path !== 'string') return;
+      if (path.startsWith('/settings')) {
+        // 支持通过查询参数控制激活的设置页 Tab 或动作
+        const url = new URL('app://' + path);
+        const tab = url.searchParams.get('tab');
+        const action = url.searchParams.get('action');
+        navigate('/settings', { state: { tab, action } });
+      } else {
+        navigate(path);
+      }
+    });
+    return () => remove && remove();
+  }, [navigate]);
 
   const handleProfileSwitch = async (profileId) => {
     const currentProfiles = await window.api.getSettings().then(d => d.profiles);

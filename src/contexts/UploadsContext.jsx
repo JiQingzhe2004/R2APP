@@ -43,8 +43,25 @@ export const UploadsProvider = ({ children }) => {
   }, [uploads]);
 
   useEffect(() => {
-    const removeProgressListener = window.api.onUploadProgress(({ key, percentage, error, status, checkpoint }) => {
+    const removeProgressListener = window.api.onUploadProgress(({ key, percentage, error, status, checkpoint, filePath }) => {
       setUploads(prevUploads => {
+        const existing = prevUploads.find(u => u.key === key);
+        if (!existing) {
+          const initialProgress = percentage || 0;
+          const initialStatus = status ? status : (initialProgress >= 100 ? 'completed' : 'uploading');
+          return [
+            ...prevUploads,
+            {
+              id: uuidv4(),
+              path: filePath,
+              key,
+              status: initialStatus,
+              progress: initialProgress,
+              resumed_from: 0,
+              checkpoint: checkpoint || null,
+            }
+          ];
+        }
         return prevUploads.map(upload => {
           if (upload.key === key) {
             // A specific status from the main process (like 'paused') takes precedence.

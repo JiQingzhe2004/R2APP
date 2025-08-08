@@ -1,6 +1,6 @@
 {
   "name": "CS-Explorer",
-  "version": "3.6.1",
+  "version": "4.0.0",
   "description": "一个用于管理在线云存储的现代化桌面应用。",
   "main": "out/main/index.js",
   "author": "吉庆喆",
@@ -45,7 +45,8 @@
     "react-router-dom": "^7.6.3",
     "react-syntax-highlighter": "^15.6.1",
     "sonner": "^2.0.6",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "qrcode": "^1.5.3"
   },
   "devDependencies": {
     "@electron-toolkit/preload": "^3.0.0",

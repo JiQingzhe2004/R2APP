@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, dialog, globalShortcut, screen } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog, globalShortcut, screen, Tray, Menu, nativeImage } from 'electron'
 import { join, parse } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
 import Store from 'electron-store'
@@ -6,6 +6,7 @@ import { S3Client, ListObjectsV2Command, DeleteObjectCommand, GetObjectCommand, 
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Upload } from "@aws-sdk/lib-storage";
 import fs from 'fs';
+import { execFile } from 'child_process';
 import { v4 as uuidv4 } from 'uuid';
 import serve from 'electron-serve';
 import packageJson from '../../package.json' assert { type: 'json' };
@@ -63,12 +64,14 @@ async function startUpload(filePath, key, checkpoint) {
   const storage = await getStorageClient();
   if (!storage) {
     const errorMsg = '请先在设置中配置您的存储桶。';
-    mainWindow.webContents.send('upload-progress', { key, error: errorMsg });
+    mainWindow.webContents.send('upload-progress', { key, error: errorMsg, filePath });
     addRecentActivity('upload', `文件 ${key} 上传失败: ${errorMsg}`, 'error');
     return;
   }
 
   try {
+    // Immediately inform renderer to create list item
+    mainWindow.webContents.send('upload-progress', { key, percentage: 0, status: 'uploading', filePath, checkpoint: checkpoint || null });
     if (storage.type === 'r2') {
       const fileStream = fs.createReadStream(filePath);
       const upload = new Upload({
@@ -83,12 +86,12 @@ async function startUpload(filePath, key, checkpoint) {
       upload.on('httpUploadProgress', (p) => {
         if (p.total) {
           const percentage = Math.round((p.loaded / p.total) * 100);
-          mainWindow.webContents.send('upload-progress', { key, percentage });
+          mainWindow.webContents.send('upload-progress', { key, percentage, filePath });
         }
       });
 
       await upload.done();
-      mainWindow.webContents.send('upload-progress', { key, percentage: 100 });
+      mainWindow.webContents.send('upload-progress', { key, percentage: 100, filePath });
       addRecentActivity('upload', `文件 ${key} 上传成功。`, 'success');
 
     } else if (storage.type === 'oss') {
@@ -102,22 +105,23 @@ async function startUpload(filePath, key, checkpoint) {
           mainWindow.webContents.send('upload-progress', { 
             key, 
             percentage: Math.round(p * 100),
-            checkpoint: cpt 
+            checkpoint: cpt,
+            filePath,
           });
         }
       });
 
-      mainWindow.webContents.send('upload-progress', { key, percentage: 100 });
+      mainWindow.webContents.send('upload-progress', { key, percentage: 100, filePath });
       addRecentActivity('upload', `文件 ${key} 上传成功。`, 'success');
     }
   } catch (error) {
     if (error.name === 'AbortError' || error.name === 'CancelError') {
       console.log(`Upload of ${key} was aborted/cancelled.`);
-      mainWindow.webContents.send('upload-progress', { key, status: 'paused', error: '上传已暂停' });
+      mainWindow.webContents.send('upload-progress', { key, status: 'paused', error: '上传已暂停', filePath });
       addRecentActivity('upload', `文件 ${key} 上传已暂停。`, 'info');
     } else {
       console.error(`Upload failed for ${key}:`, error);
-      mainWindow.webContents.send('upload-progress', { key, error: error.message });
+      mainWindow.webContents.send('upload-progress', { key, error: error.message, filePath });
       addRecentActivity('upload', `文件 ${key} 上传失败: ${error.message}`, 'error');
     }
   } finally {
@@ -167,6 +171,19 @@ runMigration();
 
 let mainWindow;
 const previewWindows = new Map();
+let tray = null;
+
+function pauseAllActiveUploads() {
+  try {
+    for (const [key, uploadOrController] of activeUploads.entries()) {
+      try {
+        if (uploadOrController && typeof uploadOrController.abort === 'function') {
+          uploadOrController.abort();
+        }
+      } catch (_) {}
+    }
+  } catch (_) {}
+}
 let initialFileInfo = null;
 
 function createPreviewWindow(fileName, filePath, bucket) {
@@ -183,6 +200,8 @@ function createPreviewWindow(fileName, filePath, bucket) {
   const previewWindow = new BrowserWindow({
     width: 800,
     height: 600,
+    minWidth: 600,
+    minHeight: 600,
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),
       sandbox: false,
@@ -195,6 +214,14 @@ function createPreviewWindow(fileName, filePath, bucket) {
 
   previewWindow.on('ready-to-show', () => {
     previewWindow.show()
+  })
+  
+  previewWindow.on('maximize', () => {
+    previewWindow.webContents.send('window-maximized-status-changed', true)
+  })
+  
+  previewWindow.on('unmaximize', () => {
+    previewWindow.webContents.send('window-maximized-status-changed', false)
   })
   
   previewWindow.on('closed', () => {
@@ -220,6 +247,8 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    minWidth: 960,
+    minHeight: 600,
     show: false,
     autoHideMenuBar: true,
     frame: false,
@@ -231,6 +260,16 @@ function createWindow() {
       devTools: !app.isPackaged
     }
   })
+  // Intercept close to support minimize-to-tray
+  mainWindow.on('close', (e) => {
+    try {
+      const action = store.get('app-settings.close-action', 'minimize-to-tray');
+      if (action === 'minimize-to-tray') {
+        e.preventDefault();
+        mainWindow.hide();
+      }
+    } catch (_) {}
+  });
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
@@ -265,6 +304,111 @@ function createWindow() {
   mainWindow.isMainWindow = true;
 }
 
+// ---- Windows Explorer context menu registration ----
+ipcMain.handle('register-shell-upload-menu', async () => {
+  try {
+    if (process.platform !== 'win32') {
+      return { success: false, error: '仅支持 Windows' };
+    }
+    const keyBase = 'HKCU\\Software\\Classes\\*\\shell\\R2ExplorerUpload';
+    const exe = process.execPath.replace(/\\/g, '\\\\');
+    const title = '上传到 CS-Explorer';
+
+    // Windows 11 现代右键菜单不支持通过纯注册表添加自定义应用项，
+    // 以下注册仅会出现在“显示更多选项”的经典菜单中。
+
+    // 仅在已打包状态下注册命令，避免在开发环境把 electron.exe 当作应用入口造成报错
+    if (!app.isPackaged) {
+      // 仍然允许写入图标和标题，随后返回提示信息
+      await new Promise((resolve, reject) => execFile('reg', ['add', keyBase, '/ve', '/d', title, '/f'], (e) => e ? reject(e) : resolve()));
+      const devIconPath = join(__dirname, '../../resources/icon.ico').replace(/\\/g, '\\\\');
+      await new Promise((resolve, reject) => execFile('reg', ['add', keyBase, '/v', 'Icon', '/t', 'REG_SZ', '/d', devIconPath, '/f'], (e) => e ? reject(e) : resolve()));
+      // 移除可能存在的 command，避免误触发
+      await new Promise((resolve) => execFile('reg', ['delete', `${keyBase}\\command`, '/f'], () => resolve()));
+      return { success: false, error: '开发环境无法正确注册启动命令，请打包后再注册；已设置图标但不会创建命令。' };
+    }
+
+    const exeIcon = `${exe},0`;
+    await new Promise((resolve, reject) => execFile('reg', ['add', keyBase, '/ve', '/d', title, '/f'], (e) => e ? reject(e) : resolve()));
+    await new Promise((resolve, reject) => execFile('reg', ['add', keyBase, '/v', 'Icon', '/t', 'REG_SZ', '/d', exeIcon, '/f'], (e) => e ? reject(e) : resolve()));
+    await new Promise((resolve, reject) => execFile('reg', ['add', `${keyBase}\\command`, '/ve', '/d', `"${exe}" --upload "%1"`, '/f'], (e) => e ? reject(e) : resolve()));
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('unregister-shell-upload-menu', async () => {
+  try {
+    if (process.platform !== 'win32') {
+      return { success: false, error: '仅支持 Windows' };
+    }
+    const keyBase = 'HKCU\\Software\\Classes\\*\\shell\\R2ExplorerUpload';
+    await new Promise((resolve) => execFile('reg', ['delete', keyBase, '/f'], () => resolve()));
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Handle --upload from command line / second instance
+function handleUploadArgv(argv) {
+  const toUpload = [];
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--upload') {
+      // Find the first non-flag argument after --upload as the file path
+      let j = i + 1;
+      while (j < argv.length && typeof argv[j] === 'string' && argv[j].startsWith('--')) {
+        j++;
+      }
+      if (j < argv.length) {
+        let candidate = argv[j];
+        if (candidate.startsWith('"') && candidate.endsWith('"')) {
+          candidate = candidate.slice(1, -1);
+        }
+        toUpload.push(candidate);
+        i = j; // skip consumed args
+      }
+    }
+  }
+  if (toUpload.length === 0) return;
+  // Ensure window visible
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  }
+  toUpload.forEach((filePath) => {
+    try {
+      if (!filePath || filePath.startsWith('--')) return;
+      const cleanPath = filePath.replace(/^"|"$/g, '');
+      if (!fs.existsSync(cleanPath)) {
+        addRecentActivity('upload', `右键上传失败: 找不到文件 ${cleanPath}`, 'error');
+        return;
+      }
+      const name = parse(cleanPath).base;
+      // 跳转到上传页，但仅加入队列，不自动开始
+      mainWindow?.webContents.send('navigate', '/uploads');
+      mainWindow?.webContents.send('upload-progress', { key: name, percentage: 0, status: 'pending', filePath: cleanPath });
+      // 不立即调用 startUpload，等待用户在上传页点击“开始上传”
+      addRecentActivity('upload', `从系统右键上传 ${name}`, 'info');
+    } catch (e) {
+      addRecentActivity('upload', `右键上传失败: ${e.message}`, 'error');
+    }
+  });
+}
+
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (event, argv) => {
+    handleUploadArgv(argv);
+  });
+}
+
+// Defer initial argv handling until after the main window is created
+
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.r2.explorer')
 
@@ -287,12 +431,111 @@ app.whenReady().then(() => {
     }
   });
 
+  // Create tray icon
+  if (process.platform !== 'linux' && !tray) {
+    const iconPath = join(__dirname, '../../resources/icon.ico');
+    const image = nativeImage.createFromPath(iconPath);
+    tray = new Tray(image);
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: '显示主窗口',
+        click: () => {
+          if (mainWindow) {
+            mainWindow.show();
+            mainWindow.focus();
+          }
+        }
+      },
+      {
+        label: '打开仪表盘',
+        click: () => {
+          if (mainWindow) {
+            mainWindow.show();
+            mainWindow.focus();
+            mainWindow.webContents.send('navigate', '/dashboard');
+          }
+        }
+      },
+      {
+        label: '打开文件管理',
+        click: () => {
+          if (mainWindow) {
+            mainWindow.show();
+            mainWindow.focus();
+            mainWindow.webContents.send('navigate', '/files');
+          }
+        }
+      },
+      {
+        label: '新增配置',
+        click: () => {
+          if (mainWindow) {
+            mainWindow.show();
+            mainWindow.focus();
+            mainWindow.webContents.send('navigate', '/settings?tab=profiles&action=new');
+          }
+        }
+      },
+      {
+        label: '应用设置',
+        click: () => {
+          if (mainWindow) {
+            mainWindow.show();
+            mainWindow.focus();
+            mainWindow.webContents.send('navigate', '/settings?tab=app');
+          }
+        }
+      },
+      {
+        label: '打开上传页',
+        click: () => {
+          if (mainWindow) {
+            mainWindow.show();
+            mainWindow.focus();
+            mainWindow.webContents.send('navigate', '/uploads');
+          }
+        }
+      },
+      {
+        label: '开始全部上传',
+        click: () => {
+          mainWindow?.webContents.send('tray-command', 'start-all-uploads');
+          mainWindow?.show();
+        }
+      },
+      {
+        label: '暂停全部上传',
+        click: () => {
+          pauseAllActiveUploads();
+        }
+      },
+      { type: 'separator' },
+      {
+        label: '退出',
+        click: () => {
+          app.exit(0);
+        }
+      }
+    ]);
+    tray.setToolTip('CS-Explorer');
+    tray.setContextMenu(contextMenu);
+    tray.on('click', () => {
+      if (mainWindow) {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    });
+  }
+
   createWindow()
   setupAutoUpdater()
 
   // In production, this will now try GitHub first, then fallback to Gitee.
   // In dev, it will use the local config.
   autoUpdater.checkForUpdates();
+
+  // Now that the main window exists, handle --upload args (first instance)
+  handleUploadArgv(process.argv);
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

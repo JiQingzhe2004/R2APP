@@ -33,6 +33,16 @@ export default function UploadsPage() {
     }
   }, [location, navigate, addUploads]);
 
+  // 监听托盘命令
+  useEffect(() => {
+    const remove = window.api.onTrayCommand((cmd) => {
+      if (cmd === 'start-all-uploads') {
+        startAllUploads();
+      }
+    });
+    return () => remove && remove();
+  }, [startAllUploads]);
+
   const handleFileSelect = async () => {
     const selectedPaths = await window.api.showOpenDialog();
     if (selectedPaths) {
