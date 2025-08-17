@@ -3,7 +3,7 @@ import { RefreshCw } from 'lucide-react';
 
 export default function ReleaseNotesPage() {
   const [loading, setLoading] = useState(true);
-  const releaseNotesUrl = "https://jiqingzhe2004.github.io/";
+  const releaseNotesUrl = "https://cs.docs.aiqji.cn/";
 
   return (
     <div className="absolute inset-0">
