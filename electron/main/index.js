@@ -15,7 +15,7 @@ import COS from 'cos-nodejs-sdk-v5';
 import { autoUpdater } from 'electron-updater';
 import crypto from 'crypto';
 import os from 'os';
-import { ANALYTICS_CONFIG } from './analytics-config.js';
+import { ANALYTICS_CONFIG, getAnalyticsUrl } from './analytics-config.js';
 
 const activeUploads = new Map();
 // Cache public URL and delete URL for providers that return them (SM.MS, PICUI)
@@ -129,6 +129,8 @@ function generateMachineId() {
 
 // 发送统计请求
 async function sendAnalytics(type, data = {}) {
+  console.log(`[Analytics] 开始发送 ${type} 统计...`);
+  
   // 检查是否启用统计
   if (!ANALYTICS_CONFIG.ENABLED) {
     console.log(`[Analytics] 统计已禁用 (${type})`);
@@ -149,11 +151,14 @@ async function sendAnalytics(type, data = {}) {
       ...data
     };
     
+    console.log(`[Analytics] 准备发送数据:`, analyticsData);
+    console.log(`[Analytics] 目标URL: ${getAnalyticsUrl('/' + type)}`);
+    
     const https = require('https');
     const postData = JSON.stringify(analyticsData);
     
     // 解析URL获取hostname和path
-    const url = new URL(ANALYTICS_CONFIG.API_URL);
+    const url = new URL(getAnalyticsUrl('/' + type));
     
     const options = {
       hostname: url.hostname,
@@ -168,15 +173,20 @@ async function sendAnalytics(type, data = {}) {
       timeout: ANALYTICS_CONFIG.TIMEOUT
     };
     
+    console.log(`[Analytics] 请求选项:`, options);
+    
     // 重试机制
     let lastError;
     for (let attempt = 1; attempt <= ANALYTICS_CONFIG.RETRY_COUNT; attempt++) {
       try {
+        console.log(`[Analytics] 尝试 ${attempt}/${ANALYTICS_CONFIG.RETRY_COUNT}...`);
+        
         const result = await new Promise((resolve, reject) => {
           const req = https.request(options, (res) => {
             let data = '';
             res.on('data', (chunk) => data += chunk);
             res.on('end', () => {
+              console.log(`[Analytics] 响应状态: ${res.statusCode}, 数据: ${data}`);
               if (res.statusCode >= 200 && res.statusCode < 300) {
                 console.log(`[Analytics] ${type} 统计发送成功 (尝试 ${attempt}/${ANALYTICS_CONFIG.RETRY_COUNT})`);
                 resolve(true);
@@ -209,9 +219,11 @@ async function sendAnalytics(type, data = {}) {
         
         // 如果不是最后一次尝试，等待后重试
         if (attempt < ANALYTICS_CONFIG.RETRY_COUNT) {
+          console.log(`[Analytics] 等待 ${ANALYTICS_CONFIG.RETRY_DELAY}ms 后重试...`);
           await new Promise(resolve => setTimeout(resolve, ANALYTICS_CONFIG.RETRY_DELAY));
         }
       } catch (error) {
+        console.log(`[Analytics] 尝试 ${attempt} 出现异常:`, error.message);
         lastError = error;
         if (attempt < ANALYTICS_CONFIG.RETRY_COUNT) {
           await new Promise(resolve => setTimeout(resolve, ANALYTICS_CONFIG.RETRY_DELAY));
@@ -229,6 +241,8 @@ async function sendAnalytics(type, data = {}) {
 
 // 检查并发送安装统计
 async function checkAndSendInstallAnalytics() {
+  console.log('[Analytics] 检查并发送安装统计...');
+  
   const machineId = store.get('machineId');
   const installReported = store.get('installReported');
   const currentVersion = packageJson.version;
@@ -242,6 +256,7 @@ async function checkAndSendInstallAnalytics() {
   
   // 检查是否已经报告过当前版本的安装
   if (!installReported || installReported.version !== currentVersion) {
+    console.log(`[Analytics] 发送安装统计，版本: ${currentVersion}`);
     const success = await sendAnalytics('install', {
       installType: 'first_time',
       previousVersion: installReported?.version || null
@@ -253,12 +268,18 @@ async function checkAndSendInstallAnalytics() {
         timestamp: new Date().toISOString()
       });
       console.log(`[Analytics] 安装统计已发送: ${currentVersion}`);
+    } else {
+      console.log(`[Analytics] 安装统计发送失败: ${currentVersion}`);
     }
+  } else {
+    console.log(`[Analytics] 当前版本 ${currentVersion} 已报告过安装`);
   }
 }
 
 // 发送使用统计
 async function sendUsageAnalytics() {
+  console.log('[Analytics] 发送使用统计...');
+  
   const success = await sendAnalytics('usage', {
     sessionId: uuidv4(),
     uptime: process.uptime()
@@ -266,6 +287,8 @@ async function sendUsageAnalytics() {
   
   if (success) {
     console.log('[Analytics] 使用统计已发送');
+  } else {
+    console.log('[Analytics] 使用统计发送失败');
   }
 }
 
@@ -532,7 +555,14 @@ async function startUpload(filePath, key, checkpoint) {
           let data = '';
           res.on('data', (c) => data += c);
           res.on('end', () => {
-            try { resolve(JSON.parse(data)); } catch { resolve({ __status: res.statusCode, __headers: res.headers, __raw: data }); }
+
+            try {
+              const obj = JSON.parse(data);
+
+              resolve(obj);
+            } catch {
+              resolve({ __status: res.statusCode, __headers: res.headers, __raw: data });
+            }
           });
         });
         req.on('error', reject);
@@ -540,6 +570,7 @@ async function startUpload(filePath, key, checkpoint) {
       });
       let listResp = await executeWithoutProxy(() => doFetch('sm.ms'));
       if (!listResp || listResp.__status === 405 || listResp.status === false) {
+
         listResp = await executeWithoutProxy(() => doFetch('api.sm.ms'));
       }
       const items = Array.isArray(listResp?.data) ? listResp.data : [];
@@ -823,7 +854,7 @@ ipcMain.handle('register-shell-upload-menu', async () => {
     const title = '上传到 CS-Explorer';
 
     // Windows 11 现代右键菜单不支持通过纯注册表添加自定义应用项，
-    // 以下注册仅会出现在“显示更多选项”的经典菜单中。
+    // 以下注册仅会出现在"显示更多选项"的经典菜单中。
 
     // 仅在已打包状态下注册命令，避免在开发环境把 electron.exe 当作应用入口造成报错
     if (!app.isPackaged) {
@@ -898,7 +929,7 @@ function handleUploadArgv(argv) {
       // 跳转到上传页，但仅加入队列，不自动开始
       mainWindow?.webContents.send('navigate', '/uploads');
       mainWindow?.webContents.send('upload-progress', { key: name, percentage: 0, status: 'pending', filePath: cleanPath });
-      // 不立即调用 startUpload，等待用户在上传页点击“开始上传”
+      // 不立即调用 startUpload，等待用户在上传页点击"开始上传"
       addRecentActivity('upload', `从系统右键上传 ${name}`, 'info');
     } catch (e) {
       addRecentActivity('upload', `右键上传失败: ${e.message}`, 'error');
@@ -1041,12 +1072,17 @@ app.whenReady().then(async () => {
   setupAutoUpdater()
 
   // 发送用户统计
+  console.log('[Analytics] 开始发送用户统计...');
   try {
     // 检查并发送安装统计
+    console.log('[Analytics] 检查并发送安装统计...');
     await checkAndSendInstallAnalytics();
     
     // 发送使用统计
+    console.log('[Analytics] 发送使用统计...');
     await sendUsageAnalytics();
+    
+    console.log('[Analytics] 用户统计发送完成');
   } catch (error) {
     console.log('[Analytics] 统计发送失败:', error.message);
   }

@@ -152,6 +152,12 @@ export const api = {
     ipcRenderer.on('search-error', handler);
     return () => ipcRenderer.removeListener('search-error', handler);
   },
+  // 删除调试相关API
+  // getDebugLogs: () => ipcRenderer.invoke('get-debug-logs'),
+  // clearDebugLogs: () => ipcRenderer.invoke('clear-debug-logs'),
+  // testAnalytics: () => ipcRenderer.invoke('test-analytics'),
+  // onDebugLog: (callback) => ipcRenderer.on('debug-log', callback),
+  // removeDebugLogListener: (callback) => ipcRenderer.removeListener('debug-log', callback),
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
