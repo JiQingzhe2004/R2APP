@@ -444,6 +444,11 @@ export default function FilesPage() {
       return `https://${settings.bucket}.${settings.region}.aliyuncs.com/${key}`;
     }
 
+    if (settings.type === 'cos' && settings.region && (settings.bucket || settings.bucketName)) {
+      const bucket = settings.bucket || settings.bucketName;
+      return `https://${bucket}.cos.${settings.region}.myqcloud.com/${key}`;
+    }
+
     return null;
   };
 

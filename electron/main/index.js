@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, dialog, globalShortcut, screen, Tray, Menu, nativeImage } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog, globalShortcut, screen, Tray, Menu, nativeImage, session } from 'electron'
 import { join, parse } from 'path'
 import { electronApp, is } from '@electron-toolkit/utils'
 import Store from 'electron-store'
@@ -11,11 +11,57 @@ import { v4 as uuidv4 } from 'uuid';
 import serve from 'electron-serve';
 import packageJson from '../../package.json' assert { type: 'json' };
 import OSS from 'ali-oss';
+import COS from 'cos-nodejs-sdk-v5';
 import { autoUpdater } from 'electron-updater';
 
 const activeUploads = new Map();
 
 autoUpdater.autoDownload = false;
+
+// 创建COS客户端的简单函数
+function createCOSClient(secretId, secretKey) {
+  return new COS({
+    SecretId: secretId,
+    SecretKey: secretKey,
+    Timeout: 30000,
+    // 强制禁用代理
+    Proxy: '',
+    UseAccelerate: false,
+  });
+}
+
+// 执行COS操作时临时禁用代理的包装函数（异步等待）
+async function executeWithoutProxy(operation) {
+  // 临时清除进程级代理环境变量
+  const originalProxy = {
+    HTTP_PROXY: process.env.HTTP_PROXY,
+    HTTPS_PROXY: process.env.HTTPS_PROXY,
+    ALL_PROXY: process.env.ALL_PROXY,
+    http_proxy: process.env.http_proxy,
+    https_proxy: process.env.https_proxy,
+    all_proxy: process.env.all_proxy,
+  };
+  
+  // 清除代理环境变量
+  delete process.env.HTTP_PROXY;
+  delete process.env.HTTPS_PROXY;
+  delete process.env.ALL_PROXY;
+  delete process.env.http_proxy;
+  delete process.env.https_proxy;
+  delete process.env.all_proxy;
+  
+  try {
+    const result = await operation();
+    return result;
+  } finally {
+    // 恢复原有环境变量（如果有的话）
+    Object.keys(originalProxy).forEach(key => {
+      if (originalProxy[key] !== undefined) {
+        process.env[key] = originalProxy[key];
+      }
+    });
+  }
+}
 
 let currentProvider = 'github'; // 'github' or 'gitee'
 
@@ -37,6 +83,7 @@ const loadURL = serve({
 
 // This is the correct way to disable sandbox for the entire app.
 app.commandLine.appendSwitch('no-sandbox');
+app.commandLine.appendSwitch('no-proxy-server');
 
 try {
   require('electron-reloader')(module, {});
@@ -111,6 +158,39 @@ async function startUpload(filePath, key, checkpoint) {
         }
       });
 
+      mainWindow.webContents.send('upload-progress', { key, percentage: 100, filePath });
+      addRecentActivity('upload', `文件 ${key} 上传成功。`, 'success');
+    } else if (storage.type === 'cos') {
+      const fileSize = fs.statSync(filePath).size;
+      let uploadedSize = 0;
+      
+      const uploadTask = executeWithoutProxy(() => {
+        return new Promise((resolve, reject) => {
+          storage.client.sliceUploadFile({
+            Bucket: storage.bucket,
+            Region: storage.region,
+            Key: key,
+            FilePath: filePath,
+            onProgress: (progressData) => {
+              uploadedSize = progressData.loaded;
+              const percentage = Math.round((progressData.loaded / progressData.total) * 100);
+              mainWindow.webContents.send('upload-progress', { 
+                key, 
+                percentage,
+                filePath,
+              });
+            },
+          }, (err, data) => {
+            if (err) reject(err);
+            else resolve(data);
+          });
+        });
+      });
+      
+      // Store upload task for cancellation
+      activeUploads.set(key, { cancel: () => { /* COS SDK doesn't provide direct cancel */ } });
+      
+      await uploadTask;
       mainWindow.webContents.send('upload-progress', { key, percentage: 100, filePath });
       addRecentActivity('upload', `文件 ${key} 上传成功。`, 'success');
     }
@@ -446,7 +526,10 @@ if (!gotLock) {
 
 // Defer initial argv handling until after the main window is created
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // 设置直连，禁用所有代理
+  await session.defaultSession.setProxy({ proxyRules: 'direct://' });
+  
   electronApp.setAppUserModelId('com.r2.explorer')
 
   // --- Set Feed URL for Updater ---
@@ -751,6 +834,32 @@ ipcMain.handle('test-connection', async (event, profile) => {
     } catch (error) {
        return { success: false, error: `OSS 连接失败: ${error.message}` };
     }
+  } else if (profile.type === 'cos') {
+    if (!profile.secretId || !profile.secretKey || !profile.bucket || !profile.region) {
+      return { success: false, error: '缺少 COS 配置信息。' };
+    }
+    
+    try {
+      const cosClient = createCOSClient(profile.secretId, profile.secretKey);
+      
+      // 测试连接
+      await executeWithoutProxy(() => {
+        return new Promise((resolve, reject) => {
+          cosClient.headBucket({
+            Bucket: profile.bucket,
+            Region: profile.region,
+          }, (err, data) => {
+            if (err) reject(err);
+            else resolve(data);
+          });
+        });
+      });
+      
+      return { success: true, message: 'COS 连接成功！' };
+    } catch (error) {
+      console.error('COS connection error details:', error);
+      return { success: false, error: `COS 连接失败: ${error.message}` };
+    }
   } else {
     return { success: false, error: '未知的配置类型。' };
   }
@@ -786,6 +895,14 @@ async function getStorageClient() {
             }),
             type: 'oss',
             bucket: profile.bucket,
+        };
+    } else if (profile.type === 'cos') {
+        if (!profile.secretId || !profile.secretKey || !profile.bucket || !profile.region) return null;
+        return {
+            client: createCOSClient(profile.secretId, profile.secretKey),
+            type: 'cos',
+            bucket: profile.bucket,
+            region: profile.region,
         };
     }
     return null;
@@ -841,6 +958,25 @@ ipcMain.handle('get-bucket-stats', async () => {
         totalSize += response.objects?.reduce((acc, obj) => acc + obj.size, 0) || 0;
         continuationToken = response.nextMarker;
       } while (continuationToken);
+    } else if (storage.type === 'cos') {
+      do {
+        const response = await executeWithoutProxy(() => {
+          return new Promise((resolve, reject) => {
+            storage.client.getBucket({
+              Bucket: storage.bucket,
+              Region: storage.region,
+              Marker: continuationToken,
+              MaxKeys: 1000,
+            }, (err, data) => {
+              if (err) reject(err);
+              else resolve(data);
+            });
+          });
+        });
+        totalCount += response.Contents?.length || 0;
+        totalSize += response.Contents?.reduce((acc, obj) => acc + parseInt(obj.Size), 0) || 0;
+        continuationToken = response.IsTruncated ? response.NextMarker : null;
+      } while (continuationToken);
     }
     
     const quota = parseInt(activeProfile?.storageQuotaGB, 10);
@@ -894,6 +1030,30 @@ ipcMain.handle('list-objects', async (event, options) => {
       rawFiles = (response.objects || []).map(f => ({ Key: f.name, LastModified: f.lastModified, Size: f.size, ETag: f.etag }));
       folders = (response.prefixes || []).map(p => ({ key: p, isFolder: true }));
       nextContinuationToken = response.nextMarker;
+    } else if (storage.type === 'cos') {
+      const response = await executeWithoutProxy(() => {
+        return new Promise((resolve, reject) => {
+          storage.client.getBucket({
+            Bucket: storage.bucket,
+            Region: storage.region,
+            Marker: continuationToken,
+            Prefix: apiPrefix,
+            Delimiter: apiDelimiter,
+            MaxKeys: 100,
+          }, (err, data) => {
+            if (err) reject(err);
+            else resolve(data);
+          });
+        });
+      });
+      rawFiles = (response.Contents || []).map(f => ({ 
+        Key: f.Key, 
+        LastModified: f.LastModified, 
+        Size: parseInt(f.Size), 
+        ETag: f.ETag 
+      }));
+      folders = (response.CommonPrefixes || []).map(p => ({ key: p.Prefix, isFolder: true }));
+      nextContinuationToken = response.IsTruncated ? response.NextMarker : null;
     }
     
     let filteredFiles = rawFiles;
@@ -934,6 +1094,19 @@ ipcMain.handle('delete-object', async (_, key) => {
       await storage.client.send(command);
     } else if (storage.type === 'oss') {
       await storage.client.delete(key);
+    } else if (storage.type === 'cos') {
+      await executeWithoutProxy(() => {
+        return new Promise((resolve, reject) => {
+          storage.client.deleteObject({
+            Bucket: storage.bucket,
+            Region: storage.region,
+            Key: key,
+          }, (err, data) => {
+            if (err) reject(err);
+            else resolve(data);
+          });
+        });
+      });
     }
     addRecentActivity('delete', `删除了 ${key}`, 'success');
     return { success: true };
@@ -995,6 +1168,47 @@ ipcMain.handle('delete-folder', async (event, prefix) => {
         // OSS deleteMulti can handle 1000 keys at a time
         await client.deleteMulti(allKeys, { quiet: true });
       }
+    } else if (type === 'cos') {
+      let continuationToken;
+      do {
+        const response = await executeWithoutProxy(() => {
+          return new Promise((resolve, reject) => {
+            client.getBucket({
+              Bucket: bucket,
+              Region: storage.region,
+              Prefix: prefix,
+              Marker: continuationToken,
+              MaxKeys: 1000,
+            }, (err, data) => {
+              if (err) reject(err);
+              else resolve(data);
+            });
+          });
+        });
+        if (response.Contents) {
+          allKeys.push(...response.Contents.map(item => ({ Key: item.Key })));
+        }
+        continuationToken = response.IsTruncated ? response.NextMarker : null;
+      } while (continuationToken);
+
+      if (allKeys.length > 0) {
+        // COS 批量删除
+        for (let i = 0; i < allKeys.length; i += 1000) {
+          const chunk = allKeys.slice(i, i + 1000);
+          await executeWithoutProxy(() => {
+            return new Promise((resolve, reject) => {
+              client.deleteMultipleObject({
+                Bucket: bucket,
+                Region: storage.region,
+                Objects: chunk,
+              }, (err, data) => {
+                if (err) reject(err);
+                else resolve(data);
+              });
+            });
+          });
+        }
+      }
     }
 
     addRecentActivity('delete', `文件夹 "${prefix}" 已删除`, 'success');
@@ -1024,6 +1238,20 @@ ipcMain.handle('create-folder', async (event, folderName) => {
       }));
     } else if (type === 'oss') {
       await client.put(folderName, Buffer.from(''));
+    } else if (type === 'cos') {
+      await executeWithoutProxy(() => {
+        return new Promise((resolve, reject) => {
+          client.putObject({
+            Bucket: bucket,
+            Region: storage.region,
+            Key: folderName,
+            Body: '',
+          }, (err, data) => {
+            if (err) reject(err);
+            else resolve(data);
+          });
+        });
+      });
     } else {
       return { success: false, error: '不支持的存储类型' };
     }
@@ -1067,6 +1295,25 @@ ipcMain.handle('get-object-content', async (event, bucket, key) => {
         fileTooLarge = true;
       } else {
         content = response.content.toString('utf-8');
+      }
+    } else if (type === 'cos') {
+      const response = await executeWithoutProxy(() => {
+        return new Promise((resolve, reject) => {
+          client.getObject({
+            Bucket: clientBucket,
+            Region: storage.region,
+            Key: key,
+          }, (err, data) => {
+            if (err) reject(err);
+            else resolve(data);
+          });
+        });
+      });
+      
+      if (response.ContentLength > PREVIEW_FILE_SIZE_LIMIT) {
+        fileTooLarge = true;
+      } else {
+        content = response.Body.toString('utf-8');
       }
     }
 
@@ -1215,6 +1462,41 @@ ipcMain.on('download-file', async (event, key) => {
          } else {
              throw new Error(`OSS download failed with status: ${result.res.status}`);
          }
+     } else if (storage.type === 'cos') {
+         await executeWithoutProxy(() => {
+           return new Promise((resolve, reject) => {
+             storage.client.getObject({
+               Bucket: storage.bucket,
+               Region: storage.region,
+               Key: key,
+               Output: fs.createWriteStream(filePath),
+               onProgress: (progressData) => {
+                 const progress = Math.round((progressData.loaded / progressData.total) * 100);
+                 mainWindow.webContents.send('download-update', { 
+                   type: 'progress', 
+                   data: { id: taskId, progress } 
+                 });
+               },
+             }, (err, data) => {
+               if (err) {
+                 reject(err);
+               } else {
+                 const finalTasks = store.get('download-tasks', {});
+                 if (finalTasks[taskId]) {
+                   finalTasks[taskId].status = 'completed';
+                   finalTasks[taskId].progress = 100;
+                   store.set('download-tasks', finalTasks);
+                 }
+                 mainWindow.webContents.send('download-update', { 
+                   type: 'progress', 
+                   data: { id: taskId, progress: 100, status: 'completed' } 
+                 });
+                 addRecentActivity('download', `下载了 ${key}`);
+                 resolve(data);
+               }
+             });
+           });
+         });
      }
    } catch (error) {
      const errorTasks = store.get('download-tasks', {});
@@ -1363,6 +1645,26 @@ ipcMain.handle('get-presigned-url', async (event, bucket, key) => {
     } else if (storage.type === 'oss') {
       // The URL will be valid for 15 minutes.
       url = storage.client.signatureUrl(key, { expires: 900 });
+    } else if (storage.type === 'cos') {
+      // COS 获取预签名URL
+      url = await executeWithoutProxy(() => {
+        return new Promise((resolve) => {
+          storage.client.getObjectUrl({
+            Bucket: storage.bucket,
+            Region: storage.region,
+            Key: key,
+            Sign: true,
+            Expires: 900, // 15分钟
+          }, (err, data) => {
+            if (err) {
+              console.error('COS getObjectUrl error:', err);
+              resolve(null);
+            } else {
+              resolve(data.Url);
+            }
+          });
+        });
+      });
     }
     return url;
   } catch (error) {
@@ -1395,6 +1697,29 @@ ipcMain.on('start-search', async (event, searchTerm) => {
           Contents: (ossResponse.objects || []).map(f => ({ Key: f.name, LastModified: f.lastModified, Size: f.size, ETag: f.etag })),
           NextContinuationToken: ossResponse.nextMarker
         };
+      } else if (storage.type === 'cos') {
+        const cosResponse = await executeWithoutProxy(() => {
+          return new Promise((resolve, reject) => {
+            storage.client.getBucket({
+              Bucket: storage.bucket,
+              Region: storage.region,
+              Marker: continuationToken,
+              MaxKeys: 1000,
+            }, (err, data) => {
+              if (err) reject(err);
+              else resolve(data);
+            });
+          });
+        });
+        response = { 
+          Contents: (cosResponse.Contents || []).map(f => ({ 
+            Key: f.Key, 
+            LastModified: f.LastModified, 
+            Size: parseInt(f.Size), 
+            ETag: f.ETag 
+          })),
+          NextContinuationToken: cosResponse.IsTruncated ? cosResponse.NextMarker : null
+        };
       }
 
       const rawFiles = response.Contents || [];
@@ -1424,6 +1749,56 @@ ipcMain.on('start-search', async (event, searchTerm) => {
 
 ipcMain.handle('get-uploads-state', () => {
   return store.get('uploads-state', []);
+});
+
+ipcMain.handle('list-buckets', async (event, profile) => {
+  if (!profile) {
+    return { success: false, error: '无效的配置' };
+  }
+
+  try {
+    let buckets = [];
+    
+    if (profile.type === 'cos') {
+      // 腾讯云COS获取存储桶列表
+      const cosClient = createCOSClient(profile.secretId, profile.secretKey);
+      
+      const result = await executeWithoutProxy(() => {
+        return new Promise((resolve, reject) => {
+          cosClient.getService((err, data) => {
+            if (err) reject(err);
+            else resolve(data);
+          });
+        });
+      });
+      
+      buckets = (result.Buckets || []).map(b => ({
+        name: b.Name,
+        region: b.Location,
+        creationDate: b.CreationDate
+      }));
+      
+    } else if (profile.type === 'oss') {
+      // 阿里云OSS获取存储桶列表
+      // OSS SDK不支持直接列出所有bucket，需要用户手动输入
+      return { 
+        success: false, 
+        error: 'OSS需要手动输入存储桶名称' 
+      };
+      
+    } else if (profile.type === 'r2') {
+      // Cloudflare R2不支持列出所有bucket，需要用户手动输入
+      return { 
+        success: false, 
+        error: 'R2需要手动输入存储桶名称' 
+      };
+    }
+    
+    return { success: true, buckets };
+  } catch (error) {
+    console.error('Failed to list buckets:', error);
+    return { success: false, error: error.message };
+  }
 });
 
 ipcMain.handle('set-uploads-state', (_, uploads) => {

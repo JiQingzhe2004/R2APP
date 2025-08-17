@@ -6,10 +6,23 @@ import { Button } from "@/components/ui/Button"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { toast } from 'sonner'
 import { useNotifications } from '@/contexts/NotificationContext';
-import { User, KeyRound, Container, Globe, Plug, Save, PlusCircle, Trash2, Cloud, Server, Settings as SettingsIcon } from 'lucide-react'
+import { 
+  User, KeyRound, Container, Globe, Plug, Save, PlusCircle, Trash2, 
+  Cloud, Server, Settings as SettingsIcon, ChevronDown, ChevronRight,
+  Database, Shield, MapPin, Link2, HardDrive, Edit2, Check, X, FolderOpen
+} from 'lucide-react'
 import AppSettings from './AppSettings';
 import { v4 as uuidv4 } from 'uuid';
 import { useOutletContext } from 'react-router-dom';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs"
+import { Separator } from "@/components/ui/separator"
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import BucketSelector from '@/components/BucketSelector'
 
 const R2_TEMPLATE = {
   type: 'r2',
@@ -34,37 +47,420 @@ const OSS_TEMPLATE = {
   storageQuotaGB: 10,
 };
 
-const ProfileForm = ({ profile, onSave, onRemove, onTest }) => {
-  const [formData, setFormData] = useState(profile);
+const COS_TEMPLATE = {
+  type: 'cos',
+  name: '新 COS 配置',
+  secretId: '',
+  secretKey: '',
+  region: '',
+  bucket: '',
+  publicDomain: '',
+  storageQuotaGB: 10,
+};
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+const PROVIDER_INFO = {
+  r2: {
+    name: 'Cloudflare R2',
+    icon: Cloud,
+    color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+    description: 'Cloudflare 的对象存储服务，兼容 S3 API'
+  },
+  oss: {
+    name: '阿里云 OSS',
+    icon: Database,
+    color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+    description: '阿里云对象存储服务'
+  },
+  cos: {
+    name: '腾讯云 COS',
+    icon: Server,
+    color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+    description: '腾讯云对象存储服务'
+  }
+};
+
+const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove, isTesting, isSaving }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempName, setTempName] = useState(profile.name);
+  const [showBucketSelector, setShowBucketSelector] = useState(false);
+  const providerInfo = PROVIDER_INFO[profile.type];
+
+  const handleNameSave = () => {
+    onChange(profile.id, { target: { name: 'name', value: tempName } });
+    setIsEditingName(false);
+  };
+
+  const handleNameCancel = () => {
+    setTempName(profile.name);
+    setIsEditingName(false);
   };
 
   return (
-    <>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor={`accountId-${profile.id}`}>账户 ID (Account ID)</Label>
-          <Input id={`accountId-${profile.id}`} name="accountId" value={formData.accountId} onChange={handleChange} placeholder="您的 Cloudflare 账户 ID" />
+    <Card className={`transition-all ${isActive ? 'ring-2 ring-primary' : ''}`}>
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-0 h-auto"
+              onClick={() => setIsExpanded(!isExpanded)}
+            >
+              {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </Button>
+            
+            <RadioGroupItem 
+              value={profile.id} 
+              id={`radio-${profile.id}`}
+              checked={isActive}
+              onClick={() => onActivate(profile.id)}
+            />
+            
+            <div className="flex items-center gap-2">
+              <providerInfo.icon className="h-5 w-5 text-muted-foreground" />
+              <span className={`text-xs font-bold py-1 px-2.5 rounded-full ${providerInfo.color}`}>
+                {profile.type.toUpperCase()}
+              </span>
+            </div>
+
+            {isEditingName ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={tempName}
+                  onChange={(e) => setTempName(e.target.value)}
+                  className="h-7 w-48"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleNameSave();
+                    if (e.key === 'Escape') handleNameCancel();
+                  }}
+                />
+                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleNameSave}>
+                  <Check className="h-4 w-4" />
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleNameCancel}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="font-semibold">{profile.name}</span>
+                <Button 
+                  size="sm" 
+                  variant="ghost" 
+                  className="h-7 w-7 p-0"
+                  onClick={() => {
+                    setTempName(profile.name);
+                    setIsEditingName(true);
+                  }}
+                >
+                  <Edit2 className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => onTest(profile.id)} 
+              disabled={isTesting || isSaving}
+            >
+              <Plug className="mr-2 h-4 w-4" />
+              {isTesting ? '测试中...' : '测试'}
+            </Button>
+            <Button 
+              size="sm" 
+              variant="destructive" 
+              onClick={() => onRemove(profile.id)} 
+              disabled={isSaving}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor={`bucketName-${profile.id}`}>存储桶名称</Label>
-          <Input id={`bucketName-${profile.id}`} name="bucketName" value={formData.bucketName} onChange={handleChange} placeholder="您的 R2 存储桶名称" />
-        </div>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor={`accessKeyId-${profile.id}`}>访问密钥 ID</Label>
-          <Input id={`accessKeyId-${profile.id}`} name="accessKeyId" value={formData.accessKeyId} onChange={handleChange} placeholder="您的 R2 访问密钥 ID" />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor={`secretAccessKey-${profile.id}`}>秘密访问密钥</Label>
-          <Input id={`secretAccessKey-${profile.id}`} name="secretAccessKey" type="password" value={formData.secretAccessKey} onChange={handleChange} placeholder="您的 R2 秘密访问密钥" />
-        </div>
-      </div>
-    </>
+        
+        {!isExpanded && (
+          <CardDescription className="mt-2 text-xs">
+            {providerInfo.description}
+            {profile.bucket || profile.bucketName ? 
+              ` • 存储桶: ${profile.bucket || profile.bucketName}` : ''}
+          </CardDescription>
+        )}
+      </CardHeader>
+
+      {isExpanded && (
+        <CardContent className="space-y-4 pt-0">
+          <Separator />
+          
+          {profile.type === 'r2' && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`accountId-${profile.id}`} className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    账户 ID
+                  </Label>
+                  <Input 
+                    id={`accountId-${profile.id}`} 
+                    name="accountId" 
+                    value={profile.accountId} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="您的 Cloudflare 账户 ID" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`bucketName-${profile.id}`} className="flex items-center gap-2">
+                    <Container className="h-4 w-4" />
+                    存储桶名称
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      id={`bucketName-${profile.id}`} 
+                      name="bucketName" 
+                      value={profile.bucketName} 
+                      onChange={(e) => onChange(profile.id, e)} 
+                      placeholder="您的 R2 存储桶名称" 
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setShowBucketSelector(true)}
+                      title="选择存储桶"
+                    >
+                      <FolderOpen className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`accessKeyId-${profile.id}`} className="flex items-center gap-2">
+                    <KeyRound className="h-4 w-4" />
+                    访问密钥 ID
+                  </Label>
+                  <Input 
+                    id={`accessKeyId-${profile.id}`} 
+                    name="accessKeyId" 
+                    value={profile.accessKeyId} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="您的 R2 访问密钥 ID" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`secretAccessKey-${profile.id}`} className="flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    秘密访问密钥
+                  </Label>
+                  <Input 
+                    id={`secretAccessKey-${profile.id}`} 
+                    name="secretAccessKey" 
+                    type="password" 
+                    value={profile.secretAccessKey} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="您的 R2 秘密访问密钥" 
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {profile.type === 'oss' && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`accessKeyId-${profile.id}`} className="flex items-center gap-2">
+                    <KeyRound className="h-4 w-4" />
+                    AccessKey ID
+                  </Label>
+                  <Input 
+                    id={`accessKeyId-${profile.id}`} 
+                    name="accessKeyId" 
+                    value={profile.accessKeyId} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="您的 OSS AccessKey ID" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`accessKeySecret-${profile.id}`} className="flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    AccessKey Secret
+                  </Label>
+                  <Input 
+                    id={`accessKeySecret-${profile.id}`} 
+                    name="accessKeySecret" 
+                    type="password" 
+                    value={profile.accessKeySecret} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="您的 OSS AccessKey Secret" 
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`bucket-${profile.id}`} className="flex items-center gap-2">
+                    <Container className="h-4 w-4" />
+                    存储空间名称
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      id={`bucket-${profile.id}`} 
+                      name="bucket" 
+                      value={profile.bucket} 
+                      onChange={(e) => onChange(profile.id, e)} 
+                      placeholder="您的 OSS 存储空间名称" 
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setShowBucketSelector(true)}
+                      title="选择存储桶"
+                    >
+                      <FolderOpen className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`region-${profile.id}`} className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    地域
+                  </Label>
+                  <Input 
+                    id={`region-${profile.id}`} 
+                    name="region" 
+                    value={profile.region} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="例如: oss-cn-hangzhou" 
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {profile.type === 'cos' && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`secretId-${profile.id}`} className="flex items-center gap-2">
+                    <KeyRound className="h-4 w-4" />
+                    SecretId
+                  </Label>
+                  <Input 
+                    id={`secretId-${profile.id}`} 
+                    name="secretId" 
+                    value={profile.secretId} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="您的 COS SecretId" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`secretKey-${profile.id}`} className="flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    SecretKey
+                  </Label>
+                  <Input 
+                    id={`secretKey-${profile.id}`} 
+                    name="secretKey" 
+                    type="password" 
+                    value={profile.secretKey} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="您的 COS SecretKey" 
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`bucket-${profile.id}`} className="flex items-center gap-2">
+                    <Container className="h-4 w-4" />
+                    存储桶名称
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      id={`bucket-${profile.id}`} 
+                      name="bucket" 
+                      value={profile.bucket} 
+                      onChange={(e) => onChange(profile.id, e)} 
+                      placeholder="格式: name-appid" 
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setShowBucketSelector(true)}
+                      title="选择存储桶"
+                    >
+                      <FolderOpen className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`region-${profile.id}`} className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    地域
+                  </Label>
+                  <Input 
+                    id={`region-${profile.id}`} 
+                    name="region" 
+                    value={profile.region} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="例如: ap-guangzhou" 
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          <Separator />
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor={`publicDomain-${profile.id}`} className="flex items-center gap-2">
+                <Link2 className="h-4 w-4" />
+                自定义域名 (可选)
+              </Label>
+              <Input 
+                id={`publicDomain-${profile.id}`} 
+                name="publicDomain" 
+                value={profile.publicDomain} 
+                onChange={(e) => onChange(profile.id, e)} 
+                placeholder="例如: files.example.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`storageQuotaGB-${profile.id}`} className="flex items-center gap-2">
+                <HardDrive className="h-4 w-4" />
+                存储配额 (GB)
+              </Label>
+              <Input 
+                id={`storageQuotaGB-${profile.id}`} 
+                name="storageQuotaGB" 
+                type="number"
+                value={profile.storageQuotaGB || ''} 
+                onChange={(e) => onChange(profile.id, e)} 
+                placeholder="默认: 10"
+              />
+            </div>
+          </div>
+        </CardContent>
+      )}
+      
+      <BucketSelector
+        profile={profile}
+        isOpen={showBucketSelector}
+        onClose={() => setShowBucketSelector(false)}
+        onSelect={(bucketName) => {
+          const fieldName = profile.type === 'r2' ? 'bucketName' : 'bucket';
+          onChange(profile.id, { target: { name: fieldName, value: bucketName } });
+        }}
+      />
+    </Card>
   );
 };
 
@@ -79,14 +475,12 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('profiles'); // profiles | app
 
   const fetchSettings = useCallback(async () => {
-    // This will need to be adjusted once the main process is updated
     const data = await window.api.getSettings();
     if (data.profiles && data.profiles.length > 0 && data.profiles[0].type) {
        // New structure already in place
        setProfiles(data.profiles || []);
     } else {
       // Temporary migration logic for old structure.
-      // This helps with transitioning without losing old settings.
       console.log("旧数据结构，将进行迁移...");
       const migratedProfiles = (data.profiles || []).map(p => ({
         ...R2_TEMPLATE,
@@ -106,7 +500,7 @@ export default function SettingsPage() {
   useEffect(() => {
     fetchSettings();
     // 处理从托盘传来的导航状态（通过 App.jsx 传递 state）
-    const { state } = window.history; // react-router 会把 state 放进 history.state.usr
+    const { state } = window.history;
     const usr = state && state.usr ? state.usr : null;
     if (usr && usr.tab) {
       setActiveTab(usr.tab);
@@ -119,9 +513,10 @@ export default function SettingsPage() {
   };
   
   const handleAddProfile = (type) => {
+    const template = type === 'r2' ? R2_TEMPLATE : type === 'oss' ? OSS_TEMPLATE : COS_TEMPLATE;
     const newProfile = {
       id: uuidv4(),
-      ...(type === 'r2' ? R2_TEMPLATE : OSS_TEMPLATE),
+      ...template,
       name: `新${type.toUpperCase()}配置 ${profiles.filter(p=>p.type === type).length + 1}`,
     };
     const newProfiles = [...profiles, newProfile];
@@ -129,7 +524,6 @@ export default function SettingsPage() {
     if (newProfiles.length === 1) {
       setActiveProfileId(newProfile.id);
     }
-    // 如果来自托盘“新增配置”，默认停留在 profiles 页签
     setActiveTab('profiles');
   };
 
@@ -148,7 +542,6 @@ export default function SettingsPage() {
     setIsTesting(prev => ({...prev, [profileId]: true}));
     const toastId = toast.loading(`正在测试配置 "${profileToTest.name}"...`);
     
-    // The IPC handler 'test-connection' will need to be implemented in the backend
     const result = await window.api.testConnection(profileToTest);
 
     if (result.success) {
@@ -163,7 +556,6 @@ export default function SettingsPage() {
     setIsSaving(true);
     const toastId = toast.loading('正在保存所有设置...');
 
-    // This IPC handler will replace the separate save handlers
     const result = await window.api.saveProfiles({ profiles, activeProfileId });
 
     if (result.success) {
@@ -180,161 +572,96 @@ export default function SettingsPage() {
     setIsSaving(false);
   };
 
-  const renderProfileForm = (profile) => {
-    if (profile.type === 'r2') {
-      return (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor={`accountId-${profile.id}`}>账户 ID (Account ID)</Label>
-              <Input id={`accountId-${profile.id}`} name="accountId" value={profile.accountId} onChange={(e) => handleProfileChange(profile.id, e)} placeholder="您的 Cloudflare 账户 ID" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`bucketName-${profile.id}`}>存储桶名称</Label>
-              <Input id={`bucketName-${profile.id}`} name="bucketName" value={profile.bucketName} onChange={(e) => handleProfileChange(profile.id, e)} placeholder="您的 R2 存储桶名称" />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor={`accessKeyId-${profile.id}`}>访问密钥 ID</Label>
-              <Input id={`accessKeyId-${profile.id}`} name="accessKeyId" value={profile.accessKeyId} onChange={(e) => handleProfileChange(profile.id, e)} placeholder="您的 R2 访问密钥 ID" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`secretAccessKey-${profile.id}`}>秘密访问密钥</Label>
-              <Input id={`secretAccessKey-${profile.id}`} name="secretAccessKey" type="password" value={profile.secretAccessKey} onChange={(e) => handleProfileChange(profile.id, e)} placeholder="您的 R2 秘密访问密钥" />
-            </div>
-          </div>
-        </>
-      );
-    }
-
-    if (profile.type === 'oss') {
-      return (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor={`accessKeyId-${profile.id}`}>AccessKey ID</Label>
-              <Input id={`accessKeyId-${profile.id}`} name="accessKeyId" value={profile.accessKeyId} onChange={(e) => handleProfileChange(profile.id, e)} placeholder="您的 OSS AccessKey ID" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`accessKeySecret-${profile.id}`}>AccessKey Secret</Label>
-              <Input id={`accessKeySecret-${profile.id}`} name="accessKeySecret" type="password" value={profile.accessKeySecret} onChange={(e) => handleProfileChange(profile.id, e)} placeholder="您的 OSS AccessKey Secret" />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-             <div className="space-y-2">
-              <Label htmlFor={`bucket-${profile.id}`}>存储空间名称 (Bucket)</Label>
-              <Input id={`bucket-${profile.id}`} name="bucket" value={profile.bucket} onChange={(e) => handleProfileChange(profile.id, e)} placeholder="您的 OSS 存储空间名称" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`region-${profile.id}`}>地域 (Region)</Label>
-              <Input id={`region-${profile.id}`} name="region" value={profile.region} onChange={(e) => handleProfileChange(profile.id, e)} placeholder="例如: oss-cn-hangzhou" />
-            </div>
-          </div>
-        </>
-      )
-    }
-    return null;
-  };
-
   return (
     <div className="p-4 sm:p-6 space-y-6">
-      <div className="flex items-center gap-2">
-        <Button variant={activeTab === 'profiles' ? 'default' : 'outline'} onClick={() => setActiveTab('profiles')}>
-          <Cloud className="mr-2 h-4 w-4" /> 桶配置
-        </Button>
-        <Button variant={activeTab === 'app' ? 'default' : 'outline'} onClick={() => setActiveTab('app')}>
-          <SettingsIcon className="mr-2 h-4 w-4" /> 应用设置
-        </Button>
-      </div>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="profiles" className="flex items-center gap-2">
+            <Cloud className="h-4 w-4" />
+            存储配置
+          </TabsTrigger>
+          <TabsTrigger value="app" className="flex items-center gap-2">
+            <SettingsIcon className="h-4 w-4" />
+            应用设置
+          </TabsTrigger>
+        </TabsList>
 
-      {activeTab === 'profiles' && (
-      <Card>
-        <CardHeader>
-          <CardTitle>存储库配置</CardTitle>
-          <CardDescription>
-            管理您的 R2 或 OSS 存储配置。选择一个作为当前活动配置。
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <RadioGroup value={activeProfileId} onValueChange={setActiveProfileId} className="space-y-4">
-            {profiles.map((profile) => (
-              <div key={profile.id} className="p-4 border rounded-lg flex items-start gap-4 transition-all">
-                <div className="mt-1">
-                   <RadioGroupItem value={profile.id} id={`r-${profile.id}`} />
+        <TabsContent value="profiles" className="space-y-4 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>存储服务配置</CardTitle>
+              <CardDescription>
+                管理您的云存储服务配置。支持多个配置文件，可随时切换活动配置。
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {profiles.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p className="mb-4">尚未配置任何存储服务</p>
+                  <p className="text-sm mb-6">请添加一个存储配置以开始使用</p>
                 </div>
-                <div className="flex-1 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                       <span className={`text-xs font-bold py-1 px-2.5 rounded-full ${profile.type === 'r2' ? 'bg-blue-100 text-blue-800' : 'bg-orange-100 text-orange-800'}`}>
-                        {profile.type.toUpperCase()}
-                      </span>
-                      <Input 
-                        id={`name-${profile.id}`} 
-                        name="name" 
-                        value={profile.name} 
-                        onChange={(e) => handleProfileChange(profile.id, e)} 
-                        placeholder="配置名称"
-                        className="text-lg font-semibold border-none shadow-none p-0 focus-visible:ring-0 w-auto"
+              ) : (
+                <RadioGroup value={activeProfileId} onValueChange={setActiveProfileId}>
+                  <div className="space-y-4">
+                    {profiles.map((profile) => (
+                      <ProfileCard
+                        key={profile.id}
+                        profile={profile}
+                        isActive={activeProfileId === profile.id}
+                        onActivate={setActiveProfileId}
+                        onChange={handleProfileChange}
+                        onTest={handleTestConnection}
+                        onRemove={handleRemoveProfile}
+                        isTesting={isTesting[profile.id]}
+                        isSaving={isSaving}
                       />
-                    </div>
+                    ))}
                   </div>
+                </RadioGroup>
+              )}
 
-                  {renderProfileForm(profile)}
-                  
-                   <div className="space-y-2">
-                    <Label htmlFor={`publicDomain-${profile.id}`}>自定义域名 (可选)</Label>
-                     <Input id={`publicDomain-${profile.id}`} name="publicDomain" value={profile.publicDomain} onChange={(e) => handleProfileChange(profile.id, e)} placeholder="例如: files.example.com"/>
-                  </div>
-                   <div className="space-y-2">
-                    <Label htmlFor={`storageQuotaGB-${profile.id}`}>存储配额 (GB)</Label>
-                    <Input 
-                      id={`storageQuotaGB-${profile.id}`} 
-                      name="storageQuotaGB" 
-                      type="number"
-                      value={profile.storageQuotaGB || ''} 
-                      onChange={(e) => handleProfileChange(profile.id, e)} 
-                      placeholder="默认: 10"
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2 pt-2 border-t mt-4">
-                    <Button size="sm" type="button" variant="ghost" onClick={() => handleTestConnection(profile.id)} disabled={isTesting[profile.id] || isSaving}>
-                      <Plug className="mr-2 h-4 w-4" />
-                      {isTesting[profile.id] ? '测试中...' : '测试连接'}
+              <Separator />
+              
+              <div className="flex justify-center">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="w-full max-w-sm">
+                      <PlusCircle className="mr-2 h-4 w-4" />
+                      添加存储配置
                     </Button>
-                     <Button size="sm" type="button" variant="destructive" onClick={() => handleRemoveProfile(profile.id)} disabled={isSaving}>
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      删除
-                    </Button>
-                  </div>
-                </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-56">
+                    <DropdownMenuItem onClick={() => handleAddProfile('r2')}>
+                      <Cloud className="mr-2 h-4 w-4 text-orange-600" />
+                      <span>Cloudflare R2</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleAddProfile('oss')}>
+                      <Database className="mr-2 h-4 w-4 text-blue-600" />
+                      <span>阿里云 OSS</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleAddProfile('cos')}>
+                      <Server className="mr-2 h-4 w-4 text-green-600" />
+                      <span>腾讯云 COS</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
-            ))}
-          </RadioGroup>
-          <div className="flex flex-col sm:flex-row gap-2 mt-4">
-            <Button type="button" variant="outline" onClick={() => handleAddProfile('r2')} className="flex-1">
-              <Cloud className="mr-2 h-4 w-4" />
-              添加 R2 配置
-            </Button>
-            <Button type="button" variant="outline" onClick={() => handleAddProfile('oss')} className="flex-1">
-              <Server className="mr-2 h-4 w-4" />
-              添加 OSS 配置
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-      )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      {activeTab === 'app' && (
-        <AppSettings />
-      )}
+        <TabsContent value="app" className="mt-6">
+          <AppSettings />
+        </TabsContent>
+      </Tabs>
 
       <div className="flex justify-end">
-        <Button size="lg" type="button" onClick={handleSaveAll} disabled={isSaving}>
-            <Save className="mr-2 h-4 w-4" />
-            {isSaving ? '正在保存...' : '保存所有设置'}
+        <Button size="lg" onClick={handleSaveAll} disabled={isSaving}>
+          <Save className="mr-2 h-4 w-4" />
+          {isSaving ? '正在保存...' : '保存所有设置'}
         </Button>
       </div>
     </div>
   )
-} 
+}
