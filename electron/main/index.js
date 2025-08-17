@@ -13,8 +13,15 @@ import packageJson from '../../package.json' assert { type: 'json' };
 import OSS from 'ali-oss';
 import COS from 'cos-nodejs-sdk-v5';
 import { autoUpdater } from 'electron-updater';
+import crypto from 'crypto';
+import os from 'os';
+import { ANALYTICS_CONFIG } from './analytics-config.js';
 
 const activeUploads = new Map();
+// Cache public URL and delete URL for providers that return them (SM.MS, PICUI)
+const objectUrlCache = new Map(); // key: provider+":"+objectKey -> url
+const objectDeleteUrlCache = new Map(); // key: provider+":"+objectKey -> deleteUrl
+const objectHashCache = new Map(); // key: provider+":"+objectKey -> hash (for SM.MS)
 
 autoUpdater.autoDownload = false;
 
@@ -92,6 +99,175 @@ try {
 const store = new Store();
 
 const MAX_ACTIVITIES = 20;
+
+// 生成机器码（基于硬件信息）
+function generateMachineId() {
+  const platform = os.platform();
+  const arch = os.arch();
+  const hostname = os.hostname();
+  const networkInterfaces = os.networkInterfaces();
+  
+  // 获取第一个非内部的网络接口MAC地址
+  let macAddress = '';
+  for (const interfaceName in networkInterfaces) {
+    const interfaces = networkInterfaces[interfaceName];
+    for (const iface of interfaces) {
+      if (!iface.internal && iface.mac && iface.mac !== '00:00:00:00:00:00') {
+        macAddress = iface.mac;
+        break;
+      }
+    }
+    if (macAddress) break;
+  }
+  
+  // 组合硬件信息生成唯一标识
+  const hardwareInfo = `${platform}-${arch}-${hostname}-${macAddress}`;
+  const machineId = crypto.createHash('sha256').update(hardwareInfo).digest('hex').substring(0, 16);
+  
+  return machineId;
+}
+
+// 发送统计请求
+async function sendAnalytics(type, data = {}) {
+  // 检查是否启用统计
+  if (!ANALYTICS_CONFIG.ENABLED) {
+    console.log(`[Analytics] 统计已禁用 (${type})`);
+    return true;
+  }
+  
+  try {
+    const machineId = store.get('machineId') || generateMachineId();
+    const version = packageJson.version;
+    
+    const analyticsData = {
+      type, // 'install' 或 'usage'
+      machineId,
+      version,
+      timestamp: new Date().toISOString(),
+      platform: os.platform(),
+      arch: os.arch(),
+      ...data
+    };
+    
+    const https = require('https');
+    const postData = JSON.stringify(analyticsData);
+    
+    // 解析URL获取hostname和path
+    const url = new URL(ANALYTICS_CONFIG.API_URL);
+    
+    const options = {
+      hostname: url.hostname,
+      port: url.port || 443,
+      path: url.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        'User-Agent': `R2APP/${version}`
+      },
+      timeout: ANALYTICS_CONFIG.TIMEOUT
+    };
+    
+    // 重试机制
+    let lastError;
+    for (let attempt = 1; attempt <= ANALYTICS_CONFIG.RETRY_COUNT; attempt++) {
+      try {
+        const result = await new Promise((resolve, reject) => {
+          const req = https.request(options, (res) => {
+            let data = '';
+            res.on('data', (chunk) => data += chunk);
+            res.on('end', () => {
+              if (res.statusCode >= 200 && res.statusCode < 300) {
+                console.log(`[Analytics] ${type} 统计发送成功 (尝试 ${attempt}/${ANALYTICS_CONFIG.RETRY_COUNT})`);
+                resolve(true);
+              } else {
+                console.log(`[Analytics] ${type} 统计发送失败: ${res.statusCode} (尝试 ${attempt}/${ANALYTICS_CONFIG.RETRY_COUNT})`);
+                resolve(false);
+              }
+            });
+          });
+          
+          req.on('error', (err) => {
+            console.log(`[Analytics] ${type} 统计发送错误: ${err.message} (尝试 ${attempt}/${ANALYTICS_CONFIG.RETRY_COUNT})`);
+            lastError = err;
+            resolve(false);
+          });
+          
+          req.on('timeout', () => {
+            console.log(`[Analytics] ${type} 统计发送超时 (尝试 ${attempt}/${ANALYTICS_CONFIG.RETRY_COUNT})`);
+            req.destroy();
+            resolve(false);
+          });
+          
+          req.write(postData);
+          req.end();
+        });
+        
+        if (result) {
+          return true;
+        }
+        
+        // 如果不是最后一次尝试，等待后重试
+        if (attempt < ANALYTICS_CONFIG.RETRY_COUNT) {
+          await new Promise(resolve => setTimeout(resolve, ANALYTICS_CONFIG.RETRY_DELAY));
+        }
+      } catch (error) {
+        lastError = error;
+        if (attempt < ANALYTICS_CONFIG.RETRY_COUNT) {
+          await new Promise(resolve => setTimeout(resolve, ANALYTICS_CONFIG.RETRY_DELAY));
+        }
+      }
+    }
+    
+    console.log(`[Analytics] ${type} 统计发送最终失败，已重试 ${ANALYTICS_CONFIG.RETRY_COUNT} 次`);
+    return false;
+  } catch (error) {
+    console.log(`[Analytics] ${type} 统计发送异常:`, error.message);
+    return false;
+  }
+}
+
+// 检查并发送安装统计
+async function checkAndSendInstallAnalytics() {
+  const machineId = store.get('machineId');
+  const installReported = store.get('installReported');
+  const currentVersion = packageJson.version;
+  
+  if (!machineId) {
+    // 首次安装，生成机器码
+    const newMachineId = generateMachineId();
+    store.set('machineId', newMachineId);
+    console.log(`[Analytics] 生成机器码: ${newMachineId}`);
+  }
+  
+  // 检查是否已经报告过当前版本的安装
+  if (!installReported || installReported.version !== currentVersion) {
+    const success = await sendAnalytics('install', {
+      installType: 'first_time',
+      previousVersion: installReported?.version || null
+    });
+    
+    if (success) {
+      store.set('installReported', {
+        version: currentVersion,
+        timestamp: new Date().toISOString()
+      });
+      console.log(`[Analytics] 安装统计已发送: ${currentVersion}`);
+    }
+  }
+}
+
+// 发送使用统计
+async function sendUsageAnalytics() {
+  const success = await sendAnalytics('usage', {
+    sessionId: uuidv4(),
+    uptime: process.uptime()
+  });
+  
+  if (success) {
+    console.log('[Analytics] 使用统计已发送');
+  }
+}
 
 function addRecentActivity(type, message, status) {
   const activities = store.get('recent-activities', []);
@@ -193,6 +369,221 @@ async function startUpload(filePath, key, checkpoint) {
       await uploadTask;
       mainWindow.webContents.send('upload-progress', { key, percentage: 100, filePath });
       addRecentActivity('upload', `文件 ${key} 上传成功。`, 'success');
+    } else if (storage.type === 'smms') {
+      // SM.MS 图床上传
+      try {
+        const fileBuffer = fs.readFileSync(filePath);
+        const fileName = key.split('/').pop();
+        const FormData = require('form-data');
+        const form = new FormData();
+        form.append('smfile', fileBuffer, { filename: fileName, contentType: 'application/octet-stream' });
+        
+        // 获取 SM.MS API Token
+        const active = getActiveProfile();
+        const apiToken = active?.smmsToken;
+        
+        if (!apiToken) {
+          throw new Error('SM.MS API Token 未配置');
+        }
+        
+        // 发送请求到 SM.MS API
+        const https = require('https');
+        const response = await executeWithoutProxy(() => new Promise((resolve, reject) => {
+          const options = {
+            hostname: 'sm.ms',
+            port: 443,
+            path: '/api/v2/upload',
+            method: 'POST',
+            headers: {
+              ...form.getHeaders(),
+              'Authorization': apiToken?.startsWith('Basic ') ? apiToken : `Basic ${apiToken}`,
+              'Accept': 'application/json',
+              'Accept-Encoding': 'identity',
+              'User-Agent': 'R2APP/4.1'
+            }
+          };
+          
+          const req = https.request(options, (res) => {
+            let data = '';
+            res.on('data', (chunk) => {
+              data += chunk;
+            });
+            res.on('end', () => {
+              try {
+                const result = JSON.parse(data);
+                resolve(result);
+              } catch (e) {
+                reject(new Error('解析响应失败'));
+              }
+            });
+          });
+          
+          req.on('error', (err) => {
+            reject(err);
+          });
+          
+          form.pipe(req);
+        }));
+        
+        if (response.success) {
+          // 上传成功，发送图片URL
+          mainWindow.webContents.send('upload-progress', { 
+            key, 
+            percentage: 100, 
+            filePath,
+            imageUrl: response.data.url,
+            deleteUrl: response.data.delete_url
+          });
+          try {
+            objectUrlCache.set(`smms:${key}`, response.data?.url);
+            if (response.data?.delete_url) objectDeleteUrlCache.set(`smms:${key}`, response.data?.delete_url);
+          } catch {}
+          addRecentActivity('upload', `图片 ${key} 已上传到 SM.MS，URL: ${response.data.url}`, 'success');
+        } else {
+          throw new Error(response.message || 'SM.MS 上传失败');
+        }
+      } catch (error) {
+        console.error(`SM.MS upload failed for ${key}:`, error);
+        mainWindow.webContents.send('upload-progress', { key, error: error.message, filePath });
+        addRecentActivity('upload', `图片 ${key} 上传到 SM.MS 失败: ${error.message}`, 'error');
+      }
+    } else if (storage.type === 'picui') {
+      // PICUI 图床上传（参考文档 https://picui.cn/page/api-docs.html ）
+      try {
+        const FormData = require('form-data');
+        const form = new FormData();
+        const fileName = key.split('/').pop();
+        form.append('file', fs.createReadStream(filePath), fileName);
+
+        const active = getActiveProfile();
+        const token = active?.picuiToken?.startsWith('Bearer ') ? active.picuiToken : `Bearer ${active?.picuiToken || ''}`;
+        const permission = active?.permission ?? 1;
+        const strategyId = active?.strategyId;
+        const albumId = active?.albumId;
+        form.append('permission', String(permission));
+        if (strategyId) form.append('strategy_id', String(strategyId));
+        if (albumId) form.append('album_id', String(albumId));
+
+        const https = require('https');
+        const response = await executeWithoutProxy(() => new Promise((resolve, reject) => {
+          const options = {
+            hostname: 'picui.cn',
+            port: 443,
+            path: '/api/v1/upload',
+            method: 'POST',
+            headers: {
+              ...form.getHeaders(),
+              'Authorization': token,
+              'Accept': 'application/json'
+            }
+          };
+          const req = https.request(options, (res) => {
+            let data = '';
+            res.on('data', (chunk) => data += chunk);
+            res.on('end', () => {
+              try { resolve(JSON.parse(data)); } catch (e) { reject(new Error('解析响应失败')); }
+            });
+          });
+          req.on('error', reject);
+          form.pipe(req);
+        }));
+
+        if (response.status) {
+          mainWindow.webContents.send('upload-progress', { 
+            key,
+            percentage: 100,
+            filePath,
+            imageUrl: response.data?.url,
+            deleteUrl: response.data?.delete_url
+          });
+          try {
+            objectUrlCache.set(`picui:${key}`, response.data?.url);
+            if (response.data?.delete_url) objectDeleteUrlCache.set(`picui:${key}`, response.data?.delete_url);
+          } catch {}
+          addRecentActivity('upload', `图片 ${key} 已上传到 PICUI，URL: ${response.data?.url}`, 'success');
+        } else {
+          throw new Error(response.message || 'PICUI 上传失败');
+        }
+      } catch (error) {
+        console.error(`PICUI upload failed for ${key}:`, error);
+        mainWindow.webContents.send('upload-progress', { key, error: error.message, filePath });
+        addRecentActivity('upload', `图片 ${key} 上传到 PICUI 失败: ${error.message}`, 'error');
+      }
+    } else if (storage.type === 'smms') {
+      // 读取上传历史作为文件列表
+      const https = require('https');
+      const token = (getActiveProfile().smmsToken?.startsWith('Basic ') ? getActiveProfile().smmsToken : `Basic ${getActiveProfile().smmsToken}`);
+      const doFetch = (host) => new Promise((resolve, reject) => {
+        const options = {
+          hostname: host,
+          port: 443,
+          path: '/api/v2/upload_history',
+          method: 'GET',
+          headers: {
+            'Authorization': token,
+            'User-Agent': 'R2APP/4.1',
+            'Content-Type': 'multipart/form-data',
+            'Accept': '*/*',
+            'Connection': 'keep-alive',
+            'Host': host
+          }
+        };
+        const req = https.request(options, (res) => {
+          let data = '';
+          res.on('data', (c) => data += c);
+          res.on('end', () => {
+            try { resolve(JSON.parse(data)); } catch { resolve({ __status: res.statusCode, __headers: res.headers, __raw: data }); }
+          });
+        });
+        req.on('error', reject);
+        req.end();
+      });
+      let listResp = await executeWithoutProxy(() => doFetch('sm.ms'));
+      if (!listResp || listResp.__status === 405 || listResp.status === false) {
+        listResp = await executeWithoutProxy(() => doFetch('api.sm.ms'));
+      }
+      const items = Array.isArray(listResp?.data) ? listResp.data : [];
+      rawFiles = items.map(it => ({
+        Key: it.filename || it.storename || it.path || it.hash,
+        LastModified: it.created_at || new Date().toISOString(),
+        Size: Number(it.size || 0),
+        ETag: it.hash,
+        publicUrl: it.url
+      }));
+      folders = [];
+      nextContinuationToken = null;
+    } else if (storage.type === 'picui') {
+      // 读取图片列表
+      const https = require('https');
+      const resp = await executeWithoutProxy(() => new Promise((resolve, reject) => {
+        const options = {
+          hostname: 'picui.cn',
+          port: 443,
+          path: '/api/v1/images?page=1&order=newest&permission=public',
+          method: 'GET',
+          headers: {
+            'Authorization': (getActiveProfile().picuiToken?.startsWith('Bearer ') ? getActiveProfile().picuiToken : `Bearer ${getActiveProfile().picuiToken}`),
+            'Accept': 'application/json'
+          }
+        };
+        const req = https.request(options, (res) => {
+          let data = '';
+          res.on('data', (c) => data += c);
+          res.on('end', () => { try { resolve(JSON.parse(data)); } catch { resolve({}); } });
+        });
+        req.on('error', reject);
+        req.end();
+      }));
+      const arr = (resp && resp.status && Array.isArray(resp.data?.data)) ? resp.data.data : [];
+      rawFiles = arr.map(it => ({
+        Key: it.pathname || it.md5,
+        LastModified: it.date,
+        Size: Math.round(Number(it.size || 0) * 1024),
+        ETag: it.md5,
+        publicUrl: it.links?.url || it.url
+      }));
+      folders = [];
+      nextContinuationToken = null;
     }
   } catch (error) {
     if (error.name === 'AbortError' || error.name === 'CancelError') {
@@ -298,7 +689,7 @@ function pauseAllActiveUploads() {
 }
 let initialFileInfo = null;
 
-function createPreviewWindow(fileName, filePath, bucket) {
+function createPreviewWindow(fileName, filePath, bucket, publicUrl) {
   const key = `${bucket}/${filePath}/${fileName}`;
 
   if (previewWindows.has(key)) {
@@ -341,11 +732,11 @@ function createPreviewWindow(fileName, filePath, bucket) {
   });
 
   // Pass file info via query parameters
-  const query = new URLSearchParams({
-    fileName,
-    filePath,
-    bucket
-  });
+  const queryObj = { fileName, filePath, bucket };
+  if (publicUrl) {
+    queryObj.publicUrl = publicUrl;
+  }
+  const query = new URLSearchParams(queryObj);
 
   const previewUrl = is.dev && process.env['ELECTRON_RENDERER_URL']
     ? `${process.env['ELECTRON_RENDERER_URL']}/#/preview?${query.toString()}`
@@ -649,6 +1040,17 @@ app.whenReady().then(async () => {
   createWindow()
   setupAutoUpdater()
 
+  // 发送用户统计
+  try {
+    // 检查并发送安装统计
+    await checkAndSendInstallAnalytics();
+    
+    // 发送使用统计
+    await sendUsageAnalytics();
+  } catch (error) {
+    console.log('[Analytics] 统计发送失败:', error.message);
+  }
+
   // In production, this will now try GitHub first, then fallback to Gitee.
   // In dev, it will use the local config.
   autoUpdater.checkForUpdates();
@@ -860,6 +1262,91 @@ ipcMain.handle('test-connection', async (event, profile) => {
       console.error('COS connection error details:', error);
       return { success: false, error: `COS 连接失败: ${error.message}` };
     }
+  } else if (profile.type === 'smms') {
+    if (!profile.smmsToken) {
+      return { success: false, error: '缺少 SM.MS Token' };
+    }
+    
+    try {
+      // 测试 SM.MS API 连接
+      const https = require('https');
+      const response = await executeWithoutProxy(() => new Promise((resolve, reject) => {
+        const options = {
+          hostname: 'sm.ms',
+          port: 443,
+          path: '/api/v2/upload_history',
+          method: 'GET',
+          headers: {
+            'Authorization': profile.smmsToken?.startsWith('Basic ') ? profile.smmsToken : `Basic ${profile.smmsToken}`,
+            'Accept': 'application/json',
+            'Accept-Encoding': 'identity',
+            'User-Agent': 'R2APP/4.1'
+          }
+        };
+        const req = https.request(options, (res) => {
+          let data = '';
+          res.on('data', (chunk) => { data += chunk; });
+          res.on('end', () => {
+            try {
+              const result = JSON.parse(data);
+              resolve(result);
+            } catch (e) {
+              const preview = (data || '').slice(0, 200);
+              console.error('SM.MS non-JSON response:', { statusCode: res.statusCode, headers: res.headers, preview });
+              resolve({ __nonJson: true, statusCode: res.statusCode, headers: res.headers, preview });
+            }
+          });
+        });
+        req.on('error', reject);
+        req.end();
+      }));
+      
+      if (response && response.__nonJson) {
+        return { success: false, error: `SM.MS 响应非 JSON，状态 ${response.statusCode || '未知'}` };
+      }
+      if (response && (response.success || response.code === 'success')) {
+        return { success: true, message: `SM.MS 连接成功！用户名: ${response.data.username}` };
+      } else {
+        throw new Error(response.message || 'SM.MS 连接失败');
+      }
+    } catch (error) {
+      console.error('SM.MS connection error details:', error);
+      return { success: false, error: `SM.MS 连接失败: ${error.message}` };
+    }
+  } else if (profile.type === 'picui') {
+    if (!profile.picuiToken) {
+      return { success: false, error: '缺少 PICUI Token' };
+    }
+    // 用 profile 校验
+    try {
+      const https = require('https');
+      const tokenHeader = profile.picuiToken?.startsWith('Bearer ') ? profile.picuiToken : `Bearer ${profile.picuiToken}`;
+      const response = await executeWithoutProxy(() => new Promise((resolve, reject) => {
+        const options = {
+          hostname: 'picui.cn',
+          port: 443,
+          path: '/api/v1/profile',
+          method: 'GET',
+          headers: {
+            'Authorization': tokenHeader,
+            'Accept': 'application/json'
+          }
+        };
+        const req = https.request(options, (res) => {
+          let data = '';
+          res.on('data', (chunk) => data += chunk);
+          res.on('end', () => { try { resolve(JSON.parse(data)); } catch { reject(new Error('解析响应失败')); } });
+        });
+        req.on('error', reject);
+        req.end();
+      }));
+      if (response.status) {
+        return { success: true, message: 'PICUI 连接成功！' };
+      }
+      return { success: false, error: response.message || 'PICUI 连接失败' };
+    } catch (error) {
+      return { success: false, error: `PICUI 连接失败: ${error.message}` };
+    }
   } else {
     return { success: false, error: '未知的配置类型。' };
   }
@@ -903,6 +1390,22 @@ async function getStorageClient() {
             type: 'cos',
             bucket: profile.bucket,
             region: profile.region,
+        };
+    } else if (profile.type === 'smms') {
+        if (!profile.smmsToken) return null;
+        return {
+            client: null, // SM.MS 不需要客户端对象
+            type: 'smms',
+            bucket: 'smms',
+            token: profile.smmsToken,
+        };
+    } else if (profile.type === 'picui') {
+        if (!profile.picuiToken) return null;
+        return {
+            client: null,
+            type: 'picui',
+            bucket: 'picui',
+            token: profile.picuiToken,
         };
     }
     return null;
@@ -977,6 +1480,145 @@ ipcMain.handle('get-bucket-stats', async () => {
         totalSize += response.Contents?.reduce((acc, obj) => acc + parseInt(obj.Size), 0) || 0;
         continuationToken = response.IsTruncated ? response.NextMarker : null;
       } while (continuationToken);
+    } else if (storage.type === 'smms') {
+      // 使用 profile 获取统计（包含图片数量和已使用容量）
+      const https = require('https');
+      const response = await executeWithoutProxy(() => new Promise((resolve, reject) => {
+        const options = {
+          hostname: 'sm.ms',
+          port: 443,
+          path: '/api/v2/profile',
+          method: 'GET',
+          headers: {
+            'Authorization': activeProfile.smmsToken?.startsWith('Basic ') ? activeProfile.smmsToken : `Basic ${activeProfile.smmsToken}`,
+            'Accept': 'application/json',
+            'Accept-Encoding': 'identity',
+            'User-Agent': 'R2APP/4.1'
+          }
+        };
+        const req = https.request(options, (res) => {
+          let data = '';
+          res.on('data', (chunk) => data += chunk);
+          res.on('end', () => {
+            try { resolve(JSON.parse(data)); } catch { resolve({}); }
+          });
+        });
+        req.on('error', reject);
+        req.end();
+      }));
+      if (response && (response.success || response.code === 'success') && response.data) {
+        totalCount = Number(response.data.image_num || 0);
+        // SM.MS 返回 size 单位可能为 MB，按 MB->bytes 估算
+        const usedMb = Number(response.data.size || 0);
+        totalSize = Math.round(usedMb * 1024 * 1024);
+      } else {
+        // 退化：用上传历史条数作为数量
+        const listResp = await executeWithoutProxy(() => new Promise((resolve, reject) => {
+          const options = {
+            hostname: 'sm.ms',
+            port: 443,
+            path: '/api/v2/upload_history',
+            method: 'GET',
+            headers: {
+              'Authorization': activeProfile.smmsToken?.startsWith('Basic ') ? activeProfile.smmsToken : `Basic ${activeProfile.smmsToken}`,
+              'Accept': 'application/json',
+              'Accept-Encoding': 'identity',
+              'User-Agent': 'R2APP/4.1'
+            }
+          };
+          const req = https.request(options, (res) => {
+            let data = '';
+            res.on('data', (c) => data += c);
+            res.on('end', () => { try { resolve(JSON.parse(data)); } catch { resolve({}); } });
+          });
+          req.on('error', reject);
+          req.end();
+        }));
+        const items = Array.isArray(listResp?.data) ? listResp.data : [];
+        totalCount = items.length;
+      }
+    } else if (storage.type === 'picui') {
+      // PICUI: 用 /images 的 total 作为数量，size 粗略估算
+      const https = require('https');
+      const response = await executeWithoutProxy(() => new Promise((resolve, reject) => {
+        const options = {
+          hostname: 'picui.cn',
+          port: 443,
+          path: '/api/v1/images?page=1&order=newest&permission=public',
+          method: 'GET',
+          headers: {
+            'Authorization': activeProfile.picuiToken?.startsWith('Bearer ') ? activeProfile.picuiToken : `Bearer ${activeProfile.picuiToken}`,
+            'Accept': 'application/json'
+          }
+        };
+        const req = https.request(options, (res) => {
+          let data = '';
+          res.on('data', (c) => data += c);
+          res.on('end', () => { try { resolve(JSON.parse(data)); } catch { resolve({}); } });
+        });
+        req.on('error', reject);
+        req.end();
+      }));
+      if (response && response.status && response.data) {
+        totalCount = Number(response.data.total || 0);
+        const arr = Array.isArray(response.data.data) ? response.data.data : [];
+        // 文档 size 单位为 KB
+        totalSize = arr.reduce((acc, it) => acc + Math.round(Number(it.size || 0) * 1024), 0);
+      }
+    } else if (storage.type === 'smms') {
+      // SM.MS 统计：通过 upload_history 获取
+      const https = require('https');
+      const response = await executeWithoutProxy(() => new Promise((resolve, reject) => {
+        const options = {
+          hostname: 'sm.ms',
+          port: 443,
+          path: '/api/v2/upload_history',
+          method: 'GET',
+          headers: {
+            'Authorization': activeProfile.smmsToken?.startsWith('Basic ') ? activeProfile.smmsToken : `Basic ${activeProfile.smmsToken}`,
+            'Accept': 'application/json',
+            'Accept-Encoding': 'identity',
+            'User-Agent': 'R2APP/4.1'
+          }
+        };
+        const req = https.request(options, (res) => {
+          let data = '';
+          res.on('data', (chunk) => data += chunk);
+          res.on('end', () => { try { resolve(JSON.parse(data)); } catch { resolve({}); } });
+        });
+        req.on('error', reject);
+        req.end();
+      }));
+      const items = Array.isArray(response?.data) ? response.data : [];
+      totalCount = items.length;
+      totalSize = items.reduce((acc, item) => acc + (Number(item.size) || 0), 0);
+    } else if (storage.type === 'picui') {
+      // PICUI 统计：通过 images API 获取
+      const https = require('https');
+      const response = await executeWithoutProxy(() => new Promise((resolve, reject) => {
+        const options = {
+          hostname: 'picui.cn',
+          port: 443,
+          path: '/api/v1/images?page=1&order=newest&permission=public',
+          method: 'GET',
+          headers: {
+            'Authorization': activeProfile.picuiToken?.startsWith('Bearer ') ? activeProfile.picuiToken : `Bearer ${activeProfile.picuiToken}`,
+            'Accept': 'application/json'
+          }
+        };
+        const req = https.request(options, (res) => {
+          let data = '';
+          res.on('data', (chunk) => data += chunk);
+          res.on('end', () => { try { resolve(JSON.parse(data)); } catch { resolve({}); } });
+        });
+        req.on('error', reject);
+        req.end();
+      }));
+      if (response && response.status && response.data) {
+        totalCount = Number(response.data.total || 0);
+        const arr = Array.isArray(response.data.data) ? response.data.data : [];
+        totalSize = arr.reduce((acc, it) => acc + Math.round(Number(it.size || 0) * 1024), 0);
+      }
     }
     
     const quota = parseInt(activeProfile?.storageQuotaGB, 10);
@@ -1054,6 +1696,127 @@ ipcMain.handle('list-objects', async (event, options) => {
       }));
       folders = (response.CommonPrefixes || []).map(p => ({ key: p.Prefix, isFolder: true }));
       nextContinuationToken = response.IsTruncated ? response.NextMarker : null;
+    } else if (storage.type === 'smms') {
+      // SM.MS: 使用上传历史作为文件列表
+      const https = require('https');
+      const active = getActiveProfile();
+      const token = active?.smmsToken?.startsWith('Basic ') ? active.smmsToken : `Basic ${active?.smmsToken || ''}`;
+      const doFetch = (host) => new Promise((resolve, reject) => {
+        const options = {
+          hostname: host,
+          port: 443,
+          path: '/api/v2/upload_history',
+          method: 'GET',
+          headers: {
+            Authorization: token,
+            'User-Agent': 'R2APP/4.1',
+            'Content-Type': 'multipart/form-data',
+            Accept: '*/*',
+            Connection: 'keep-alive',
+            Host: host,
+          },
+        };
+
+        const req = https.request(options, (res) => {
+          let data = '';
+          res.on('data', (c) => (data += c));
+          res.on('end', () => {
+
+            try {
+              const obj = JSON.parse(data);
+
+              resolve(obj);
+            } catch {
+              resolve({ __status: res.statusCode, __headers: res.headers, __raw: data });
+            }
+          });
+        });
+        req.on('error', reject);
+        req.end();
+      });
+      let listResp = await executeWithoutProxy(() => doFetch('sm.ms'));
+      if (!listResp || listResp.__status === 405 || listResp.status === false) {
+
+        listResp = await executeWithoutProxy(() => doFetch('api.sm.ms'));
+      }
+      const items = Array.isArray(listResp?.data) ? listResp.data : [];
+      rawFiles = items.map((it) => {
+        const objectKey = it.filename || it.storename || it.path || it.hash;
+        try {
+          objectUrlCache.set(`smms:${objectKey}`, it.url);
+          if (it.delete) objectDeleteUrlCache.set(`smms:${objectKey}`, it.delete);
+          if (it.hash) objectHashCache.set(`smms:${objectKey}`, it.hash);
+        } catch {}
+        return {
+          Key: objectKey,
+          LastModified: it.created_at || new Date().toISOString(),
+          Size: Number(it.size || 0),
+          ETag: it.hash,
+          publicUrl: it.url,
+        };
+      });
+      folders = [];
+      nextContinuationToken = null;
+
+    } else if (storage.type === 'picui') {
+      // PICUI: 列出图片
+      const https = require('https');
+      const active = getActiveProfile();
+      const bearer = active?.picuiToken?.startsWith('Bearer ') ? active.picuiToken : `Bearer ${active?.picuiToken || ''}`;
+      const resp = await executeWithoutProxy(() => new Promise((resolve, reject) => {
+        const options = {
+          hostname: 'picui.cn',
+          port: 443,
+          path: '/api/v1/images?page=1&order=newest&permission=public',
+          method: 'GET',
+          headers: {
+            Authorization: bearer,
+            Accept: 'application/json',
+          },
+        };
+        const req = https.request(options, (res) => {
+          let data = '';
+          res.on('data', (c) => (data += c));
+          res.on('end', () => {
+            try {
+              const obj = JSON.parse(data);
+              resolve(obj);
+            } catch {
+              resolve({});
+            }
+          });
+        });
+        req.on('error', reject);
+        req.end();
+      }));
+      const arr = resp && resp.status && Array.isArray(resp.data?.data) ? resp.data.data : [];
+      rawFiles = arr.map((it) => {
+        // 使用 key 作为主要标识符，pathname 作为显示名称
+        const objectKey = it.key || it.pathname || it.md5;
+        const fileData = {
+          Key: objectKey,
+          LastModified: it.date,
+          Size: Math.round(Number(it.size || 0) * 1024),
+          ETag: it.md5,
+          publicUrl: it.links?.url || it.url,
+          deleteUrl: it.delete_url || it.links?.delete_url,
+          // 保存实际的 key 用于删除
+          picuiKey: it.key,
+          pathname: it.pathname, // 用于显示
+        };
+        
+        // 缓存 URL 用于下载和删除
+        try {
+          objectUrlCache.set(`picui:${objectKey}`, fileData.publicUrl);
+          if (fileData.deleteUrl) objectDeleteUrlCache.set(`picui:${objectKey}`, fileData.deleteUrl);
+          // 缓存真实的 key 用于删除
+          if (it.key) objectHashCache.set(`picui:${objectKey}`, it.key);
+        } catch {}
+        
+        return fileData;
+      });
+      folders = [];
+      nextContinuationToken = null;
     }
     
     let filteredFiles = rawFiles;
@@ -1070,6 +1833,7 @@ ipcMain.handle('list-objects', async (event, options) => {
       lastModified: item.LastModified,
       etag: item.ETag,
       isFolder: false,
+      publicUrl: item.publicUrl,
     }));
 
     const combined = [...folders, ...files]
@@ -1107,6 +1871,170 @@ ipcMain.handle('delete-object', async (_, key) => {
           });
         });
       });
+    } else if (storage.type === 'smms') {
+      // SM.MS 删除：GET /api/v2/delete/:hash
+      const https = require('https');
+      const activeProfile = getActiveProfile();
+      const token = activeProfile?.smmsToken?.startsWith('Basic ') ? activeProfile.smmsToken : `Basic ${activeProfile?.smmsToken || ''}`;
+      
+      // 尝试从缓存中取 hash；如无，则回退从 upload_history 查找
+      let hash = objectHashCache.get(`smms:${key}`);
+      if (!hash) {
+        const list = await executeWithoutProxy(() => new Promise((resolve, reject) => {
+          const options = { 
+            hostname: 'sm.ms', 
+            port: 443, 
+            path: '/api/v2/upload_history', 
+            method: 'GET', 
+            headers: { 
+              'Authorization': token, 
+              'Accept': 'application/json',
+              'Accept-Encoding': 'identity',
+              'User-Agent': 'R2APP/4.1' 
+            } 
+          };
+          const req = https.request(options, (res) => { 
+            let data=''; 
+            res.on('data', c => data+=c); 
+            res.on('end', () => { 
+              try { resolve(JSON.parse(data)); } catch { resolve({}); } 
+            }); 
+          });
+          req.on('error', reject); 
+          req.end();
+        }));
+        const items = Array.isArray(list?.data) ? list.data : [];
+        const found = items.find(it => (it.filename === key || it.storename === key || it.path === key || it.hash === key));
+        if (found) hash = found.hash;
+      }
+      
+      if (!hash) {
+        throw new Error('未找到删除哈希');
+      }
+      
+      console.log(`[SMMS DELETE] Attempting to delete hash: ${hash} for key: ${key}`);
+      await executeWithoutProxy(() => new Promise((resolve, reject) => {
+        const options = { 
+          hostname: 'sm.ms', 
+          port: 443, 
+          path: `/delete/${encodeURIComponent(hash)}?format=json`, 
+          method: 'GET', 
+          headers: { 
+            'Authorization': token, 
+            'Accept': 'application/json',
+            'User-Agent': 'R2APP/4.1' 
+          } 
+        };
+        console.log(`[SMMS DELETE] Request: GET https://sm.ms/delete/${hash}?format=json`);
+        const req = https.request(options, (res) => { 
+          let data = '';
+          res.on('data', c => data += c);
+          res.on('end', () => {
+            console.log(`[SMMS DELETE] Response status: ${res.statusCode}, data: ${data.substring(0, 200)}...`);
+            
+            // SM.MS 删除成功时返回 HTML 页面而不是 JSON
+            if (res.statusCode === 200) {
+              if (data.includes('File is deleted') || data.includes('File Delete')) {
+                console.log(`[SMMS DELETE] Delete successful for ${key} (HTML response)`);
+                // 清理缓存
+                objectHashCache.delete(`smms:${key}`);
+                objectUrlCache.delete(`smms:${key}`);
+                objectDeleteUrlCache.delete(`smms:${key}`);
+                resolve(true);
+                return;
+              }
+            }
+            
+            // 尝试解析 JSON 响应
+            try {
+              const response = JSON.parse(data);
+              if (response.success) {
+                console.log(`[SMMS DELETE] Delete successful for ${key} (JSON response)`);
+                // 清理缓存
+                objectHashCache.delete(`smms:${key}`);
+                objectUrlCache.delete(`smms:${key}`);
+                objectDeleteUrlCache.delete(`smms:${key}`);
+                resolve(true);
+              } else {
+                console.log(`[SMMS DELETE] Delete failed: ${response.message}`);
+                reject(new Error(response.message || 'SM.MS 删除失败'));
+              }
+            } catch (e) {
+              console.log(`[SMMS DELETE] Non-JSON response, status: ${res.statusCode}`);
+              reject(new Error(`SM.MS 删除失败: ${res.statusCode}`));
+            }
+          });
+        });
+        req.on('error', (err) => {
+          console.log(`[SMMS DELETE] Request error: ${err.message}`);
+          reject(err);
+        }); 
+        req.end();
+      }));
+    } else if (storage.type === 'picui') {
+      // PICUI 删除：DELETE /images/:key
+      const https = require('https');
+      const activeProfile = getActiveProfile();
+      const token = activeProfile?.picuiToken?.startsWith('Bearer ') ? activeProfile.picuiToken : `Bearer ${activeProfile?.picuiToken || ''}`;
+      
+      // 尝试从缓存获取真实的 key，如果没有则使用传入的 key
+      let picuiKey = objectHashCache.get(`picui:${key}`) || key;
+      
+      console.log(`[PICUI DELETE] Attempting to delete key: ${key}, picuiKey: ${picuiKey}`);
+      await executeWithoutProxy(() => new Promise((resolve, reject) => {
+        const options = { 
+          hostname: 'picui.cn', 
+          port: 443, 
+          path: `/api/v1/images/${encodeURIComponent(picuiKey)}`, 
+          method: 'DELETE', 
+          headers: { 
+            'Authorization': token, 
+            'Accept': 'application/json'
+          } 
+        };
+        console.log(`[PICUI DELETE] Request: DELETE https://picui.cn/api/v1/images/${picuiKey}`);
+        const req = https.request(options, (res) => { 
+          let data = '';
+          res.on('data', c => data += c);
+          res.on('end', () => {
+            console.log(`[PICUI DELETE] Response status: ${res.statusCode}, data: ${data.substring(0, 200)}...`);
+            
+            if (res.statusCode === 200 || res.statusCode === 204) {
+              // 200 或 204 状态码表示删除成功
+              console.log(`[PICUI DELETE] Delete successful for ${key} (status: ${res.statusCode})`);
+              // 清理缓存
+              objectUrlCache.delete(`picui:${key}`);
+              objectDeleteUrlCache.delete(`picui:${key}`);
+              objectHashCache.delete(`picui:${key}`);
+              resolve(true);
+              return;
+            }
+            
+            try {
+              const response = JSON.parse(data);
+              if (response.status) {
+                console.log(`[PICUI DELETE] Delete successful for ${key} (JSON response)`);
+                // 清理缓存
+                objectUrlCache.delete(`picui:${key}`);
+                objectDeleteUrlCache.delete(`picui:${key}`);
+                objectHashCache.delete(`picui:${key}`);
+                resolve(true);
+              } else {
+                console.log(`[PICUI DELETE] Delete failed: ${response.message}`);
+                reject(new Error(response.message || 'PICUI 删除失败'));
+              }
+            } catch (e) {
+              console.log(`[PICUI DELETE] Non-JSON response, status: ${res.statusCode}`);
+              reject(new Error(`PICUI 删除失败: ${res.statusCode}`));
+            }
+          });
+        });
+        req.on('error', (err) => {
+          console.log(`[PICUI DELETE] Request error: ${err.message}`);
+          reject(err);
+        }); 
+        req.end();
+      }));
     }
     addRecentActivity('delete', `删除了 ${key}`, 'success');
     return { success: true };
@@ -1365,7 +2293,15 @@ ipcMain.on('download-file', async (event, key) => {
    }
   
    const downloadsPath = app.getPath('downloads');
-   let filePath = join(downloadsPath, key);
+   
+   // 处理包含路径分隔符的 key（如 PICUI 的 2025/08/17/filename.png）
+   let fileName = key;
+   if (key.includes('/')) {
+     // 提取文件名部分
+     fileName = key.split('/').pop();
+   }
+   
+   let filePath = join(downloadsPath, fileName);
 
    if (fs.existsSync(filePath)) {
      const timestamp = new Date().getTime();
@@ -1378,7 +2314,7 @@ ipcMain.on('download-file', async (event, key) => {
      id: taskId,
      key,
      filePath,
-     status: 'starting',
+     status: 'preparing',
      progress: 0,
      createdAt: new Date().toISOString(),
    };
@@ -1390,6 +2326,14 @@ ipcMain.on('download-file', async (event, key) => {
    mainWindow.webContents.send('download-update', { type: 'start', task });
 
    try {
+     // 更新任务状态为正在下载
+     const downloadingTasks = store.get('download-tasks', {});
+     if (downloadingTasks[taskId]) {
+       downloadingTasks[taskId].status = 'downloading';
+       store.set('download-tasks', downloadingTasks);
+     }
+     mainWindow.webContents.send('download-update', { type: 'progress', data: { id: taskId, status: 'downloading' } });
+     
      if (storage.type === 'r2') {
          const command = new GetObjectCommand({ Bucket: storage.bucket, Key: key });
          const { Body, ContentLength } = await storage.client.send(command);
@@ -1497,6 +2441,50 @@ ipcMain.on('download-file', async (event, key) => {
              });
            });
          });
+     } else if (storage.type === 'smms' || storage.type === 'picui') {
+        // 通用公网 URL 下载器
+        const https = require('https');
+        const url = objectUrlCache.get(`${storage.type}:${key}`);
+        if (!url) throw new Error('未找到文件直链，请在文件列表中复制链接');
+        
+        const writeStream = fs.createWriteStream(filePath);
+        await new Promise((resolve, reject) => {
+          https.get(url, (res) => {
+            if (res.statusCode !== 200) {
+              writeStream.close();
+              return reject(new Error(`下载失败: ${res.statusCode}`));
+            }
+            
+            const totalSize = parseInt(res.headers['content-length'], 10);
+            let downloadedSize = 0;
+            
+            res.on('data', (chunk) => {
+              downloadedSize += chunk.length;
+              if (totalSize > 0) {
+                const progress = Math.round((downloadedSize / totalSize) * 100);
+                mainWindow.webContents.send('download-update', { 
+                  type: 'progress', 
+                  data: { id: taskId, progress, status: 'downloading' } 
+                });
+              }
+            });
+            
+            res.pipe(writeStream);
+            res.on('error', reject);
+            writeStream.on('finish', () => {
+              const finalTasks = store.get('download-tasks', {});
+              if (finalTasks[taskId]) {
+                finalTasks[taskId].status = 'completed';
+                finalTasks[taskId].progress = 100;
+                store.set('download-tasks', finalTasks);
+              }
+              mainWindow.webContents.send('download-update', { type: 'progress', data: { id: taskId, progress: 100, status: 'completed' } });
+              addRecentActivity('download', `下载了 ${key}`);
+              resolve();
+            });
+            writeStream.on('error', reject);
+          }).on('error', reject);
+        });
      }
    } catch (error) {
      const errorTasks = store.get('download-tasks', {});
@@ -1545,6 +2533,15 @@ ipcMain.handle('get-app-info', () => {
     author: packageJson.author,
     description: packageJson.description,
     license: packageJson.license,
+  };
+});
+
+ipcMain.handle('get-machine-id', () => {
+  const machineId = store.get('machineId') || generateMachineId();
+  return {
+    machineId,
+    installReported: store.get('installReported'),
+    currentVersion: packageJson.version
   };
 });
 
@@ -1622,8 +2619,8 @@ ipcMain.on('resize-preview-window', (event, { width, height }) => {
 });
 
 ipcMain.on('open-preview-window', (event, fileInfo) => {
-  const { fileName, filePath, bucket } = fileInfo;
-  createPreviewWindow(fileName, filePath, bucket);
+  const { fileName, filePath, bucket, publicUrl } = fileInfo || {};
+  createPreviewWindow(fileName, filePath, bucket, publicUrl);
 });
 
 ipcMain.on('get-initial-file-info', (event) => {

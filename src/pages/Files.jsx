@@ -591,7 +591,7 @@ export default function FilesPage() {
         const key = file.key || file.Key;
         const size = file.size || file.Size;
         const lastModified = file.lastModified || file.LastModified;
-        const publicUrl = getPublicUrl(key);
+        const publicUrl = file.publicUrl || getPublicUrl(key);
         const isDir = file.isFolder;
 
         const handleCardClick = async (e) => {
@@ -610,10 +610,14 @@ export default function FilesPage() {
               handleDownload(key);
             } else {
               const resolvedBucket = settings?.bucketName || settings?.bucket || bucket;
+              const isSmms = settings?.type === 'smms';
+              const isPicui = settings?.type === 'picui';
+              const publicUrlInline = file.publicUrl || getPublicUrl(key);
               window.api.openPreviewWindow({
                 fileName: fileName,
                 filePath: currentPrefix,
-                bucket: resolvedBucket
+                bucket: resolvedBucket,
+                publicUrl: (isSmms || isPicui) ? publicUrlInline : undefined
               });
             }
           }
@@ -745,7 +749,7 @@ export default function FilesPage() {
                     const key = file.key || file.Key;
                     const size = file.size || file.Size;
                     const lastModified = file.lastModified || file.LastModified;
-                    const publicUrl = getPublicUrl(key);
+                    const publicUrl = file.publicUrl || getPublicUrl(key);
                     const isDir = file.isFolder;
                     
                     const handleRowClick = async () => {

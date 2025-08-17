@@ -59,7 +59,8 @@ export default function PreviewPage() {
           return;
         }
 
-        const publicUrl = await window.api.getPresignedUrl(bucket, `${filePath}${fileName}`);
+        const routedPublicUrl = new URLSearchParams(window.location.hash.split('?')[1]).get('publicUrl');
+        const publicUrl = routedPublicUrl || await window.api.getPresignedUrl(bucket, `${filePath}${fileName}`);
         if (!publicUrl) {
           throw new Error('无法获取文件预览链接。');
         }

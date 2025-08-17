@@ -177,6 +177,16 @@ export default function UploadsPage() {
                   {file.status === 'completed' ? (
                     <div className="flex items-center">
                       <CheckCircle className="h-6 w-6 text-green-500 mr-1" />
+                      {file.imageUrl && (
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => navigator.clipboard.writeText(file.imageUrl)}
+                          className="mr-2"
+                        >
+                          复制图片链接
+                        </Button>
+                      )}
                       <Button variant="ghost" size="icon" onClick={() => removeUpload(file.id)}>
                         <X className="h-4 w-4" />
                       </Button>

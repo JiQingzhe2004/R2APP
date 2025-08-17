@@ -87,6 +87,7 @@ export const api = {
   
   // App Info
   getAppInfo: () => ipcRenderer.invoke('get-app-info'),
+  getMachineId: () => ipcRenderer.invoke('get-machine-id'),
 
   // Notifications (though managed by context, might be useful)
   onNotification: (callback) => {

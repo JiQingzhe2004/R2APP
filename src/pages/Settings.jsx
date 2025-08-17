@@ -9,7 +9,7 @@ import { useNotifications } from '@/contexts/NotificationContext';
 import { 
   User, KeyRound, Container, Globe, Plug, Save, PlusCircle, Trash2, 
   Cloud, Server, Settings as SettingsIcon, ChevronDown, ChevronRight,
-  Database, Shield, MapPin, Link2, HardDrive, Edit2, Check, X, FolderOpen
+  Database, Shield, MapPin, Link2, HardDrive, Edit2, Check, X, FolderOpen, Image
 } from 'lucide-react'
 import AppSettings from './AppSettings';
 import { v4 as uuidv4 } from 'uuid';
@@ -33,6 +33,7 @@ const R2_TEMPLATE = {
   bucketName: '',
   publicDomain: '',
   storageQuotaGB: 10,
+  createdAt: new Date().toISOString(),
 };
 
 const OSS_TEMPLATE = {
@@ -45,6 +46,7 @@ const OSS_TEMPLATE = {
   endpoint: '',
   publicDomain: '',
   storageQuotaGB: 10,
+  createdAt: new Date().toISOString(),
 };
 
 const COS_TEMPLATE = {
@@ -56,6 +58,28 @@ const COS_TEMPLATE = {
   bucket: '',
   publicDomain: '',
   storageQuotaGB: 10,
+  createdAt: new Date().toISOString(),
+};
+
+const SMMS_TEMPLATE = {
+  type: 'smms',
+  name: '新 SM.MS 配置',
+  smmsToken: '',
+  publicDomain: '',
+  storageQuotaGB: 10,
+  createdAt: new Date().toISOString(),
+};
+
+const PICUI_TEMPLATE = {
+  type: 'picui',
+  name: '新 PICUI 配置',
+  picuiToken: '',
+  strategyId: '',
+  albumId: '',
+  permission: 1,
+  publicDomain: '',
+  storageQuotaGB: 10,
+  createdAt: new Date().toISOString(),
 };
 
 const PROVIDER_INFO = {
@@ -76,10 +100,22 @@ const PROVIDER_INFO = {
     icon: Server,
     color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
     description: '腾讯云对象存储服务'
+  },
+  smms: {
+    name: 'SM.MS 图床',
+    icon: Image,
+    color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+    description: '免费图床服务，支持多种图片格式'
+  },
+  picui: {
+    name: 'PICUI 图床',
+    icon: Image,
+    color: 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200',
+    description: 'PICUI图床，快捷好用'
   }
 };
 
-const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove, isTesting, isSaving }) => {
+const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove, onSave, isTesting, isSaving }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(profile.name);
@@ -170,6 +206,15 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
             >
               <Plug className="mr-2 h-4 w-4" />
               {isTesting ? '测试中...' : '测试'}
+            </Button>
+            <Button 
+              size="sm" 
+              variant="default" 
+              onClick={() => onSave(profile.id)} 
+              disabled={isSaving}
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {isSaving ? '保存中...' : '保存'}
             </Button>
             <Button 
               size="sm" 
@@ -417,6 +462,70 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
             </>
           )}
 
+          {profile.type === 'smms' && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`smmsToken-${profile.id}`} className="flex items-center gap-2">
+                    <KeyRound className="h-4 w-4" />
+                    SM.MS Token
+                  </Label>
+                  <Input 
+                    id={`smmsToken-${profile.id}`} 
+                    name="smmsToken" 
+                    value={profile.smmsToken} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="您的 SM.MS Token" 
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {profile.type === 'picui' && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`picuiToken-${profile.id}`} className="flex items-center gap-2">
+                    <KeyRound className="h-4 w-4" />
+                    PICUI Token
+                  </Label>
+                  <Input 
+                    id={`picuiToken-${profile.id}`} 
+                    name="picuiToken" 
+                    value={profile.picuiToken || ''} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="Bearer token，如：Bearer 1|xxxxx" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`picuiStrategy-${profile.id}`} className="flex items-center gap-2">
+                    策略ID
+                  </Label>
+                  <Input 
+                    id={`picuiStrategy-${profile.id}`} 
+                    name="strategyId" 
+                    value={profile.strategyId || ''} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="可选，策略ID" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`picuiAlbum-${profile.id}`} className="flex items-center gap-2">
+                    相册ID
+                  </Label>
+                  <Input 
+                    id={`picuiAlbum-${profile.id}`} 
+                    name="albumId" 
+                    value={profile.albumId || ''} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="可选，相册ID" 
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
           <Separator />
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -471,7 +580,7 @@ export default function SettingsPage() {
   const { addNotification } = useNotifications();
   
   const [isTesting, setIsTesting] = useState({}); // Track by profile id
-  const [isSaving, setIsSaving] = useState(false);
+  const [isSaving, setIsSaving] = useState({}); // Track by profile id
   const [activeTab, setActiveTab] = useState('profiles'); // profiles | app
 
   const fetchSettings = useCallback(async () => {
@@ -507,19 +616,35 @@ export default function SettingsPage() {
     }
   }, [fetchSettings]);
 
+  // 确保所有配置都有创建时间字段
+  useEffect(() => {
+    if (profiles.length > 0) {
+      const updatedProfiles = profiles.map(profile => {
+        if (!profile.createdAt) {
+          return { ...profile, createdAt: new Date().toISOString() };
+        }
+        return profile;
+      });
+      if (JSON.stringify(updatedProfiles) !== JSON.stringify(profiles)) {
+        setProfiles(updatedProfiles);
+      }
+    }
+  }, [profiles.length]);
+
   const handleProfileChange = (id, e) => {
     const { name, value } = e.target;
     setProfiles(prev => prev.map(p => p.id === id ? { ...p, [name]: value } : p));
   };
   
   const handleAddProfile = (type) => {
-    const template = type === 'r2' ? R2_TEMPLATE : type === 'oss' ? OSS_TEMPLATE : COS_TEMPLATE;
+    const template = type === 'r2' ? R2_TEMPLATE : type === 'oss' ? OSS_TEMPLATE : type === 'cos' ? COS_TEMPLATE : type === 'smms' ? SMMS_TEMPLATE : PICUI_TEMPLATE;
     const newProfile = {
       id: uuidv4(),
       ...template,
       name: `新${type.toUpperCase()}配置 ${profiles.filter(p=>p.type === type).length + 1}`,
+      createdAt: new Date().toISOString(), // 添加创建时间
     };
-    const newProfiles = [...profiles, newProfile];
+    const newProfiles = [newProfile, ...profiles]; // 新配置放在最前面
     setProfiles(newProfiles);
     if (newProfiles.length === 1) {
       setActiveProfileId(newProfile.id);
@@ -551,26 +676,34 @@ export default function SettingsPage() {
     }
     setIsTesting(prev => ({...prev, [profileId]: false}));
   };
-  
-  const handleSaveAll = async () => {
-    setIsSaving(true);
-    const toastId = toast.loading('正在保存所有设置...');
 
-    const result = await window.api.saveProfiles({ profiles, activeProfileId });
+  const handleSaveProfile = async (profileId) => {
+    const profileToSave = profiles.find(p => p.id === profileId);
+    if (!profileToSave) return;
+
+    setIsSaving(prev => ({...prev, [profileId]: true}));
+    const toastId = toast.loading(`正在保存配置 "${profileToSave.name}"...`);
+    
+    const result = await window.api.saveProfiles({ 
+      profiles: [profileToSave], 
+      activeProfileId: activeProfileId === profileId ? profileId : null 
+    });
 
     if (result.success) {
-      toast.success('所有设置已成功保存！', { id: toastId });
-      addNotification({ message: '设置已成功保存', type: 'success' });
+      toast.success(`配置 "${profileToSave.name}" 已成功保存！`, { id: toastId });
+      addNotification({ message: '配置已成功保存', type: 'success' });
       await fetchSettings();
       if (refreshState) {
         refreshState();
       }
     } else {
       toast.error(result.error || '保存失败，请检查配置并重试。', { id: toastId });
-      addNotification({ message: '设置保存失败', type: 'error' });
+      addNotification({ message: '配置保存失败', type: 'error' });
     }
-    setIsSaving(false);
+    setIsSaving(prev => ({...prev, [profileId]: false}));
   };
+  
+
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
@@ -595,38 +728,11 @@ export default function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {profiles.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p className="mb-4">尚未配置任何存储服务</p>
-                  <p className="text-sm mb-6">请添加一个存储配置以开始使用</p>
-                </div>
-              ) : (
-                <RadioGroup value={activeProfileId} onValueChange={setActiveProfileId}>
-                  <div className="space-y-4">
-                    {profiles.map((profile) => (
-                      <ProfileCard
-                        key={profile.id}
-                        profile={profile}
-                        isActive={activeProfileId === profile.id}
-                        onActivate={setActiveProfileId}
-                        onChange={handleProfileChange}
-                        onTest={handleTestConnection}
-                        onRemove={handleRemoveProfile}
-                        isTesting={isTesting[profile.id]}
-                        isSaving={isSaving}
-                      />
-                    ))}
-                  </div>
-                </RadioGroup>
-              )}
-
-              <Separator />
-              
-              <div className="flex justify-center">
+              {/* 添加配置按钮 - 移到上面 */}
+              <div className="flex justify-center mb-6">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="w-full max-w-sm">
+                    <Button variant="outline" className="w-full">
                       <PlusCircle className="mr-2 h-4 w-4" />
                       添加存储配置
                     </Button>
@@ -644,9 +750,51 @@ export default function SettingsPage() {
                       <Server className="mr-2 h-4 w-4 text-green-600" />
                       <span>腾讯云 COS</span>
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleAddProfile('smms')}>
+                      <Image className="mr-2 h-4 w-4 text-purple-600" />
+                      <span>SM.MS 图床</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleAddProfile('picui')}>
+                      <Image className="mr-2 h-4 w-4 text-pink-600" />
+                      <span>PICUI 图床</span>
+                    </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
+
+              {profiles.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Database className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p className="mb-4">尚未配置任何存储服务</p>
+                  <p className="text-sm mb-6">请添加一个存储配置以开始使用</p>
+                </div>
+              ) : (
+                <RadioGroup value={activeProfileId} onValueChange={setActiveProfileId}>
+                  <div className="space-y-4">
+                    {profiles
+                      .sort((a, b) => {
+                        // 按创建时间排序，最新的在前面
+                        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                        return timeB - timeA;
+                      })
+                      .map((profile) => (
+                        <ProfileCard
+                          key={profile.id}
+                          profile={profile}
+                          isActive={activeProfileId === profile.id}
+                          onActivate={setActiveProfileId}
+                          onChange={handleProfileChange}
+                          onTest={handleTestConnection}
+                          onRemove={handleRemoveProfile}
+                          onSave={handleSaveProfile}
+                          isTesting={isTesting[profile.id]}
+                          isSaving={isSaving[profile.id]}
+                        />
+                      ))}
+                  </div>
+                </RadioGroup>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -655,13 +803,6 @@ export default function SettingsPage() {
           <AppSettings />
         </TabsContent>
       </Tabs>
-
-      <div className="flex justify-end">
-        <Button size="lg" onClick={handleSaveAll} disabled={isSaving}>
-          <Save className="mr-2 h-4 w-4" />
-          {isSaving ? '正在保存...' : '保存所有设置'}
-        </Button>
-      </div>
     </div>
   )
 }
