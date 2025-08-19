@@ -71,7 +71,7 @@ npm run build:mac
 npm run build:linux
 ```
 
-打包后的应用程序将位于 `dist` 目录下。
+打包后的应用程序将位于 `release` 目录下。
 
 ---
 
