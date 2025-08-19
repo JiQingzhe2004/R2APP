@@ -4,11 +4,100 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { cn } from "@/lib/utils"
 import { Progress } from "@/components/ui/Progress"
 import { Button } from '@/components/ui/Button'
-import { FileText, HardDrive, ChartColumnBig, Activity, Server, RefreshCw, Upload, Download, Trash2, CheckCircle, XCircle, AlertCircle, PackageSearch } from 'lucide-react'
+import { FileText, HardDrive, ChartColumnBig, Activity, Server, RefreshCw, Upload, Download, Trash2, CheckCircle, XCircle, AlertCircle, PackageSearch, Cloud, Settings, Plus, BarChart3, TrendingUp, Database } from 'lucide-react'
 import { formatBytes } from '@/lib/file-utils.jsx'
 import { useNotifications } from '@/contexts/NotificationContext'
 import { Separator } from "@/components/ui/separator"
 import { Skeleton } from '@/components/ui/skeleton';
+import { useNavigate } from 'react-router-dom';
+
+// 仪表盘空状态插画组件
+function DashboardEmptyStateIllustration({ hasSettings, onGoToSettings }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full min-h-[500px] p-8 text-center">
+      <div className="relative mb-8">
+        {/* 主插画 */}
+        <div className="w-40 h-40 bg-gradient-to-br from-indigo-50 to-purple-100 dark:from-indigo-950 dark:to-purple-900 rounded-full flex items-center justify-center mb-6">
+          <div className="relative">
+            <BarChart3 className="w-20 h-20 text-indigo-500 dark:text-indigo-400" />
+            <div className="absolute -top-2 -right-2 w-8 h-8 bg-gradient-to-br from-green-100 to-emerald-200 dark:from-green-900 dark:to-emerald-800 rounded-full flex items-center justify-center">
+              <TrendingUp className="w-4 h-4 text-green-600 dark:text-green-400" />
+            </div>
+          </div>
+        </div>
+        
+        {/* 装饰性元素 */}
+        <div className="absolute -top-4 -left-4 w-6 h-6 bg-gradient-to-br from-blue-100 to-cyan-200 dark:from-blue-900 dark:to-cyan-800 rounded-full flex items-center justify-center">
+          <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+        </div>
+        <div className="absolute -bottom-4 -right-4 w-8 h-8 bg-gradient-to-br from-purple-100 to-pink-200 dark:from-purple-900 dark:to-pink-800 rounded-full flex items-center justify-center">
+          <div className="w-4 h-4 bg-purple-500 rounded-full"></div>
+        </div>
+      </div>
+      
+      <h3 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+        {hasSettings ? '选择存储配置' : '配置存储服务'}
+      </h3>
+      
+      <p className="text-gray-600 dark:text-gray-400 max-w-lg mb-8 leading-relaxed text-lg">
+        {hasSettings 
+          ? '您还没有选择活跃的存储配置。请选择一个配置来查看详细的存储统计和活动记录。'
+          : '您还没有配置任何存储服务。请先添加一个存储配置来开始使用仪表盘功能。'
+        }
+      </p>
+      
+      <div className="flex flex-col sm:flex-row gap-4 mb-12">
+        <Button 
+          onClick={onGoToSettings} 
+          className="flex items-center gap-2 px-8 py-4 text-lg"
+          size="lg"
+        >
+          <Settings className="w-6 h-6" />
+          {hasSettings ? '选择配置' : '添加配置'}
+        </Button>
+        
+        {!hasSettings && (
+          <Button 
+            variant="outline" 
+            onClick={onGoToSettings}
+            className="flex items-center gap-2 px-8 py-4 text-lg"
+            size="lg"
+          >
+            <Plus className="w-6 h-6" />
+            了解存储服务
+          </Button>
+        )}
+      </div>
+      
+      {/* 功能提示 */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-xl flex items-center justify-center mx-auto mb-4">
+            <BarChart3 className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+          </div>
+          <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2 text-lg">存储统计</h4>
+          <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">实时查看文件数量、存储使用情况和空间利用率</p>
+        </div>
+        
+        <div className="text-center">
+          <div className="w-16 h-16 bg-green-100 dark:bg-green-900 rounded-xl flex items-center justify-center mx-auto mb-4">
+            <Activity className="w-8 h-8 text-green-600 dark:text-green-400" />
+          </div>
+          <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2 text-lg">活动监控</h4>
+          <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">跟踪文件上传、下载、删除等操作记录</p>
+        </div>
+        
+        <div className="text-center">
+          <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-xl flex items-center justify-center mx-auto mb-4">
+            <Database className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+          </div>
+          <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2 text-lg">状态监控</h4>
+          <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">监控存储服务连接状态和健康度</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function timeAgo(dateString) {
   const date = new Date(dateString);
@@ -105,8 +194,24 @@ export default function DashboardPage() {
   const [r2Status, setR2Status] = useState({ loading: true, success: false, message: '正在检查连接...' })
   const [error, setError] = useState(null)
   const [visibleActivityCount, setVisibleActivityCount] = useState(5)
+  const [hasAnyProfiles, setHasAnyProfiles] = useState(false) // 新增：检查是否有任何配置
   const { addNotification } = useNotifications()
   const loadMoreButtonRef = useRef(null);
+  const navigate = useNavigate();
+
+  // 检查是否有任何配置
+  useEffect(() => {
+    const checkProfiles = async () => {
+      try {
+        const settings = await window.api.getSettings();
+        setHasAnyProfiles(settings?.profiles?.length > 0);
+      } catch (error) {
+        console.error('检查配置失败:', error);
+        setHasAnyProfiles(false);
+      }
+    };
+    checkProfiles();
+  }, []);
 
   const fetchData = async (keepLoading = false) => {
     if (!keepLoading) {
@@ -147,6 +252,10 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
+    if (!activeProfileId) {
+      setLoading(false);
+      return;
+    }
     fetchData()
     
     const removeListener = window.api.onActivityUpdated(() => {
@@ -155,7 +264,7 @@ export default function DashboardPage() {
 
     return () => removeListener();
 
-  }, [])
+  }, [activeProfileId])
 
   // 存储桶切换时进行无感刷新（保留页面，不闪烁）
   useEffect(() => {
@@ -210,6 +319,11 @@ export default function DashboardPage() {
 
   if (loading) {
     return <DashboardSkeleton />;
+  }
+
+  // 没有活跃配置时显示插画
+  if (!activeProfileId) {
+    return <DashboardEmptyStateIllustration hasSettings={hasAnyProfiles} onGoToSettings={() => navigate('/settings')} />;
   }
 
   return (

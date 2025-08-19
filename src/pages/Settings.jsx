@@ -684,15 +684,21 @@ export default function SettingsPage() {
     setIsSaving(prev => ({...prev, [profileId]: true}));
     const toastId = toast.loading(`正在保存配置 "${profileToSave.name}"...`);
     
+    // 更新本地状态中的配置
+    const updatedProfiles = profiles.map(p => 
+      p.id === profileId ? profileToSave : p
+    );
+    
     const result = await window.api.saveProfiles({ 
-      profiles: [profileToSave], 
+      profiles: updatedProfiles, // 保存所有配置，而不是只保存单个配置
       activeProfileId: activeProfileId === profileId ? profileId : null 
     });
 
     if (result.success) {
       toast.success(`配置 "${profileToSave.name}" 已成功保存！`, { id: toastId });
       addNotification({ message: '配置已成功保存', type: 'success' });
-      await fetchSettings();
+      // 更新本地状态
+      setProfiles(updatedProfiles);
       if (refreshState) {
         refreshState();
       }

@@ -46,7 +46,7 @@ import {
   DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu"
 import { 
-  RefreshCw, Trash2, Download, Copy, List, LayoutGrid, TextSearch, XCircle, FolderPlus, UploadCloud, FolderClosed, EllipsisVertical, Search, ArrowUpDown
+  RefreshCw, Trash2, Download, Copy, List, LayoutGrid, TextSearch, XCircle, FolderPlus, UploadCloud, FolderClosed, EllipsisVertical, Search, ArrowUpDown, Cloud, Settings, Plus
 } from 'lucide-react';
 import { formatBytes, getFileIcon, getFileTypeDescription } from '@/lib/file-utils.jsx';
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -60,6 +60,87 @@ import {
 import { useUploads } from '@/contexts/UploadsContext';
 import { useOutletContext } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
+
+// 空状态插画组件
+function EmptyStateIllustration({ hasSettings, onGoToSettings }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full min-h-[400px] p-8 text-center">
+      <div className="relative mb-8">
+        {/* 主插画 */}
+        <div className="w-32 h-32 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-950 dark:to-indigo-900 rounded-full flex items-center justify-center mb-4">
+          <Cloud className="w-16 h-16 text-blue-500 dark:text-blue-400" />
+        </div>
+        
+        {/* 装饰性元素 */}
+        <div className="absolute -top-2 -right-2 w-8 h-8 bg-gradient-to-br from-green-100 to-emerald-200 dark:from-green-900 dark:to-emerald-800 rounded-full flex items-center justify-center">
+          <div className="w-4 h-4 bg-green-500 rounded-full"></div>
+        </div>
+        <div className="absolute -bottom-2 -left-2 w-6 h-6 bg-gradient-to-br from-purple-100 to-violet-200 dark:from-purple-900 dark:to-violet-800 rounded-full flex items-center justify-center">
+          <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+        </div>
+      </div>
+      
+      <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+        {hasSettings ? '选择存储配置' : '配置存储服务'}
+      </h3>
+      
+      <p className="text-gray-600 dark:text-gray-400 max-w-md mb-8 leading-relaxed">
+        {hasSettings 
+          ? '您还没有选择活跃的存储配置。请选择一个配置来开始管理您的文件。'
+          : '您还没有配置任何存储服务。请先添加一个存储配置来开始使用。'
+        }
+      </p>
+      
+      <div className="flex flex-col sm:flex-row gap-4">
+        <Button 
+          onClick={onGoToSettings} 
+          className="flex items-center gap-2 px-6 py-3"
+        >
+          <Settings className="w-5 h-5" />
+          {hasSettings ? '选择配置' : '添加配置'}
+        </Button>
+        
+        {!hasSettings && (
+          <Button 
+            variant="outline" 
+            onClick={onGoToSettings}
+            className="flex items-center gap-2 px-6 py-3"
+          >
+            <Plus className="w-5 h-5" />
+            了解存储服务
+          </Button>
+        )}
+      </div>
+      
+      {/* 功能提示 */}
+      <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-2xl">
+        <div className="text-center">
+          <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center mx-auto mb-3">
+            <UploadCloud className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+          </div>
+          <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">上传文件</h4>
+          <p className="text-sm text-gray-600 dark:text-gray-400">支持拖拽上传，批量处理</p>
+        </div>
+        
+        <div className="text-center">
+          <div className="w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center mx-auto mb-3">
+            <FolderClosed className="w-6 h-6 text-green-600 dark:text-green-400" />
+          </div>
+          <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">文件管理</h4>
+          <p className="text-sm text-gray-600 dark:text-gray-400">创建文件夹，组织文件</p>
+        </div>
+        
+        <div className="text-center">
+          <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center mx-auto mb-3">
+            <Download className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+          </div>
+          <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2">快速下载</h4>
+          <p className="text-sm text-gray-600 dark:text-gray-400">一键下载，分享链接</p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function FilesSkeletonLoader({ viewMode }) {
   if (viewMode === 'list') {
@@ -164,6 +245,7 @@ export default function FilesPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [sortField, setSortField] = useState('date'); // 'date' | 'size' | 'name'
   const [sortOrder, setSortOrder] = useState('desc'); // 'asc' | 'desc'
+  const [hasAnyProfiles, setHasAnyProfiles] = useState(false); // 新增：检查是否有任何配置
   const { addNotification } = useNotifications();
   const { addUploads } = useUploads();
   const observer = useRef();
@@ -239,7 +321,15 @@ export default function FilesPage() {
   useEffect(() => {
     const getActiveSettings = async () => {
         const fullSettings = await window.api.getSettings();
-        if (!fullSettings || !fullSettings.activeProfileId || !fullSettings.profiles) return null;
+        if (!fullSettings || !fullSettings.profiles) {
+          setHasAnyProfiles(false);
+          return null;
+        }
+        
+        // 检查是否有任何配置
+        setHasAnyProfiles(fullSettings.profiles.length > 0);
+        
+        if (!fullSettings.activeProfileId || fullSettings.profiles.length === 0) return null;
         const baseSettings = fullSettings.settings || {};
         const activeProfile = fullSettings.profiles.find(p => p.id === fullSettings.activeProfileId);
         if (!activeProfile) return null;
@@ -853,108 +943,110 @@ export default function FilesPage() {
         <div className="flex-shrink-0 mb-4">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-bold">存储的文件</h1>
-            <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">{files.length} 个文件</span>
-                
-                <TooltipProvider delayDuration={0}>
-                  <ToggleGroup
-                    type="single"
-                    value={viewMode}
-                    onValueChange={(val) => val && setViewMode(val)}
-                    aria-label="View mode"
-                  >
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <ToggleGroupItem
-                          value="card"
-                          aria-label="Card view"
-                          className={`rounded-lg px-3 h-10 ${viewMode === 'card' ? 'bg-primary text-primary-foreground' : 'bg-transparent'}`}
-                        >
-                          <LayoutGrid className="h-4 w-4" />
-                        </ToggleGroupItem>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>卡片视图</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <ToggleGroupItem
-                          value="list"
-                          aria-label="List view"
-                          className={`rounded-lg px-3 h-10 ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'bg-transparent'}`}
-                        >
-                          <List className="h-4 w-4" />
-                        </ToggleGroupItem>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>列表视图</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </ToggleGroup>
-                </TooltipProvider>
-
-                <TooltipProvider delayDuration={0}>
-                  <DropdownMenu>
-                    <Tooltip>
-                      <DropdownMenuTrigger asChild>
+            {activeProfileId && (
+              <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">{files.length} 个文件</span>
+                  
+                  <TooltipProvider delayDuration={0}>
+                    <ToggleGroup
+                      type="single"
+                      value={viewMode}
+                      onValueChange={(val) => val && setViewMode(val)}
+                      aria-label="View mode"
+                    >
+                      <Tooltip>
                         <TooltipTrigger asChild>
-                          <Button variant="outline" size="icon" aria-label="排序">
-                            <ArrowUpDown className="h-4 w-4" />
-                          </Button>
+                          <ToggleGroupItem
+                            value="card"
+                            aria-label="Card view"
+                            className={`rounded-lg px-3 h-10 ${viewMode === 'card' ? 'bg-primary text-primary-foreground' : 'bg-transparent'}`}
+                          >
+                            <LayoutGrid className="h-4 w-4" />
+                          </ToggleGroupItem>
                         </TooltipTrigger>
-                      </DropdownMenuTrigger>
-                      <TooltipContent>
-                        <p>排序</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuLabel>排序方式</DropdownMenuLabel>
-                      <DropdownMenuRadioGroup value={sortField} onValueChange={setSortField}>
-                        <DropdownMenuRadioItem value="date">按日期</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="size">按大小</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="name">按名称</DropdownMenuRadioItem>
-                      </DropdownMenuRadioGroup>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuLabel>顺序</DropdownMenuLabel>
-                      <DropdownMenuRadioGroup value={sortOrder} onValueChange={setSortOrder}>
-                        <DropdownMenuRadioItem value="desc">降序</DropdownMenuRadioItem>
-                        <DropdownMenuRadioItem value="asc">升序</DropdownMenuRadioItem>
-                      </DropdownMenuRadioGroup>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="outline" size="icon" onClick={() => fetchFiles(currentPrefix, { isSearch: false })} disabled={loading}>
+                        <TooltipContent>
+                          <p>卡片视图</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <ToggleGroupItem
+                            value="list"
+                            aria-label="List view"
+                            className={`rounded-lg px-3 h-10 ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'bg-transparent'}`}
+                          >
+                            <List className="h-4 w-4" />
+                          </ToggleGroupItem>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>列表视图</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </ToggleGroup>
+                  </TooltipProvider>
+
+                  <TooltipProvider delayDuration={0}>
+                    <DropdownMenu>
+                      <Tooltip>
+                        <DropdownMenuTrigger asChild>
+                          <TooltipTrigger asChild>
+                            <Button variant="outline" size="icon" aria-label="排序">
+                              <ArrowUpDown className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                        </DropdownMenuTrigger>
+                        <TooltipContent>
+                          <p>排序</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>排序方式</DropdownMenuLabel>
+                        <DropdownMenuRadioGroup value={sortField} onValueChange={setSortField}>
+                          <DropdownMenuRadioItem value="date">按日期</DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="size">按大小</DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="name">按名称</DropdownMenuRadioItem>
+                        </DropdownMenuRadioGroup>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel>顺序</DropdownMenuLabel>
+                        <DropdownMenuRadioGroup value={sortOrder} onValueChange={setSortOrder}>
+                          <DropdownMenuRadioItem value="desc">降序</DropdownMenuRadioItem>
+                          <DropdownMenuRadioItem value="asc">升序</DropdownMenuRadioItem>
+                        </DropdownMenuRadioGroup>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="outline" size="icon" onClick={() => fetchFiles(currentPrefix, { isSearch: false })} disabled={loading}>
                   <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                 </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>刷新列表</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>刷新列表</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
                 <Button variant="outline" size="icon" onClick={() => setIsCreateFolderDialogOpen(true)}>
                   <FolderPlus className="h-4 w-4" />
                 </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>创建文件夹</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>创建文件夹</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
                 <Button variant="outline" size="icon" onClick={handleFileSelectAndUpload}>
                   <UploadCloud className="h-4 w-4" />
                 </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>上传文件</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-            </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>上传文件</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+              </div>
+            )}
           </div>
           {searchTerm && (
             <div className="mt-2 flex items-center gap-2">
@@ -968,7 +1060,13 @@ export default function FilesPage() {
           )}
         </div>
 
-        {loading && files.length === 0 ? (
+        {/* 没有活跃配置时显示插画 */}
+        {!activeProfileId ? (
+          <EmptyStateIllustration 
+            hasSettings={hasAnyProfiles} 
+            onGoToSettings={() => navigate('/settings')} 
+          />
+        ) : loading && files.length === 0 ? (
           <FilesSkeletonLoader viewMode={viewMode} />
         ) : error ? (
           <div className="flex-1 flex items-center justify-center p-4 text-red-500">
