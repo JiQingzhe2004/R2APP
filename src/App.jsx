@@ -4,6 +4,7 @@ import { Toaster, toast } from 'sonner';
 import { Layout, LayoutBody } from '@/components/ui/layout'
 import { Sidebar } from '@/components/sidebar'
 import { Header } from '@/components/header'
+import AnnouncementBanner from '@/components/AnnouncementBanner'
 import { HashRouter as Router, Routes, Route, Navigate, useNavigate, Outlet } from 'react-router-dom';
 import { NotificationProvider, useNotifications } from './contexts/NotificationContext';
 import { UpdateProvider, useUpdate } from './contexts/UpdateContext';
@@ -27,6 +28,7 @@ import AboutPage from './pages/About';
 import ReleaseNotesPage from './pages/ReleaseNotes';
 import PreviewPage from './pages/PreviewPage';
 import UpdatePage from './pages/Update';
+import AnnouncementsPage from './pages/Announcements';
 
 function AppUpdateDialog() {
   const { updateInfo, isUpdateModalOpen, setIsUpdateModalOpen } = useUpdate();
@@ -136,6 +138,9 @@ function MainLayout() {
           onClearNotifications={clearNotifications}
           onRemoveNotification={removeNotification}
         />
+        <div className="px-6 pt-4">
+          <AnnouncementBanner />
+        </div>
         <main className="relative flex-1 overflow-auto p-6">
           <Outlet context={{ activeProfileId, isSearchDialogOpen, setIsSearchDialogOpen, refreshState }}/>
         </main>
@@ -160,6 +165,7 @@ function App() {
                   <Route path="/uploads" element={<UploadsPage />} />
                   <Route path="/downloads" element={<DownloadsPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/announcements" element={<AnnouncementsPage />} />
                   <Route path="/about" element={<AboutPage />} />
                   <Route path="/releasenotes" element={<ReleaseNotesPage />} />
                   <Route path="/update" element={<UpdatePage />} />

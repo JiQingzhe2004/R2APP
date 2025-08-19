@@ -2581,6 +2581,88 @@ ipcMain.handle('get-machine-id', () => {
   };
 });
 
+// 公告相关配置
+const ANNOUNCEMENT_CONFIG = {
+  API_URL: 'https://cstj.server.aiqji.cn/api/announcements',
+  CACHE_DURATION: 5 * 60 * 1000, // 5分钟缓存
+  RETRY_DELAY: 30 * 1000, // 30秒重试间隔
+  MAX_RETRIES: 3
+};
+
+// 公告缓存
+let announcementCache = {
+  data: null,
+  timestamp: 0,
+  error: null
+};
+
+// 获取公告数据
+async function fetchAnnouncements() {
+  try {
+    const response = await fetch(ANNOUNCEMENT_CONFIG.API_URL, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'R2APP/1.0.0'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.success && data.data) {
+      announcementCache = {
+        data: data.data,
+        timestamp: Date.now(),
+        error: null
+      };
+      return { success: true, data: data.data };
+    } else {
+      throw new Error(data.error || '获取公告失败');
+    }
+  } catch (error) {
+    console.error('获取公告失败:', error);
+    announcementCache.error = error.message;
+    return { success: false, error: error.message };
+  }
+}
+
+// 公告相关的 IPC 处理器
+ipcMain.handle('get-announcements', async () => {
+  try {
+    const now = Date.now();
+    
+    // 检查缓存是否有效
+    if (announcementCache.data && 
+        (now - announcementCache.timestamp) < ANNOUNCEMENT_CONFIG.CACHE_DURATION) {
+      return { success: true, data: announcementCache.data };
+    }
+    
+    // 如果缓存过期或不存在，重新获取
+    return await fetchAnnouncements();
+  } catch (error) {
+    console.error('获取公告失败:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('clear-announcement-cache', () => {
+  try {
+    announcementCache = {
+      data: null,
+      timestamp: 0,
+      error: null
+    };
+    return { success: true };
+  } catch (error) {
+    console.error('清除公告缓存失败:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('delete-download-task', (event, taskId) => {
   const tasks = store.get('download-tasks', {});
   delete tasks[taskId];

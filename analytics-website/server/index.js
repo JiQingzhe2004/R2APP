@@ -5,6 +5,8 @@ const morgan = require('morgan');
 const path = require('path');
 const { initDatabase } = require('./database');
 const analyticsRoutes = require('./routes/analytics');
+const announcementsRoutes = require('./routes/announcements');
+const authRoutes = require('./routes/auth');
 
 const app = express();
 const PORT = process.env.PORT || 3006;
@@ -64,7 +66,9 @@ app.use((req, res, next) => {
 initDatabase();
 
 // API路由
+app.use('/api/auth', authRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/announcements', announcementsRoutes);
 
 // 健康检查
 app.get('/health', (req, res) => {

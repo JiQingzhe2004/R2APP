@@ -10,7 +10,8 @@ import {
   ScrollText,
   UploadCloud,
   BadgeInfo,
-  CloudDownload
+  CloudDownload,
+  Bell
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useTheme } from "./theme-provider"
@@ -34,6 +35,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
     { id: 'files', href: '/files', icon: File, label: '文件管理' },
     { id: 'uploads', href: '/uploads', icon: UploadCloud, label: '上传' },
     { id: 'downloads', href: '/downloads', icon: CloudDownload, label: '下载' },
+    { id: 'announcements', href: '/announcements', icon: Bell, label: '公告' },
     { id: 'settings', href: '/settings', icon: Settings, label: '设置' },
     { id: 'update', href: '/update', icon: HardDriveDownload, label: '应用更新' },
     { id: 'releasenotes', href: '/releasenotes', icon: ScrollText, label: '更新日志' },
