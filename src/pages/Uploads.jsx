@@ -8,6 +8,7 @@ import { useUploads } from '@/contexts/UploadsContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { cn } from '@/lib/utils';
 import { useOutletContext } from 'react-router-dom';
+import { DeleteOverlay, useDeleteState } from '@/components/ui/delete-overlay';
 
 // 上传页面空状态插画组件
 function UploadsEmptyStateIllustration({ hasSettings, onGoToSettings }) {
@@ -113,6 +114,7 @@ export default function UploadsPage() {
     resumeUpload
   } = useUploads();
   const { addNotification } = useNotifications();
+  const { deleteState, startDelete, endDelete } = useDeleteState();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -170,6 +172,53 @@ export default function UploadsPage() {
     }).filter(Boolean);
 
     addUploads(newUploads);
+  };
+
+  // 处理清除已完成/失败的上传
+  const handleClearCompleted = async () => {
+    const completedOrFailedUploads = uploads.filter(u => u.status === 'completed' || u.status === 'error');
+    if (completedOrFailedUploads.length === 0) return;
+    
+    startDelete(completedOrFailedUploads.length, '正在清除已完成/失败的上传...');
+    
+    try {
+      clearCompleted();
+    } catch (error) {
+      console.error('清除上传失败:', error);
+      addNotification({ message: '清除上传失败', type: 'error' });
+    } finally {
+      endDelete();
+    }
+  };
+  
+  // 处理清空列表
+  const handleClearAll = async () => {
+    if (uploads.length === 0) return;
+    
+    startDelete(uploads.length, '正在清空上传列表...');
+    
+    try {
+      clearAll();
+    } catch (error) {
+      console.error('清空列表失败:', error);
+      addNotification({ message: '清空列表失败', type: 'error' });
+    } finally {
+      endDelete();
+    }
+  };
+  
+  // 处理删除单个上传任务
+  const handleRemoveUpload = async (uploadId) => {
+    startDelete(1, '正在删除上传任务...');
+    
+    try {
+      removeUpload(uploadId);
+    } catch (error) {
+      console.error('删除上传任务失败:', error);
+      addNotification({ message: '删除上传任务失败', type: 'error' });
+    } finally {
+      endDelete();
+    }
   };
 
   const handleDragOver = (e) => {
@@ -243,11 +292,11 @@ export default function UploadsPage() {
       {uploads.length > 0 && (
         <div className="flex justify-end gap-2 mt-4">
             {uploads.some(u => u.status === 'completed' || u.status === 'error') && (
-              <Button variant="outline" onClick={clearCompleted} disabled={isUploading}>
+              <Button variant="outline" onClick={handleClearCompleted} disabled={isUploading}>
                 清除已完成/失败
               </Button>
             )}
-            <Button variant="outline" onClick={clearAll} disabled={isUploading}>
+            <Button variant="outline" onClick={handleClearAll} disabled={isUploading}>
                 清空列表
             </Button>
             <Button onClick={startAllUploads} disabled={isUploading || uploads.every(u => u.status !== 'pending')}>
@@ -297,7 +346,7 @@ export default function UploadsPage() {
                           复制图片链接
                         </Button>
                       )}
-                      <Button variant="ghost" size="icon" onClick={() => removeUpload(file.id)}>
+                      <Button variant="ghost" size="icon" onClick={() => handleRemoveUpload(file.id)}>
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
@@ -313,7 +362,7 @@ export default function UploadsPage() {
                           <PlayCircle className="h-6 w-6" />
                         </Button>
                       )}
-                      <Button variant="ghost" size="icon" onClick={() => removeUpload(file.id)} disabled={file.status === 'uploading'}>
+                      <Button variant="ghost" size="icon" onClick={() => handleRemoveUpload(file.id)} disabled={file.status === 'uploading'}>
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
@@ -324,6 +373,13 @@ export default function UploadsPage() {
           </div>
         </div>
       )}
+      
+      {/* 删除操作遮罩层 */}
+      <DeleteOverlay 
+        isVisible={deleteState.isDeleting}
+        message={deleteState.message}
+        count={deleteState.count > 1 ? deleteState.count : null}
+      />
     </div>
   );
 } 

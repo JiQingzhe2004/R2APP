@@ -78,12 +78,12 @@ export default function AboutPage() {
       bgColor: 'bg-purple-50 dark:bg-purple-900/20'
     },
     {
-      name: 'PICUI 图床',
-      description: '高速图片存储服务',
+      name: '兰空图床',
+      description: '标准的兰空图床，支持多种存储策略',
       icon: Image,
-      url: 'https://picui.cn/',
-      color: 'text-pink-500',
-      bgColor: 'bg-pink-50 dark:bg-pink-900/20'
+      url: 'https://github.com/lsky-org/lsky-pro',
+      color: 'text-blue-500',
+      bgColor: 'bg-blue-50 dark:bg-blue-900/20'
     }
   ];
 

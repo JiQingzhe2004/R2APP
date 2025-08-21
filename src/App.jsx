@@ -138,9 +138,7 @@ function MainLayout() {
           onClearNotifications={clearNotifications}
           onRemoveNotification={removeNotification}
         />
-        <div className="px-6 pt-4">
-          <AnnouncementBanner />
-        </div>
+        <AnnouncementBanner />
         <main className="relative flex-1 overflow-auto p-6">
           <Outlet context={{ activeProfileId, isSearchDialogOpen, setIsSearchDialogOpen, refreshState }}/>
         </main>

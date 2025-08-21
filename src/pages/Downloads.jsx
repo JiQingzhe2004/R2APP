@@ -7,6 +7,7 @@ import { getFileIcon, formatBytes } from '@/lib/file-utils.jsx';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useOutletContext } from 'react-router-dom';
 import { useNavigate } from 'react-router-dom';
+import { DeleteOverlay, useDeleteState } from '@/components/ui/delete-overlay';
 
 // 下载页面空状态插画组件
 function DownloadsEmptyStateIllustration({ hasSettings, onGoToSettings }) {
@@ -101,6 +102,7 @@ export default function DownloadsPage() {
     const [hasAnyProfiles, setHasAnyProfiles] = useState(false); // 新增：检查是否有任何配置
     const { activeProfileId } = useOutletContext(); // 获取活跃配置ID
     const { addNotification } = useNotifications();
+    const { deleteState, startDelete, endDelete } = useDeleteState();
     const navigate = useNavigate();
     const tasksRef = useRef(tasks);
     tasksRef.current = tasks;
@@ -167,6 +169,39 @@ export default function DownloadsPage() {
     const taskValues = Object.values(tasks).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     const activeTasks = taskValues.filter(t => t.status !== 'completed' && t.status !== 'error');
     
+    // 处理清除已完成下载
+    const handleClearCompleted = async () => {
+        const completedTasks = taskValues.filter(t => t.status === 'completed');
+        if (completedTasks.length === 0) return;
+        
+        startDelete(completedTasks.length, '正在清除已完成的下载...');
+        
+        try {
+            await window.api.clearCompletedDownloads();
+            // 成功后会通过事件监听器自动更新状态
+        } catch (error) {
+            console.error('清除下载失败:', error);
+            addNotification({ message: '清除下载失败', type: 'error' });
+        } finally {
+            endDelete();
+        }
+    };
+    
+    // 处理删除单个下载任务
+    const handleDeleteTask = async (taskId) => {
+        startDelete(1, '正在删除下载任务...');
+        
+        try {
+            await window.api.deleteDownloadTask(taskId);
+            // 成功后会通过事件监听器自动更新状态
+        } catch (error) {
+            console.error('删除下载任务失败:', error);
+            addNotification({ message: '删除下载任务失败', type: 'error' });
+        } finally {
+            endDelete();
+        }
+    };
+    
     const renderTaskStatus = (task) => {
         switch (task.status) {
             case 'downloading':
@@ -199,7 +234,7 @@ export default function DownloadsPage() {
             <h1 className="text-2xl font-bold">下载管理 ({activeTasks.length})</h1>
             <p className="text-muted-foreground">管理您的文件下载</p>
         </div>
-        <Button variant="outline" onClick={() => window.api.clearCompletedDownloads()} disabled={taskValues.every(t => t.status !== 'completed')}>
+        <Button variant="outline" onClick={handleClearCompleted} disabled={taskValues.every(t => t.status !== 'completed')}>
             <Trash2 className="mr-2 h-4 w-4" />
             清除已完成
         </Button>
@@ -231,7 +266,7 @@ export default function DownloadsPage() {
                            )}
                            {task.status === 'completed' && <CheckCircle className="h-6 w-6 text-green-500" />}
                            {task.status === 'error' && <AlertTriangle className="h-6 w-6 text-red-500" />}
-                           <Button variant="ghost" size="icon" onClick={() => window.api.deleteDownloadTask(task.id)}>
+                           <Button variant="ghost" size="icon" onClick={() => handleDeleteTask(task.id)}>
                                <X className="h-4 w-4" />
                            </Button>
                        </div>
@@ -240,6 +275,13 @@ export default function DownloadsPage() {
             ))}
         </div>
       )}
+      
+      {/* 删除操作遮罩层 */}
+      <DeleteOverlay 
+        isVisible={deleteState.isDeleting}
+        message={deleteState.message}
+        count={deleteState.count > 1 ? deleteState.count : null}
+      />
     </div>
   );
 } 

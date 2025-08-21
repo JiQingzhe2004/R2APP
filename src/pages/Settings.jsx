@@ -22,6 +22,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import BucketSelector from '@/components/BucketSelector'
 
 const R2_TEMPLATE = {
@@ -31,8 +38,8 @@ const R2_TEMPLATE = {
   accessKeyId: '',
   secretAccessKey: '',
   bucketName: '',
-  publicDomain: '',
   storageQuotaGB: 10,
+  storageQuotaUnit: 'GB',
   createdAt: new Date().toISOString(),
 };
 
@@ -44,8 +51,8 @@ const OSS_TEMPLATE = {
   region: '',
   bucket: '',
   endpoint: '',
-  publicDomain: '',
   storageQuotaGB: 10,
+  storageQuotaUnit: 'GB',
   createdAt: new Date().toISOString(),
 };
 
@@ -56,8 +63,8 @@ const COS_TEMPLATE = {
   secretKey: '',
   region: '',
   bucket: '',
-  publicDomain: '',
   storageQuotaGB: 10,
+  storageQuotaUnit: 'GB',
   createdAt: new Date().toISOString(),
 };
 
@@ -65,20 +72,20 @@ const SMMS_TEMPLATE = {
   type: 'smms',
   name: '新 SM.MS 配置',
   smmsToken: '',
-  publicDomain: '',
   storageQuotaGB: 10,
+  storageQuotaUnit: 'GB',
   createdAt: new Date().toISOString(),
 };
 
-const PICUI_TEMPLATE = {
-  type: 'picui',
-  name: '新 PICUI 配置',
-  picuiToken: '',
-  strategyId: '',
+const LSKY_TEMPLATE = {
+  type: 'lsky',
+  name: '新兰空图床配置',
+  lskyToken: '',
+  lskyUrl: '',
   albumId: '',
   permission: 1,
-  publicDomain: '',
   storageQuotaGB: 10,
+  storageQuotaUnit: 'GB',
   createdAt: new Date().toISOString(),
 };
 
@@ -107,11 +114,11 @@ const PROVIDER_INFO = {
     color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
     description: '免费图床服务，支持多种图片格式'
   },
-  picui: {
-    name: 'PICUI 图床',
+  lsky: {
+    name: '兰空图床',
     icon: Image,
-    color: 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200',
-    description: 'PICUI图床，快捷好用'
+    color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+    description: '标准的兰空图床，支持多种存储策略'
   }
 };
 
@@ -120,7 +127,12 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(profile.name);
   const [showBucketSelector, setShowBucketSelector] = useState(false);
-  const providerInfo = PROVIDER_INFO[profile.type];
+  const providerInfo = PROVIDER_INFO[profile.type] || {
+    name: '未知服务',
+    icon: Cloud,
+    color: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200',
+    description: '未知的存储服务类型'
+  };
 
   const handleNameSave = () => {
     onChange(profile.id, { target: { name: 'name', value: tempName } });
@@ -311,6 +323,23 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                   />
                 </div>
               </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor={`publicDomain-${profile.id}`} className="flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  自定义域名
+                </Label>
+                <Input 
+                  id={`publicDomain-${profile.id}`} 
+                  name="publicDomain" 
+                  value={profile.publicDomain || ''} 
+                  onChange={(e) => onChange(profile.id, e)} 
+                  placeholder="例如: https://cdn.yourdomain.com (可选)" 
+                />
+                <p className="text-xs text-muted-foreground">
+                  配置自定义域名后，文件访问将使用您的域名而不是默认的R2域名，务必正确解析！
+                </p>
+              </div>
             </>
           )}
 
@@ -384,6 +413,23 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     placeholder="例如: oss-cn-hangzhou" 
                   />
                 </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor={`publicDomain-${profile.id}`} className="flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  自定义域名
+                </Label>
+                <Input 
+                  id={`publicDomain-${profile.id}`} 
+                  name="publicDomain" 
+                  value={profile.publicDomain || ''} 
+                  onChange={(e) => onChange(profile.id, e)} 
+                  placeholder="例如: https://cdn.yourdomain.com (可选)" 
+                />
+                <p className="text-xs text-muted-foreground">
+                  配置自定义域名后，文件访问将使用您的域名而不是默认的OSS域名，务必正确解析！
+                </p>
               </div>
             </>
           )}
@@ -459,6 +505,23 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                   />
                 </div>
               </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor={`publicDomain-${profile.id}`} className="flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  自定义域名
+                </Label>
+                <Input 
+                  id={`publicDomain-${profile.id}`} 
+                  name="publicDomain" 
+                  value={profile.publicDomain || ''} 
+                  onChange={(e) => onChange(profile.id, e)} 
+                  placeholder="例如: https://cdn.yourdomain.com (可选)" 
+                />
+                <p className="text-xs text-muted-foreground">
+                  配置自定义域名后，文件访问将使用您的域名而不是默认的COS域名，务必正确解析！
+                </p>
+              </div>
             </>
           )}
 
@@ -482,40 +545,42 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
             </>
           )}
 
-          {profile.type === 'picui' && (
+          {profile.type === 'lsky' && (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor={`picuiToken-${profile.id}`} className="flex items-center gap-2">
-                    <KeyRound className="h-4 w-4" />
-                    PICUI Token
+                  <Label htmlFor={`lskyUrl-${profile.id}`} className="flex items-center gap-2">
+                    <Globe className="h-4 w-4" />
+                    图床API地址
                   </Label>
                   <Input 
-                    id={`picuiToken-${profile.id}`} 
-                    name="picuiToken" 
-                    value={profile.picuiToken || ''} 
+                    id={`lskyUrl-${profile.id}`} 
+                    name="lskyUrl" 
+                    value={profile.lskyUrl || ''} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="例如: https://your-lsky-domain.com" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`lskyToken-${profile.id}`} className="flex items-center gap-2">
+                    <KeyRound className="h-4 w-4" />
+                    API Token
+                  </Label>
+                  <Input 
+                    id={`lskyToken-${profile.id}`} 
+                    name="lskyToken" 
+                    value={profile.lskyToken || ''} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="Bearer token，如：Bearer 1|xxxxx" 
                   />
                 </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor={`picuiStrategy-${profile.id}`} className="flex items-center gap-2">
-                    策略ID
-                  </Label>
-                  <Input 
-                    id={`picuiStrategy-${profile.id}`} 
-                    name="strategyId" 
-                    value={profile.strategyId || ''} 
-                    onChange={(e) => onChange(profile.id, e)} 
-                    placeholder="可选，策略ID" 
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor={`picuiAlbum-${profile.id}`} className="flex items-center gap-2">
+                  <Label htmlFor={`lskyAlbum-${profile.id}`} className="flex items-center gap-2">
                     相册ID
                   </Label>
                   <Input 
-                    id={`picuiAlbum-${profile.id}`} 
+                    id={`lskyAlbum-${profile.id}`} 
                     name="albumId" 
                     value={profile.albumId || ''} 
                     onChange={(e) => onChange(profile.id, e)} 
@@ -528,25 +593,12 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
 
           <Separator />
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor={`publicDomain-${profile.id}`} className="flex items-center gap-2">
-                <Link2 className="h-4 w-4" />
-                自定义域名 (可选)
-              </Label>
-              <Input 
-                id={`publicDomain-${profile.id}`} 
-                name="publicDomain" 
-                value={profile.publicDomain} 
-                onChange={(e) => onChange(profile.id, e)} 
-                placeholder="例如: files.example.com"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`storageQuotaGB-${profile.id}`} className="flex items-center gap-2">
-                <HardDrive className="h-4 w-4" />
-                存储配额 (GB)
-              </Label>
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <HardDrive className="h-4 w-4" />
+              存储配额
+            </Label>
+            <div className="flex gap-2">
               <Input 
                 id={`storageQuotaGB-${profile.id}`} 
                 name="storageQuotaGB" 
@@ -554,7 +606,21 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                 value={profile.storageQuotaGB || ''} 
                 onChange={(e) => onChange(profile.id, e)} 
                 placeholder="默认: 10"
+                className="flex-1"
               />
+              <Select 
+                value={profile.storageQuotaUnit || 'GB'} 
+                onValueChange={(value) => onChange(profile.id, { target: { name: 'storageQuotaUnit', value } })}
+              >
+                <SelectTrigger className="w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="MB">MB</SelectItem>
+                  <SelectItem value="GB">GB</SelectItem>
+                  <SelectItem value="TB">TB</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardContent>
@@ -596,7 +662,7 @@ export default function SettingsPage() {
         id: p.id || uuidv4(),
         name: p.name,
         bucketName: p.bucketName,
-        publicDomain: p.publicDomain,
+
         accountId: data.settings?.accountId || '',
         accessKeyId: data.settings?.accessKeyId || '',
         secretAccessKey: data.settings?.secretAccessKey || '',
@@ -637,7 +703,7 @@ export default function SettingsPage() {
   };
   
   const handleAddProfile = (type) => {
-    const template = type === 'r2' ? R2_TEMPLATE : type === 'oss' ? OSS_TEMPLATE : type === 'cos' ? COS_TEMPLATE : type === 'smms' ? SMMS_TEMPLATE : PICUI_TEMPLATE;
+    const template = type === 'r2' ? R2_TEMPLATE : type === 'oss' ? OSS_TEMPLATE : type === 'cos' ? COS_TEMPLATE : type === 'smms' ? SMMS_TEMPLATE : LSKY_TEMPLATE;
     const newProfile = {
       id: uuidv4(),
       ...template,
@@ -760,9 +826,9 @@ export default function SettingsPage() {
                       <Image className="mr-2 h-4 w-4 text-purple-600" />
                       <span>SM.MS 图床</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleAddProfile('picui')}>
-                      <Image className="mr-2 h-4 w-4 text-pink-600" />
-                      <span>PICUI 图床</span>
+                    <DropdownMenuItem onClick={() => handleAddProfile('lsky')}>
+                      <Image className="mr-2 h-4 w-4 text-blue-600" />
+                      <span>兰空图床</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

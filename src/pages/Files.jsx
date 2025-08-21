@@ -60,6 +60,7 @@ import {
 import { useUploads } from '@/contexts/UploadsContext';
 import { useOutletContext } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
+import { DeleteOverlay, useDeleteState } from '@/components/ui/delete-overlay';
 
 // 空状态插画组件
 function EmptyStateIllustration({ hasSettings, onGoToSettings }) {
@@ -248,6 +249,7 @@ export default function FilesPage() {
   const [hasAnyProfiles, setHasAnyProfiles] = useState(false); // 新增：检查是否有任何配置
   const { addNotification } = useNotifications();
   const { addUploads } = useUploads();
+  const { deleteState, startDelete, endDelete } = useDeleteState();
   const observer = useRef();
   const navigate = useNavigate();
 
@@ -444,64 +446,88 @@ export default function FilesPage() {
     if (!fileToDelete) return;
     
     const isDir = fileToDelete.endsWith('/');
-    const result = isDir 
-      ? await window.api.deleteFolder(fileToDelete)
-      : await window.api.deleteObject(fileToDelete);
+    const itemType = isDir ? '文件夹' : '文件';
+    
+    // 开始删除，显示遮罩层
+    startDelete(1, `正在删除${itemType}...`);
+    
+    try {
+      const result = isDir 
+        ? await window.api.deleteFolder(fileToDelete)
+        : await window.api.deleteObject(fileToDelete);
 
-    if (result.success) {
-      const message = isDir ? `文件夹 "${fileToDelete}" 删除成功` : `文件 "${fileToDelete}" 删除成功`;
-      toast.success(message);
-      addNotification({ message: message.replace('成功', '已删除'), type: 'success' });
-      
-      if (isDir) {
+      if (result.success) {
+        const message = `${itemType} "${fileToDelete}" 删除成功`;
+        toast.success(message);
+        addNotification({ message: message.replace('成功', '已删除'), type: 'success' });
+        
+        // After a delete, always refresh the current view from scratch.
         fetchFiles(currentPrefix, { isSearch: false });
+      } else {
+        const message = `删除失败: ${result.error}`;
+        toast.error(message);
+        addNotification({ message: `删除 "${fileToDelete}" 失败`, type: 'error' });
       }
-      // After a delete, always refresh the current view from scratch.
-      fetchFiles(currentPrefix, { isSearch: false });
-    } else {
-      const message = `删除失败: ${result.error}`;
+    } catch (error) {
+      const message = `删除失败: ${error.message}`;
       toast.error(message);
       addNotification({ message: `删除 "${fileToDelete}" 失败`, type: 'error' });
+    } finally {
+      // 结束删除，隐藏遮罩层
+      endDelete();
+      setFileToDelete(null);
     }
-    setFileToDelete(null);
   };
 
   const handleBulkDelete = async () => {
     if (selectedFiles.size === 0) return;
 
     const filesToDelete = Array.from(selectedFiles);
-    const promises = filesToDelete.map(key => {
-      const isDir = key.endsWith('/');
-      return isDir ? window.api.deleteFolder(key) : window.api.deleteObject(key);
-    });
-
-    const results = await Promise.all(promises);
-
-    let successCount = 0;
-    let errorCount = 0;
-
-    results.forEach((result, index) => {
-      const key = filesToDelete[index];
-      if (result.success) {
-        successCount++;
-        const message = key.endsWith('/') ? `文件夹 "${key}" 已删除` : `文件 "${key}" 已删除`;
-        addNotification({ message, type: 'success' });
-      } else {
-        errorCount++;
-        const message = `删除 "${key}" 失败: ${result.error}`;
-        addNotification({ message, type: 'error' });
-      }
-    });
+    const deleteCount = filesToDelete.length;
     
-    if (successCount > 0) {
-      toast.success(`${successCount} 个项目已成功删除。`);
-    }
-    if (errorCount > 0){
-      toast.error(`${errorCount} 个项目删除失败。`);
-    }
+    // 开始批量删除，显示遮罩层
+    startDelete(deleteCount, `正在删除 ${deleteCount} 个项目...`);
+    
+    try {
+      const promises = filesToDelete.map(key => {
+        const isDir = key.endsWith('/');
+        return isDir ? window.api.deleteFolder(key) : window.api.deleteObject(key);
+      });
 
-    setSelectedFiles(new Set());
-    fetchFiles(currentPrefix, { isSearch: false });
+      const results = await Promise.all(promises);
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      results.forEach((result, index) => {
+        const key = filesToDelete[index];
+        if (result.success) {
+          successCount++;
+          const message = key.endsWith('/') ? `文件夹 "${key}" 已删除` : `文件 "${key}" 已删除`;
+          addNotification({ message, type: 'success' });
+        } else {
+          errorCount++;
+          const message = `删除 "${key}" 失败: ${result.error}`;
+          addNotification({ message, type: 'error' });
+        }
+      });
+      
+      if (successCount > 0) {
+        toast.success(`${successCount} 个项目已成功删除。`);
+      }
+      if (errorCount > 0){
+        toast.error(`${errorCount} 个项目删除失败。`);
+      }
+
+      fetchFiles(currentPrefix, { isSearch: false });
+    } catch (error) {
+      toast.error(`批量删除失败: ${error.message}`);
+      addNotification({ message: '批量删除操作失败', type: 'error' });
+    } finally {
+      // 结束删除，隐藏遮罩层
+      endDelete();
+      setSelectedFiles(new Set());
+    }
   };
 
   const handleCopyUrl = (url) => {
@@ -701,13 +727,13 @@ export default function FilesPage() {
             } else {
               const resolvedBucket = settings?.bucketName || settings?.bucket || bucket;
               const isSmms = settings?.type === 'smms';
-              const isPicui = settings?.type === 'picui';
+              const isLsky = settings?.type === 'lsky';
               const publicUrlInline = file.publicUrl || getPublicUrl(key);
               window.api.openPreviewWindow({
                 fileName: fileName,
                 filePath: currentPrefix,
                 bucket: resolvedBucket,
-                publicUrl: (isSmms || isPicui) ? publicUrlInline : undefined
+                publicUrl: (isSmms || isLsky) ? publicUrlInline : undefined
               });
             }
           }
@@ -1178,6 +1204,13 @@ export default function FilesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {/* 删除操作遮罩层 */}
+      <DeleteOverlay 
+        isVisible={deleteState.isDeleting}
+        message={deleteState.message}
+        count={deleteState.count > 1 ? deleteState.count : null}
+      />
     </>
   );
 } 

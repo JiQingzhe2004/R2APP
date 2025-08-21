@@ -1,6 +1,6 @@
 {
   "name": "CS-Explorer",
-  "version": "4.3.1",
+  "version": "4.3.2",
   "description": "一个用于管理在线云存储的现代化桌面应用。",
   "main": "out/main/index.js",
   "author": "吉庆喆",
@@ -34,6 +34,7 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-toggle-group": "^1.1.10",
     "@radix-ui/react-tooltip": "^1.2.7",
+    "@radix-ui/react-select": "^2.0.0",
     "ali-oss": "^6.23.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",

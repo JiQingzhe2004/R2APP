@@ -106,8 +106,9 @@ export default function AnnouncementBanner() {
   }
 
   return (
-    <div className="space-y-2">
-      {announcements.map((announcement) => {
+    <div className="px-6 pt-4">
+      <div className="space-y-2">
+        {announcements.map((announcement) => {
         const styles = getAnnouncementTypeStyles(announcement.type);
         
         return (
@@ -173,6 +174,7 @@ export default function AnnouncementBanner() {
           </div>
         );
       })}
+      </div>
     </div>
   );
 }

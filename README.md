@@ -6,7 +6,8 @@
 
 -   **现代化的用户界面**: 专业的设计，包含侧边栏，便于导航。
 -   **双主题支持**: 同时支持亮色和深色两种配色方案。
--   **文件管理**: 浏览、上传和删除您 R2 存储桶中的文件。
+-   **多存储服务支持**: 支持 Cloudflare R2、阿里云 OSS、腾讯云 COS、SM.MS 图床、兰空图床等多种存储服务。
+-   **文件管理**: 浏览、上传和删除您存储桶中的文件。
 -   **安全配置**: 您的所有凭据都安全地存储在本地计算机上，绝不会上传到云端。
 -   **跨平台**: 可在 Windows、macOS 和 Linux 上运行。
 
@@ -46,11 +47,20 @@ npm run dev
 
 1.  启动应用程序。
 2.  点击侧边栏中的 **设置** 图标。
-3.  输入您的 Cloudflare R2 详细信息：
-    -   **Cloudflare Account ID**: 您可以在 Cloudflare 仪表板的 URL 或 R2 页面上找到。
-    -   **R2 Access Key ID**: 您创建的 R2 API 令牌的 ID。
-    -   **R2 Secret Access Key**: R2 API 令牌的密钥。
-    -   **Bucket Name**: 您想要管理的 R2 存储桶的名称。
+3.  选择您要配置的存储服务类型，并输入相应的配置信息：
+
+#### Cloudflare R2 配置
+-   **Cloudflare Account ID**: 您可以在 Cloudflare 仪表板的 URL 或 R2 页面上找到。
+-   **R2 Access Key ID**: 您创建的 R2 API 令牌的 ID。
+-   **R2 Secret Access Key**: R2 API 令牌的密钥。
+-   **Bucket Name**: 您想要管理的 R2 存储桶的名称。
+
+#### 兰空图床配置
+-   **兰空图床地址**: 您的兰空图床实例地址，例如 `https://your-lsky-domain.com`
+-   **兰空 Token**: 您的兰空图床 API Token，格式为 `Bearer 1|xxxxx`
+-   **策略ID** (可选): 指定上传策略的ID
+-   **相册ID** (可选): 指定上传到特定相册的ID
+
 4.  点击 **保存设置**。
 5.  导航回 **文件管理** 视图即可查看您存储桶的内容。
 

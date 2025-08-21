@@ -188,7 +188,7 @@ function DashboardSkeleton() {
 
 export default function DashboardPage() {
   const { activeProfileId } = useOutletContext();
-  const [stats, setStats] = useState({ totalCount: 0, totalSize: 0, bucketName: '', storageQuotaGB: 0 })
+  const [stats, setStats] = useState({ totalCount: 0, totalSize: 0, bucketName: '', storageQuotaGB: 0, storageQuotaUnit: 'GB' })
   const [activities, setActivities] = useState([])
   const [loading, setLoading] = useState(true)
   const [r2Status, setR2Status] = useState({ loading: true, success: false, message: '正在检查连接...' })
@@ -236,7 +236,7 @@ export default function DashboardPage() {
         addNotification({ message: `获取统计信息失败: ${statsResult.error}`, type: 'error' })
       }
     } else {
-      setStats({ totalCount: 0, totalSize: 0, bucketName: 'N/A', storageQuotaGB: 0 })
+      setStats({ totalCount: 0, totalSize: 0, bucketName: 'N/A', storageQuotaGB: 0, storageQuotaUnit: 'GB' })
     }
 
     const activitiesResult = await window.api.getRecentActivities()
@@ -299,7 +299,22 @@ export default function DashboardPage() {
     }
   };
 
-  const totalQuotaBytes = (stats.storageQuotaGB || 0) * 1024 * 1024 * 1024;
+  // 将存储配额转换为字节
+  const convertQuotaToBytes = (quota, unit) => {
+    const value = quota || 0;
+    switch (unit?.toUpperCase()) {
+      case 'MB':
+        return value * 1024 * 1024;
+      case 'GB':
+        return value * 1024 * 1024 * 1024;
+      case 'TB':
+        return value * 1024 * 1024 * 1024 * 1024;
+      default:
+        return value * 1024 * 1024 * 1024; // 默认GB
+    }
+  };
+
+  const totalQuotaBytes = convertQuotaToBytes(stats.storageQuotaGB, stats.storageQuotaUnit);
   const storageUsagePercent = totalQuotaBytes > 0 ? (stats.totalSize / totalQuotaBytes) * 100 : 0;
 
   const getStatusIcon = () => {
@@ -430,7 +445,7 @@ export default function DashboardPage() {
              <div className="space-y-2">
                 <div className="flex justify-between text-sm text-muted-foreground">
                     <span>已用空间</span>
-                    <span>{`${formatBytes(stats.totalSize)} / ${stats.storageQuotaGB ? stats.storageQuotaGB + ' GB' : '未设置'}`}</span>
+                    <span>{`${formatBytes(stats.totalSize)} / ${stats.storageQuotaGB ? stats.storageQuotaGB + ' ' + stats.storageQuotaUnit : '未设置'}`}</span>
                 </div>
                 <div className="relative">
                   <Progress value={storageUsagePercent} />

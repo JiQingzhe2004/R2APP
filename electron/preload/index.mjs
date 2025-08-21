@@ -29,7 +29,7 @@ export const api = {
   deleteObject: (key) => ipcRenderer.invoke('delete-object', key),
   deleteFolder: (prefix) => ipcRenderer.invoke('delete-folder', prefix),
   createFolder: (folderName) => ipcRenderer.invoke('create-folder', folderName),
-  getObjectContent: (key) => ipcRenderer.invoke('get-object-content', key),
+  getObjectContent: (bucket, key) => ipcRenderer.invoke('get-object-content', bucket, key),
   uploadFile: (filePath, key) => ipcRenderer.invoke('upload-file', { filePath, key }),
   showOpenDialog: (options) => ipcRenderer.invoke('show-open-dialog', options),
   
