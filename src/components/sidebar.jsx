@@ -11,7 +11,8 @@ import {
   UploadCloud,
   BadgeInfo,
   CloudDownload,
-  Bell
+  Bell,
+  MessageSquare
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useTheme } from "./theme-provider"
@@ -33,6 +34,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
   const navItems = [
     { id: 'dashboard', href: '/dashboard', icon: LayoutDashboard, label: '仪表盘' },
     { id: 'files', href: '/files', icon: File, label: '文件管理' },
+    { id: 'ai-chat', href: '/ai-chat', icon: MessageSquare, label: 'AI 对话' },
     { id: 'uploads', href: '/uploads', icon: UploadCloud, label: '上传' },
     { id: 'downloads', href: '/downloads', icon: CloudDownload, label: '下载' },
     { id: 'announcements', href: '/announcements', icon: Bell, label: '公告' },

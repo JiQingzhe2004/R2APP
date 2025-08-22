@@ -29,6 +29,7 @@ import ReleaseNotesPage from './pages/ReleaseNotes';
 import PreviewPage from './pages/PreviewPage';
 import UpdatePage from './pages/Update';
 import AnnouncementsPage from './pages/Announcements';
+import AIChatPage from './pages/AIChatPage';
 
 function AppUpdateDialog() {
   const { updateInfo, isUpdateModalOpen, setIsUpdateModalOpen } = useUpdate();
@@ -139,7 +140,7 @@ function MainLayout() {
           onRemoveNotification={removeNotification}
         />
         <AnnouncementBanner />
-        <main className="relative flex-1 overflow-auto p-6">
+        <main className="relative flex-1 overflow-auto p-4">
           <Outlet context={{ activeProfileId, isSearchDialogOpen, setIsSearchDialogOpen, refreshState }}/>
         </main>
       </LayoutBody>
@@ -160,6 +161,7 @@ function App() {
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/files" element={<FilesPage />} />
+                  <Route path="/ai-chat" element={<AIChatPage />} />
                   <Route path="/uploads" element={<UploadsPage />} />
                   <Route path="/downloads" element={<DownloadsPage />} />
                   <Route path="/settings" element={<SettingsPage />} />

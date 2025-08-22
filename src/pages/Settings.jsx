@@ -9,9 +9,11 @@ import { useNotifications } from '@/contexts/NotificationContext';
 import { 
   User, KeyRound, Container, Globe, Plug, Save, PlusCircle, Trash2, 
   Cloud, Server, Settings as SettingsIcon, ChevronDown, ChevronRight,
-  Database, Shield, MapPin, Link2, HardDrive, Edit2, Check, X, FolderOpen, Image
+  Database, Shield, MapPin, Link2, HardDrive, Edit2, Check, X, FolderOpen, Image,
+  Bot
 } from 'lucide-react'
 import AppSettings from './AppSettings';
+import AIConfigPanel from '@/components/ai/AIConfigPanel';
 import { v4 as uuidv4 } from 'uuid';
 import { useOutletContext } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs"
@@ -780,10 +782,14 @@ export default function SettingsPage() {
   return (
     <div className="p-4 sm:p-6 space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="grid w-full max-w-md grid-cols-3">
           <TabsTrigger value="profiles" className="flex items-center gap-2">
             <Cloud className="h-4 w-4" />
             存储配置
+          </TabsTrigger>
+          <TabsTrigger value="ai" className="flex items-center gap-2">
+            <Bot className="h-4 w-4" />
+            AI配置
           </TabsTrigger>
           <TabsTrigger value="app" className="flex items-center gap-2">
             <SettingsIcon className="h-4 w-4" />
@@ -869,6 +875,10 @@ export default function SettingsPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="ai" className="mt-6">
+          <AIConfigPanel />
         </TabsContent>
 
         <TabsContent value="app" className="mt-6">
