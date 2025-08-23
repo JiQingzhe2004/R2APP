@@ -60,7 +60,7 @@ export default function AIConfigPanel() {
   // 开始添加配置
   const handleAddConfig = () => {
     const newConfig = new AIConfig({
-      type: AIProviderType.OPENAI
+      type: AIProviderType.ZHIPU
     });
     setEditingConfig(newConfig);
     setIsAdding(true);
@@ -68,7 +68,16 @@ export default function AIConfigPanel() {
 
   // 开始编辑配置
   const handleEditConfig = (config) => {
-    setEditingConfig({ ...config });
+    const editConfig = { ...config };
+    
+    // 检查是否为自定义模型（不在预设模型列表中）
+    const providerInfo = AIProviderInfo[config.type];
+    if (providerInfo && !providerInfo.models.includes(config.model)) {
+      editConfig.model = 'custom';
+      editConfig.customModel = config.model;
+    }
+    
+    setEditingConfig(editConfig);
     setIsAdding(false);
   };
 
@@ -84,6 +93,15 @@ export default function AIConfigPanel() {
       // 如果提供商使用固定URL，自动设置正确的基础URL
       if (editingConfig.type && AIProviderInfo[editingConfig.type]?.useFixedUrl) {
         editingConfig.baseUrl = AIProviderInfo[editingConfig.type].defaultBaseUrl;
+      }
+
+      // 处理自定义模型
+      if (editingConfig.model === 'custom') {
+        if (!editingConfig.customModel?.trim()) {
+          toast.error('请输入自定义模型名称');
+          return;
+        }
+        editingConfig.model = editingConfig.customModel.trim();
       }
 
       // 创建AIConfig实例
@@ -282,7 +300,7 @@ export default function AIConfigPanel() {
                       <span>{info.displayName}</span>
                       {info.requiresProxy && (
                         <Badge variant="outline" className="text-xs text-orange-600">
-                          需代理
+                          国内需代理
                         </Badge>
                       )}
                     </div>
@@ -370,21 +388,34 @@ export default function AIConfigPanel() {
           {/* 模型选择 */}
           <div className="space-y-2">
             <Label htmlFor="model">模型</Label>
-            <Select 
-              value={editingConfig.model} 
-              onValueChange={(value) => handleFieldChange('model', value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="选择模型" />
-              </SelectTrigger>
-              <SelectContent>
-                {providerInfo?.models.map(model => (
-                  <SelectItem key={model} value={model}>
-                    {model}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <Select 
+                value={editingConfig.model} 
+                onValueChange={(value) => handleFieldChange('model', value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="选择模型" />
+                </SelectTrigger>
+                <SelectContent>
+                  {providerInfo?.models.map(model => (
+                    <SelectItem key={model} value={model}>
+                      {model}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="custom">自定义模型</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              {/* 自定义模型输入框 */}
+              {editingConfig.model === 'custom' && (
+                <Input
+                  value={editingConfig.customModel || ''}
+                  onChange={(e) => handleFieldChange('customModel', e.target.value)}
+                  placeholder="输入自定义模型名称"
+                  className="mt-2"
+                />
+              )}
+            </div>
           </div>
 
           {/* 代理配置 */}

@@ -7,6 +7,7 @@ import OpenAIIcon from '@/assets/AI-svg/openai.svg';
 import AnthropicIcon from '@/assets/AI-svg/anthropic.svg';
 import GeminiIcon from '@/assets/AI-svg/gemini-color.svg';
 import DeepSeekIcon from '@/assets/AI-svg/deepseek-color.svg';
+import DoubaoIcon from '@/assets/AI-svg/doubao-color.svg';
 
 /**
  * AI提供商图标组件
@@ -61,6 +62,16 @@ export default function AIIcon({ type, className = "h-5 w-5" }) {
             <img 
               src={DeepSeekIcon} 
               alt="DeepSeek" 
+              className="w-full h-full" 
+            />
+          </div>
+        );
+      case 'doubao':
+        return (
+          <div className={`${className} ai-icon`}>
+            <img 
+              src={DoubaoIcon} 
+              alt="豆包" 
               className="w-full h-full" 
             />
           </div>

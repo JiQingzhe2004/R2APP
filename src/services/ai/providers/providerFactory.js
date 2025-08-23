@@ -1,5 +1,6 @@
 import { OpenAIProvider } from './openaiProvider';
 import { DeepSeekProvider } from './deepseekProvider';
+import { DoubaoProvider } from './doubaoProvider';
 import { ZhipuProvider } from './zhipuProvider';
 import { AIProviderType } from '../types';
 
@@ -19,6 +20,8 @@ export class AIProviderFactory {
         return new OpenAIProvider(config);
       case AIProviderType.DEEPSEEK:
         return new DeepSeekProvider(config);
+      case AIProviderType.DOUBAO:
+        return new DoubaoProvider(config);
       case AIProviderType.ZHIPU:
         return new ZhipuProvider(config);
       // 可以继续添加其他提供商
@@ -35,6 +38,7 @@ export class AIProviderFactory {
     return [
       AIProviderType.OPENAI,
       AIProviderType.DEEPSEEK,
+      AIProviderType.DOUBAO,
       AIProviderType.ZHIPU
     ];
   }

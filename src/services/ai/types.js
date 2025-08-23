@@ -2,11 +2,12 @@
  * AI提供商类型枚举
  */
 export const AIProviderType = {
-  OPENAI: 'openai',
   ZHIPU: 'zhipu',
+  DEEPSEEK: 'deepseek',
+  DOUBAO: 'doubao',
+  OPENAI: 'openai',
   ANTHROPIC: 'anthropic',
   GOOGLE: 'google',
-  DEEPSEEK: 'deepseek',
   CUSTOM: 'custom'
 };
 
@@ -116,19 +117,6 @@ export class AIConfig {
  * AI提供商信息
  */
 export const AIProviderInfo = {
-  [AIProviderType.OPENAI]: {
-    name: 'OpenAI',
-    displayName: 'OpenAI',
-    description: 'OpenAI官方API，支持GPT系列模型（需要代理访问）',
-    icon: 'openai',
-    color: 'green',
-    defaultModel: 'gpt-3.5-turbo-0125',
-    defaultBaseUrl: 'https://api.openai.com/v1',
-    useFixedUrl: true,
-    features: ['chat', 'streaming', 'function-calling'],
-    models: ['gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-4o-mini', 'gpt-4.1-nano', 'gpt-4-turbo', 'gpt-3.5-turbo-0125'],
-    requiresProxy: true
-  },
   [AIProviderType.ZHIPU]: {
     name: '智谱AI',
     displayName: '智谱AI (ZhipuAI)',
@@ -141,6 +129,45 @@ export const AIProviderInfo = {
     features: ['chat', 'streaming', 'chain-of-thought'],
     models: ['glm-4.5-flash', 'glm-4', 'glm-4-flash', 'glm-3-turbo'],
     requiresProxy: false
+  },
+  [AIProviderType.DEEPSEEK]: {
+    name: 'DeepSeek',
+    displayName: 'DeepSeek',
+    description: 'DeepSeek官方API，支持DeepSeek系列模型',
+    icon: 'deepseek',
+    color: 'red',
+    defaultModel: 'deepseek-chat',
+    defaultBaseUrl: 'https://api.deepseek.com',
+    useFixedUrl: true,
+    features: ['chat', 'streaming', 'code-generation'],
+    models: ['deepseek-chat', 'deepseek-coder', 'deepseek-reasoner'],
+    requiresProxy: false
+  },
+  [AIProviderType.DOUBAO]: {
+    name: '豆包',
+    displayName: '豆包 (Doubao)',
+    description: '火山方舟豆包官方API，支持豆包系列模型和多模态输入',
+    icon: 'doubao',
+    color: 'purple',
+    defaultModel: 'doubao-1-5-pro-32k-250115',
+    defaultBaseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+    useFixedUrl: true,
+    features: ['chat', 'streaming', 'multimodal'],
+    models: ['doubao-1-5-pro-32k-250115', 'doubao-seed-1-6-flash-250715', 'doubao-vision-pro-32k-2410128'],
+    requiresProxy: false
+  },
+  [AIProviderType.OPENAI]: {
+    name: 'OpenAI',
+    displayName: 'OpenAI',
+    description: 'OpenAI官方API，支持GPT系列模型（需要代理访问）',
+    icon: 'openai',
+    color: 'green',
+    defaultModel: 'gpt-3.5-turbo-0125',
+    defaultBaseUrl: 'https://api.openai.com/v1',
+    useFixedUrl: true,
+    features: ['chat', 'streaming', 'function-calling'],
+    models: ['gpt-5', 'gpt-5-mini', 'gpt-5-nano', 'gpt-4o-mini', 'gpt-4.1-nano', 'gpt-4-turbo', 'gpt-3.5-turbo-0125'],
+    requiresProxy: true
   },
   [AIProviderType.ANTHROPIC]: {
     name: 'Anthropic',
@@ -166,19 +193,6 @@ export const AIProviderInfo = {
     useFixedUrl: true,
     features: ['chat', 'streaming', 'vision'],
     models: ['gemini-pro', 'gemini-pro-vision'],
-    requiresProxy: true
-  },
-  [AIProviderType.DEEPSEEK]: {
-    name: 'DeepSeek',
-    displayName: 'DeepSeek',
-    description: 'DeepSeek官方API，支持DeepSeek系列模型（需要代理访问）',
-    icon: 'deepseek',
-    color: 'red',
-    defaultModel: 'deepseek-chat',
-    defaultBaseUrl: 'https://api.deepseek.com',
-    useFixedUrl: true,
-    features: ['chat', 'streaming', 'code-generation'],
-    models: ['deepseek-chat', 'deepseek-coder', 'deepseek-reasoner'],
     requiresProxy: true
   },
   [AIProviderType.CUSTOM]: {
