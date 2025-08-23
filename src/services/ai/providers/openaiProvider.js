@@ -23,26 +23,25 @@ export class OpenAIProvider extends BaseAIProvider {
    */
   async testConnection() {
     try {
-      const response = await fetch(`${this.config.baseUrl}/models`, {
+      const testUrl = `${this.config.baseUrl}/models`;
+
+      const response = await this.fetchWithProxy(testUrl, {
         method: 'GET',
         headers: this.getHeaders()
       });
 
       const data = await this.handleResponse(response);
-      
+
       return {
         success: true,
         message: 'OpenAI连接成功',
-        data: {
-          models: data.data?.map(model => model.id) || [],
-          totalModels: data.data?.length || 0
-        }
+        details: data
       };
     } catch (error) {
       return {
         success: false,
-        error: `OpenAI连接失败: ${error.message}`,
-        details: error.stack
+        message: `OpenAI连接失败: ${error.message}`,
+        details: error.toString()
       };
     }
   }
@@ -52,7 +51,7 @@ export class OpenAIProvider extends BaseAIProvider {
    */
   async getModels() {
     try {
-      const response = await fetch(`${this.config.baseUrl}/models`, {
+      const response = await this.fetchWithProxy(`${this.config.baseUrl}/models`, {
         method: 'GET',
         headers: this.getHeaders()
       });
@@ -69,7 +68,7 @@ export class OpenAIProvider extends BaseAIProvider {
    */
   async sendMessage(message, options = {}) {
     try {
-      const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
+      const response = await this.fetchWithProxy(`${this.config.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: this.getHeaders(),
         body: JSON.stringify({

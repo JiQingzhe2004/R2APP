@@ -24,7 +24,8 @@ import {
   Wifi,
   AlertCircle,
   CheckCircle,
-  XCircle
+  XCircle,
+  Globe
 } from 'lucide-react';
 import { AIConfigManager } from '@/services/ai/aiConfigManager';
 import { AIConfig, AIProviderType, AIProviderInfo } from '@/services/ai/types';
@@ -44,6 +45,7 @@ export default function AIConfigPanel() {
   const [testResults, setTestResults] = useState({});
   const [showTestMessage, setShowTestMessage] = useState({});
   const [testMessage, setTestMessage] = useState('你好，这是一个测试消息');
+  const [showProxyPassword, setShowProxyPassword] = useState({});
 
   // 加载配置列表
   useEffect(() => {
@@ -94,11 +96,9 @@ export default function AIConfigPanel() {
         configManager.updateConfig(configInstance.id, configInstance);
         toast.success('配置更新成功');
       }
-      
-      setEditingConfig(null);
-      setIsAdding(false);
       loadConfigs();
     } catch (error) {
+      console.error('保存配置失败:', error);
       toast.error(error.message);
     }
   };
@@ -164,6 +164,14 @@ export default function AIConfigPanel() {
     }));
   };
 
+  // 切换代理密码显示
+  const handleToggleProxyPasswordVisibility = (configId) => {
+    setShowProxyPassword(prev => ({
+      ...prev,
+      [configId]: !prev[configId]
+    }));
+  };
+
   // 测试连接
   const handleTestConnection = async (config) => {
     setTestingConfigs(prev => ({ ...prev, [config.id]: true }));
@@ -171,21 +179,23 @@ export default function AIConfigPanel() {
 
     try {
       const result = await AITestService.testConnection(config);
+
       setTestResults(prev => ({ ...prev, [config.id]: result }));
-      
+
       if (result.success) {
-        toast.success(result.message);
+        toast.success('连接测试成功！');
       } else {
-        toast.error(result.error);
+        toast.error(`连接测试失败: ${result.message}`);
       }
     } catch (error) {
+      console.error('测试连接失败:', error);
       const errorResult = {
         success: false,
-        error: error.message,
-        details: error.stack
+        message: `测试连接失败: ${error.message}`,
+        details: error.toString()
       };
       setTestResults(prev => ({ ...prev, [config.id]: errorResult }));
-      toast.error(`测试失败: ${error.message}`);
+      toast.error(`测试连接失败: ${error.message}`);
     } finally {
       setTestingConfigs(prev => ({ ...prev, [config.id]: false }));
     }
@@ -270,13 +280,26 @@ export default function AIConfigPanel() {
                     <div className="flex items-center gap-2">
                       <AIIcon type={info.icon} className="h-4 w-4" />
                       <span>{info.displayName}</span>
+                      {info.requiresProxy && (
+                        <Badge variant="outline" className="text-xs text-orange-600">
+                          需代理
+                        </Badge>
+                      )}
                     </div>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             {providerInfo && (
-              <p className="text-sm text-muted-foreground">{providerInfo.description}</p>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">{providerInfo.description}</p>
+                {providerInfo.requiresProxy && (
+                  <div className="flex items-center gap-2 text-xs text-orange-600 bg-orange-50 dark:bg-orange-900/20 p-2 rounded">
+                    <Globe className="h-3 w-3" />
+                    <span>此AI服务需要配置代理才能正常访问</span>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
@@ -363,6 +386,126 @@ export default function AIConfigPanel() {
               </SelectContent>
             </Select>
           </div>
+
+          {/* 代理配置 */}
+          {providerInfo?.requiresProxy && (
+            <div className="space-y-4 pt-2 border-t">
+              <div className="flex items-center gap-2">
+                <Globe className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">代理配置</span>
+                <Badge variant="outline" className="text-xs text-orange-600">
+                  需要代理访问
+                </Badge>
+              </div>
+              
+              <div className="space-y-3">
+                {/* 代理开关 */}
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="use-proxy"
+                    checked={editingConfig.useProxy}
+                    onCheckedChange={(checked) => handleFieldChange('useProxy', checked)}
+                  />
+                  <Label htmlFor="use-proxy" className="text-sm">启用代理</Label>
+                </div>
+
+                {/* 代理配置字段 */}
+                {editingConfig.useProxy && (
+                  <div className="space-y-3 pl-4 border-l-2 border-muted">
+                    {/* 代理协议 */}
+                    <div className="space-y-2">
+                      <Label htmlFor="proxy-protocol" className="text-xs">代理协议</Label>
+                      <Select 
+                        value={editingConfig.proxyProtocol} 
+                        onValueChange={(value) => handleFieldChange('proxyProtocol', value)}
+                      >
+                        <SelectTrigger className="h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="http">HTTP</SelectItem>
+                          <SelectItem value="https">HTTPS</SelectItem>
+                          <SelectItem value="socks5">SOCKS5</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* 代理服务器地址和端口 */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="proxy-host" className="text-xs">代理服务器地址</Label>
+                        <Input
+                          id="proxy-host"
+                          value={editingConfig.proxyHost}
+                          onChange={(e) => handleFieldChange('proxyHost', e.target.value)}
+                          placeholder="127.0.0.1"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="proxy-port" className="text-xs">端口</Label>
+                        <Input
+                          id="proxy-port"
+                          type="number"
+                          min="1"
+                          max="65535"
+                          value={editingConfig.proxyPort}
+                          onChange={(e) => handleFieldChange('proxyPort', e.target.value)}
+                          placeholder="7890"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    {/* 代理认证（可选） */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label htmlFor="proxy-username" className="text-xs">用户名（可选）</Label>
+                        <Input
+                          id="proxy-username"
+                          value={editingConfig.proxyUsername}
+                          onChange={(e) => handleFieldChange('proxyUsername', e.target.value)}
+                          placeholder="代理用户名"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="proxy-password" className="text-xs">密码（可选）</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id="proxy-password"
+                            type={showProxyPassword[editingConfig.id] ? 'text' : 'password'}
+                            value={editingConfig.proxyPassword}
+                            onChange={(e) => handleFieldChange('proxyPassword', e.target.value)}
+                            placeholder="代理密码"
+                            className="flex-1 h-8 text-sm"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleToggleProxyPasswordVisibility(editingConfig.id)}
+                          >
+                            {showProxyPassword[editingConfig.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 代理配置提示 */}
+                    <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                      <p className="font-medium mb-1">代理配置说明：</p>
+                      <p>• 常见代理端口：HTTP代理(8080)、Clash(7890)、V2Ray(10808)</p>
+                      <p>• 如果代理需要认证，请填写用户名和密码</p>
+                      <p>• 确保代理服务器能够访问对应的AI服务</p>
+                      <p className="mt-1 text-orange-600">注意：浏览器环境下的代理通常需要系统级配置，请确保系统代理设置正确</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* 高级参数 */}
           <div className="grid grid-cols-2 gap-4">

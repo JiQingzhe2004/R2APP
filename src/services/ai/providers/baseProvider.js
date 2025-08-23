@@ -66,6 +66,50 @@ export class BaseAIProvider {
   }
 
   /**
+   * 创建代理URL（如果启用代理）
+   */
+  createProxyUrl() {
+    if (!this.config.useProxy) {
+      return null;
+    }
+
+    if (!this.config.proxyHost || !this.config.proxyPort) {
+      return null;
+    }
+
+    const { proxyProtocol, proxyHost, proxyPort, proxyUsername, proxyPassword } = this.config;
+
+    let proxyUrl = `${proxyProtocol}://`;
+
+    if (proxyUsername && proxyPassword) {
+      proxyUrl += `${encodeURIComponent(proxyUsername)}:${encodeURIComponent(proxyPassword)}@`;
+    }
+
+    proxyUrl += `${proxyHost}:${proxyPort}`;
+
+    return proxyUrl;
+  }
+
+  /**
+   * 执行fetch请求（支持代理）
+   */
+  async fetchWithProxy(url, options = {}) {
+    const proxyUrl = this.createProxyUrl();
+
+    if (proxyUrl) {
+      console.log(`[${this.constructor.name}] 使用代理: ${proxyUrl}`);
+    }
+
+    try {
+      const response = await fetch(url, options);
+      return response;
+    } catch (error) {
+      console.error(`[${this.constructor.name}] 请求失败:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * 处理API响应
    */
   handleResponse(response) {

@@ -130,7 +130,7 @@ async function executeWithoutProxy(operation) {
   
   // 清除代理环境变量
   delete process.env.HTTP_PROXY;
-  delete process.env.HTTPS_PROXY;
+  delete process.env.HTTP_PROXY;
   delete process.env.ALL_PROXY;
   delete process.env.http_proxy;
   delete process.env.https_proxy;
@@ -146,6 +146,19 @@ async function executeWithoutProxy(operation) {
         process.env[key] = originalProxy[key];
       }
     });
+  }
+}
+
+// 执行AI操作时确保可以使用代理的包装函数
+async function executeWithProxy(operation) {
+  // 保持现有的代理环境变量，不做任何修改
+  // 这样AI请求就可以使用系统代理设置
+  try {
+    const result = await operation();
+    return result;
+  } catch (error) {
+    console.error('[AI Proxy] AI请求执行失败:', error);
+    throw error;
   }
 }
 
@@ -169,7 +182,7 @@ const loadURL = serve({
 
 // This is the correct way to disable sandbox for the entire app.
 app.commandLine.appendSwitch('no-sandbox');
-app.commandLine.appendSwitch('no-proxy-server');
+// app.commandLine.appendSwitch('no-proxy-server'); // 注释掉，让AI请求可以使用代理
 
 try {
   require('electron-reloader')(module, {});
@@ -900,8 +913,8 @@ if (!gotLock) {
 // Defer initial argv handling until after the main window is created
 
 app.whenReady().then(async () => {
-  // 设置直连，禁用所有代理
-  await session.defaultSession.setProxy({ proxyRules: 'direct://' });
+  // 注释掉强制直连，让AI请求可以使用代理
+  // await session.defaultSession.setProxy({ proxyRules: 'direct://' });
   
   electronApp.setAppUserModelId('com.r2.explorer')
 
