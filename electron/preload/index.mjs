@@ -100,6 +100,14 @@ export const api = {
     return () => ipcRenderer.removeListener('notify', handler);
   },
 
+  // 系统通知 API
+  showNotification: (notificationData) => ipcRenderer.invoke('show-notification', notificationData),
+  onNotificationClicked: (callback) => {
+    const handler = (event, ...args) => callback(...args);
+    ipcRenderer.on('notification-clicked', handler);
+    return () => ipcRenderer.removeListener('notification-clicked', handler);
+  },
+
   // Preview window management
   openPreviewWindow: (fileInfo) => ipcRenderer.send('open-preview-window', fileInfo),
   resizePreviewWindow: (size) => ipcRenderer.send('resize-preview-window', size),

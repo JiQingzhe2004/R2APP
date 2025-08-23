@@ -38,7 +38,7 @@ import AIIcon from './AIIcon';
 export default function AIConfigPanel() {
   const [configManager] = useState(() => new AIConfigManager());
   const [configs, setConfigs] = useState([]);
-  const [editingConfig, setEditingConfig] = useState(null);
+  const [editingConfigId, setEditingConfigId] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
   const [showApiKey, setShowApiKey] = useState({});
   const [testingConfigs, setTestingConfigs] = useState({});
@@ -59,78 +59,92 @@ export default function AIConfigPanel() {
 
   // 开始添加配置
   const handleAddConfig = () => {
-    const newConfig = new AIConfig({
-      type: AIProviderType.ZHIPU
-    });
-    setEditingConfig(newConfig);
     setIsAdding(true);
+    setEditingConfigId(null);
   };
 
   // 开始编辑配置
   const handleEditConfig = (config) => {
-    const editConfig = { ...config };
-    
-    // 检查是否为自定义模型（不在预设模型列表中）
-    const providerInfo = AIProviderInfo[config.type];
-    if (providerInfo && !providerInfo.models.includes(config.model)) {
-      editConfig.model = 'custom';
-      editConfig.customModel = config.model;
-    }
-    
-    setEditingConfig(editConfig);
+    setEditingConfigId(config.id);
     setIsAdding(false);
   };
 
   // 取消编辑
   const handleCancelEdit = () => {
-    setEditingConfig(null);
+    setEditingConfigId(null);
     setIsAdding(false);
   };
 
   // 保存配置
-  const handleSaveConfig = () => {
+  const handleSaveConfig = (configData) => {
     try {
       // 如果提供商使用固定URL，自动设置正确的基础URL
-      if (editingConfig.type && AIProviderInfo[editingConfig.type]?.useFixedUrl) {
-        editingConfig.baseUrl = AIProviderInfo[editingConfig.type].defaultBaseUrl;
+      if (configData.type && AIProviderInfo[configData.type]?.useFixedUrl) {
+        configData.baseUrl = AIProviderInfo[configData.type].defaultBaseUrl;
       }
 
       // 处理自定义模型
-      if (editingConfig.model === 'custom') {
-        if (!editingConfig.customModel?.trim()) {
+      if (configData.model === 'custom') {
+        if (!configData.customModel?.trim()) {
           toast.error('请输入自定义模型名称');
           return;
         }
-        editingConfig.model = editingConfig.customModel.trim();
+        configData.model = configData.customModel.trim();
+        delete configData.customModel;
       }
-
-      // 创建AIConfig实例
-      const configInstance = new AIConfig(editingConfig);
 
       if (isAdding) {
-        configManager.addConfig(configInstance);
-        toast.success('配置添加成功');
+        configManager.addConfig(configData);
+        toast.success('配置添加成功！');
       } else {
-        configManager.updateConfig(configInstance.id, configInstance);
-        toast.success('配置更新成功');
+        configManager.updateConfig(configData.id, configData);
+        toast.success('配置更新成功！');
       }
+
       loadConfigs();
+      handleCancelEdit();
     } catch (error) {
       console.error('保存配置失败:', error);
-      toast.error(error.message);
+      toast.error(`保存失败: ${error.message}`);
     }
   };
 
   // 删除配置
   const handleDeleteConfig = (config) => {
+    if (config.isDefault) {
+      toast.error('不能删除默认配置');
+      return;
+    }
+
     if (confirm(`确定要删除配置 "${config.name}" 吗？`)) {
       try {
         configManager.removeConfig(config.id);
-        toast.success('配置删除成功');
         loadConfigs();
+        toast.success('配置删除成功！');
       } catch (error) {
-        toast.error(error.message);
+        console.error('删除配置失败:', error);
+        toast.error(`删除失败: ${error.message}`);
       }
+    }
+  };
+
+  // 复制配置
+  const handleCopyConfig = (config) => {
+    try {
+      const newConfig = new AIConfig({
+        ...config,
+        id: undefined,
+        name: `${config.name} (副本)`,
+        isDefault: false,
+        createdAt: new Date().toISOString()
+      });
+      
+      configManager.addConfig(newConfig);
+      loadConfigs();
+      toast.success('配置复制成功！');
+    } catch (error) {
+      console.error('复制配置失败:', error);
+      toast.error(`复制失败: ${error.message}`);
     }
   };
 
@@ -138,56 +152,25 @@ export default function AIConfigPanel() {
   const handleSetDefault = (config) => {
     try {
       configManager.setDefaultConfig(config.id);
-      toast.success('默认配置设置成功');
       loadConfigs();
+      toast.success(`已将 "${config.name}" 设为默认配置`);
     } catch (error) {
-      toast.error(error.message);
+      console.error('设置默认配置失败:', error);
+      toast.error(`设置失败: ${error.message}`);
     }
   };
 
-  // 复制配置
-  const handleCopyConfig = (config) => {
-    const copiedConfig = new AIConfig({
-      ...config.toObject(),
-      name: `${config.name} (副本)`,
-      isDefault: false
-    });
-    copiedConfig.id = copiedConfig.generateId();
-    
-    try {
-      configManager.addConfig(copiedConfig);
-      toast.success('配置复制成功');
-      loadConfigs();
-    } catch (error) {
-      toast.error(error.message);
-    }
-  };
-
-  // 切换配置启用状态
+  // 切换启用状态
   const handleToggleEnabled = (config) => {
     try {
-      configManager.setConfigEnabled(config.id, !config.enabled);
-      toast.success(config.enabled ? '配置已禁用' : '配置已启用');
+      const updatedConfig = { ...config, enabled: !config.enabled };
+      configManager.updateConfig(config.id, updatedConfig);
       loadConfigs();
+      toast.success(`配置已${updatedConfig.enabled ? '启用' : '禁用'}`);
     } catch (error) {
-      toast.error(error.message);
+      console.error('切换启用状态失败:', error);
+      toast.error(`操作失败: ${error.message}`);
     }
-  };
-
-  // 切换API密钥显示
-  const handleToggleApiKeyVisibility = (configId) => {
-    setShowApiKey(prev => ({
-      ...prev,
-      [configId]: !prev[configId]
-    }));
-  };
-
-  // 切换代理密码显示
-  const handleToggleProxyPasswordVisibility = (configId) => {
-    setShowProxyPassword(prev => ({
-      ...prev,
-      [configId]: !prev[configId]
-    }));
   };
 
   // 测试连接
@@ -201,9 +184,26 @@ export default function AIConfigPanel() {
       setTestResults(prev => ({ ...prev, [config.id]: result }));
 
       if (result.success) {
-        toast.success('连接测试成功！');
+        // 使用主进程IPC发送系统通知
+        if (window.api && window.api.showNotification) {
+          window.api.showNotification({
+            title: 'AI配置测试成功',
+            body: '连接测试成功！',
+            icon: '/src/assets/icon.ico',
+            tag: 'ai-test-success',
+            silent: false
+          });
+        }
       } else {
-        toast.error(`连接测试失败: ${result.message}`);
+        if (window.api && window.api.showNotification) {
+          window.api.showNotification({
+            title: 'AI配置测试失败',
+            body: `连接测试失败: ${result.message}`,
+            icon: '/src/assets/icon.ico',
+            tag: 'ai-test-failure',
+            silent: false
+          });
+        }
       }
     } catch (error) {
       console.error('测试连接失败:', error);
@@ -213,7 +213,15 @@ export default function AIConfigPanel() {
         details: error.toString()
       };
       setTestResults(prev => ({ ...prev, [config.id]: errorResult }));
-      toast.error(`测试连接失败: ${error.message}`);
+      if (window.api && window.api.showNotification) {
+        window.api.showNotification({
+          title: 'AI配置测试失败',
+          body: `测试连接失败: ${error.message}`,
+          icon: '/src/assets/icon.ico',
+          tag: 'ai-test-error',
+          silent: false
+        });
+      }
     } finally {
       setTestingConfigs(prev => ({ ...prev, [config.id]: false }));
     }
@@ -229,9 +237,25 @@ export default function AIConfigPanel() {
       setTestResults(prev => ({ ...prev, [config.id]: result }));
       
       if (result.success) {
-        toast.success(result.message);
+        if (window.api && window.api.showNotification) {
+          window.api.showNotification({
+            title: 'AI配置测试成功',
+            body: `测试消息成功: ${result.message}`,
+            icon: '/src/assets/icon.ico',
+            tag: 'ai-test-success',
+            silent: false
+          });
+        }
       } else {
-        toast.error(result.error);
+        if (window.api && window.api.showNotification) {
+          window.api.showNotification({
+            title: 'AI配置测试失败',
+            body: `测试消息失败: ${result.error}`,
+            icon: '/src/assets/icon.ico',
+            tag: 'ai-test-failure',
+            silent: false
+          });
+        }
       }
     } catch (error) {
       const errorResult = {
@@ -240,7 +264,15 @@ export default function AIConfigPanel() {
         details: error.stack
       };
       setTestResults(prev => ({ ...prev, [config.id]: errorResult }));
-      toast.error(`测试失败: ${error.message}`);
+      if (window.api && window.api.showNotification) {
+        window.api.showNotification({
+          title: 'AI配置测试失败',
+          body: `测试失败: ${error.message}`,
+          icon: '/src/assets/icon.ico',
+          tag: 'ai-test-error',
+          silent: false
+        });
+      }
     } finally {
       setTestingConfigs(prev => ({ ...prev, [config.id]: false }));
     }
@@ -256,145 +288,191 @@ export default function AIConfigPanel() {
 
   // 获取配置状态
   const getConfigStatus = (config) => {
-    return AITestService.getConfigStatus(config);
-  };
+    const providerInfo = AIProviderInfo[config.type];
+    const requiredFields = ['name', 'apiKey', 'model'];
+    
+    // 如果提供商不使用固定URL，则baseUrl也是必需字段
+    if (!providerInfo?.useFixedUrl) {
+      requiredFields.push('baseUrl');
+    }
+    
+    const missingFields = requiredFields.filter(field => !config[field] || !config[field].trim());
+    
+    if (missingFields.length > 0) {
+      return {
+        valid: false,
+        status: 'incomplete',
+        message: `缺少必要字段: ${missingFields.join(', ')}`,
+        missingFields
+      };
+    }
 
-  // 处理表单字段变化
-  const handleFieldChange = (field, value) => {
-    setEditingConfig(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    if (!config.enabled) {
+      return {
+        valid: false,
+        status: 'disabled',
+        message: '配置已禁用',
+        missingFields: []
+      };
+    }
+
+    return {
+      valid: true,
+      status: 'ready',
+      message: '配置就绪',
+      missingFields: []
+    };
   };
 
   // 渲染配置表单
-  const renderConfigForm = () => {
-    if (!editingConfig) return null;
-
+  const renderConfigForm = (config = null, isEdit = false) => {
+    const editingConfig = config || new AIConfig({ type: AIProviderType.ZHIPU });
     const providerInfo = AIProviderInfo[editingConfig.type];
 
     return (
-      <Card className="mb-4">
+      <Card className="border-2 border-primary/20 bg-primary/5">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            {isAdding ? '添加AI配置' : '编辑AI配置'}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* 提供商类型选择 */}
-          <div className="space-y-2">
-            <Label htmlFor="provider-type">AI提供商</Label>
-            <Select 
-              value={editingConfig.type} 
-              onValueChange={(value) => handleFieldChange('type', value)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(AIProviderInfo).map(([type, info]) => (
-                  <SelectItem key={type} value={type}>
-                    <div className="flex items-center gap-2">
-                      <AIIcon type={info.icon} className="h-4 w-4" />
-                      <span>{info.displayName}</span>
-                      {info.requiresProxy && (
-                        <Badge variant="outline" className="text-xs text-orange-600">
-                          国内需代理
-                        </Badge>
-                      )}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {providerInfo && (
-              <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">{providerInfo.description}</p>
-                {providerInfo.requiresProxy && (
-                  <div className="flex items-center gap-2 text-xs text-orange-600 bg-orange-50 dark:bg-orange-900/20 p-2 rounded">
-                    <Globe className="h-3 w-3" />
-                    <span>此AI服务需要配置代理才能正常访问</span>
-                  </div>
-                )}
-              </div>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              {isEdit ? `编辑配置: ${editingConfig.name}` : '添加新配置'}
+            </CardTitle>
+            {(isEdit || isAdding) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCancelEdit}
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
             )}
           </div>
-
-          {/* 配置名称 */}
-          <div className="space-y-2">
-            <Label htmlFor="config-name">配置名称</Label>
-            <Input
-              id="config-name"
-              value={editingConfig.name}
-              onChange={(e) => handleFieldChange('name', e.target.value)}
-              placeholder="输入配置名称"
-            />
-          </div>
-
-          {/* API密钥 */}
-          <div className="space-y-2">
-            <Label htmlFor="api-key">API密钥</Label>
-            <div className="flex gap-2">
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* 基础配置 */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">配置名称</Label>
               <Input
-                id="api-key"
-                type={showApiKey[editingConfig.id] ? 'text' : 'password'}
-                value={editingConfig.apiKey}
-                onChange={(e) => handleFieldChange('apiKey', e.target.value)}
-                placeholder="输入API密钥"
-                className="flex-1"
+                id="name"
+                value={editingConfig.name || ''}
+                onChange={(e) => {
+                  editingConfig.name = e.target.value;
+                  if (isEdit) {
+                    const updatedConfigs = configs.map(c => 
+                      c.id === editingConfig.id ? { ...c, name: e.target.value } : c
+                    );
+                    setConfigs(updatedConfigs);
+                  }
+                }}
+                placeholder="我的AI配置"
               />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => handleToggleApiKeyVisibility(editingConfig.id)}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="type">AI提供商</Label>
+              <Select 
+                value={editingConfig.type} 
+                onValueChange={(value) => {
+                  editingConfig.type = value;
+                  editingConfig.model = AIProviderInfo[value]?.defaultModel || '';
+                  if (isEdit) {
+                    const updatedConfigs = configs.map(c => 
+                      c.id === editingConfig.id ? { ...c, type: value, model: AIProviderInfo[value]?.defaultModel || '' } : c
+                    );
+                    setConfigs(updatedConfigs);
+                  }
+                }}
               >
-                {showApiKey[editingConfig.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(AIProviderInfo).map(([type, info]) => (
+                    <SelectItem key={type} value={type}>
+                      {info.displayName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
-          {/* 基础URL */}
-          <div className="space-y-2">
-            <Label htmlFor="base-url">基础URL</Label>
-            {providerInfo?.useFixedUrl ? (
-              <div className="flex items-center gap-2">
+          {/* API配置 */}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="api-key">API密钥</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="api-key"
+                  type={showApiKey[editingConfig.id] ? 'text' : 'password'}
+                  value={editingConfig.apiKey || ''}
+                  onChange={(e) => {
+                    editingConfig.apiKey = e.target.value;
+                    if (isEdit) {
+                      const updatedConfigs = configs.map(c => 
+                        c.id === editingConfig.id ? { ...c, apiKey: e.target.value } : c
+                      );
+                      setConfigs(updatedConfigs);
+                    }
+                  }}
+                  placeholder="输入您的API密钥"
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => {
+                    setShowApiKey(prev => ({
+                      ...prev,
+                      [editingConfig.id]: !prev[editingConfig.id]
+                    }));
+                  }}
+                >
+                  {showApiKey[editingConfig.id] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+
+            {/* 基础URL（仅当提供商不使用固定URL时显示） */}
+            {!providerInfo?.useFixedUrl && (
+              <div className="space-y-2">
+                <Label htmlFor="base-url">基础URL</Label>
                 <Input
                   id="base-url"
-                  value={providerInfo.defaultBaseUrl}
-                  disabled
-                  className="flex-1 bg-muted"
+                  value={editingConfig.baseUrl || ''}
+                  onChange={(e) => {
+                    editingConfig.baseUrl = e.target.value;
+                    if (isEdit) {
+                      const updatedConfigs = configs.map(c => 
+                        c.id === editingConfig.id ? { ...c, baseUrl: e.target.value } : c
+                      );
+                      setConfigs(updatedConfigs);
+                    }
+                  }}
+                  placeholder="https://api.example.com"
                 />
-                <Badge variant="outline" className="text-xs">
-                  固定URL
-                </Badge>
               </div>
-            ) : (
-              <Input
-                id="base-url"
-                value={editingConfig.baseUrl}
-                onChange={(e) => handleFieldChange('baseUrl', e.target.value)}
-                placeholder="输入API基础URL"
-              />
             )}
-            {providerInfo?.useFixedUrl && (
-              <p className="text-xs text-muted-foreground">
-                此提供商使用固定的API端点，无需修改
-              </p>
-            )}
-          </div>
 
-          {/* 模型选择 */}
-          <div className="space-y-2">
-            <Label htmlFor="model">模型</Label>
+            {/* 模型选择 */}
             <div className="space-y-2">
+              <Label htmlFor="model">模型</Label>
               <Select 
                 value={editingConfig.model} 
-                onValueChange={(value) => handleFieldChange('model', value)}
+                onValueChange={(value) => {
+                  editingConfig.model = value;
+                  if (isEdit) {
+                    const updatedConfigs = configs.map(c => 
+                      c.id === editingConfig.id ? { ...c, model: value } : c
+                    );
+                    setConfigs(updatedConfigs);
+                  }
+                }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="选择模型" />
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {providerInfo?.models.map(model => (
@@ -410,7 +488,15 @@ export default function AIConfigPanel() {
               {editingConfig.model === 'custom' && (
                 <Input
                   value={editingConfig.customModel || ''}
-                  onChange={(e) => handleFieldChange('customModel', e.target.value)}
+                  onChange={(e) => {
+                    editingConfig.customModel = e.target.value;
+                    if (isEdit) {
+                      const updatedConfigs = configs.map(c => 
+                        c.id === editingConfig.id ? { ...c, customModel: e.target.value } : c
+                      );
+                      setConfigs(updatedConfigs);
+                    }
+                  }}
                   placeholder="输入自定义模型名称"
                   className="mt-2"
                 />
@@ -435,7 +521,15 @@ export default function AIConfigPanel() {
                   <Switch
                     id="use-proxy"
                     checked={editingConfig.useProxy}
-                    onCheckedChange={(checked) => handleFieldChange('useProxy', checked)}
+                    onCheckedChange={(checked) => {
+                      editingConfig.useProxy = checked;
+                      if (isEdit) {
+                        const updatedConfigs = configs.map(c => 
+                          c.id === editingConfig.id ? { ...c, useProxy: checked } : c
+                        );
+                        setConfigs(updatedConfigs);
+                      }
+                    }}
                   />
                   <Label htmlFor="use-proxy" className="text-sm">启用代理</Label>
                 </div>
@@ -448,7 +542,15 @@ export default function AIConfigPanel() {
                       <Label htmlFor="proxy-protocol" className="text-xs">代理协议</Label>
                       <Select 
                         value={editingConfig.proxyProtocol} 
-                        onValueChange={(value) => handleFieldChange('proxyProtocol', value)}
+                        onValueChange={(value) => {
+                          editingConfig.proxyProtocol = value;
+                          if (isEdit) {
+                            const updatedConfigs = configs.map(c => 
+                              c.id === editingConfig.id ? { ...c, proxyProtocol: value } : c
+                            );
+                            setConfigs(updatedConfigs);
+                          }
+                        }}
                       >
                         <SelectTrigger className="h-8">
                           <SelectValue />
@@ -468,7 +570,15 @@ export default function AIConfigPanel() {
                         <Input
                           id="proxy-host"
                           value={editingConfig.proxyHost}
-                          onChange={(e) => handleFieldChange('proxyHost', e.target.value)}
+                          onChange={(e) => {
+                            editingConfig.proxyHost = e.target.value;
+                            if (isEdit) {
+                              const updatedConfigs = configs.map(c => 
+                                c.id === editingConfig.id ? { ...c, proxyHost: e.target.value } : c
+                              );
+                              setConfigs(updatedConfigs);
+                            }
+                          }}
                           placeholder="127.0.0.1"
                           className="h-8 text-sm"
                         />
@@ -481,7 +591,15 @@ export default function AIConfigPanel() {
                           min="1"
                           max="65535"
                           value={editingConfig.proxyPort}
-                          onChange={(e) => handleFieldChange('proxyPort', e.target.value)}
+                          onChange={(e) => {
+                            editingConfig.proxyPort = e.target.value;
+                            if (isEdit) {
+                              const updatedConfigs = configs.map(c => 
+                                c.id === editingConfig.id ? { ...c, proxyPort: e.target.value } : c
+                              );
+                              setConfigs(updatedConfigs);
+                            }
+                          }}
                           placeholder="7890"
                           className="h-8 text-sm"
                         />
@@ -495,7 +613,15 @@ export default function AIConfigPanel() {
                         <Input
                           id="proxy-username"
                           value={editingConfig.proxyUsername}
-                          onChange={(e) => handleFieldChange('proxyUsername', e.target.value)}
+                          onChange={(e) => {
+                            editingConfig.proxyUsername = e.target.value;
+                            if (isEdit) {
+                              const updatedConfigs = configs.map(c => 
+                                c.id === editingConfig.id ? { ...c, proxyUsername: e.target.value } : c
+                              );
+                              setConfigs(updatedConfigs);
+                            }
+                          }}
                           placeholder="代理用户名"
                           className="h-8 text-sm"
                         />
@@ -507,7 +633,15 @@ export default function AIConfigPanel() {
                             id="proxy-password"
                             type={showProxyPassword[editingConfig.id] ? 'text' : 'password'}
                             value={editingConfig.proxyPassword}
-                            onChange={(e) => handleFieldChange('proxyPassword', e.target.value)}
+                            onChange={(e) => {
+                              editingConfig.proxyPassword = e.target.value;
+                              if (isEdit) {
+                                const updatedConfigs = configs.map(c => 
+                                  c.id === editingConfig.id ? { ...c, proxyPassword: e.target.value } : c
+                                );
+                                setConfigs(updatedConfigs);
+                              }
+                            }}
                             placeholder="代理密码"
                             className="flex-1 h-8 text-sm"
                           />
@@ -516,7 +650,12 @@ export default function AIConfigPanel() {
                             variant="outline"
                             size="icon"
                             className="h-8 w-8"
-                            onClick={() => handleToggleProxyPasswordVisibility(editingConfig.id)}
+                            onClick={() => {
+                              setShowProxyPassword(prev => ({
+                                ...prev,
+                                [editingConfig.id]: !prev[editingConfig.id]
+                              }));
+                            }}
                           >
                             {showProxyPassword[editingConfig.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
                           </Button>
@@ -549,7 +688,15 @@ export default function AIConfigPanel() {
                 max="2"
                 step="0.1"
                 value={editingConfig.temperature}
-                onChange={(e) => handleFieldChange('temperature', parseFloat(e.target.value))}
+                onChange={(e) => {
+                  editingConfig.temperature = parseFloat(e.target.value);
+                  if (isEdit) {
+                    const updatedConfigs = configs.map(c => 
+                      c.id === editingConfig.id ? { ...c, temperature: parseFloat(e.target.value) } : c
+                    );
+                    setConfigs(updatedConfigs);
+                  }
+                }}
                 placeholder="0.7"
               />
             </div>
@@ -561,7 +708,15 @@ export default function AIConfigPanel() {
                 min="1"
                 max="4000"
                 value={editingConfig.maxTokens}
-                onChange={(e) => handleFieldChange('maxTokens', parseInt(e.target.value))}
+                onChange={(e) => {
+                  editingConfig.maxTokens = parseInt(e.target.value);
+                  if (isEdit) {
+                    const updatedConfigs = configs.map(c => 
+                      c.id === editingConfig.id ? { ...c, maxTokens: parseInt(e.target.value) } : c
+                    );
+                    setConfigs(updatedConfigs);
+                  }
+                }}
                 placeholder="1000"
               />
             </div>
@@ -569,7 +724,7 @@ export default function AIConfigPanel() {
 
           {/* 操作按钮 */}
           <div className="flex gap-2 pt-4">
-            <Button onClick={handleSaveConfig} className="flex-1">
+            <Button onClick={() => handleSaveConfig(editingConfig)} className="flex-1">
               <Check className="h-4 w-4 mr-2" />
               保存配置
             </Button>
@@ -594,7 +749,7 @@ export default function AIConfigPanel() {
                   <div className={`flex items-center gap-2 p-2 rounded-md text-sm ${
                     status.valid 
                       ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400' 
-                      : 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400'
+                      : 'bg-yellow-50 text-yellow-700 dark:bg-green-900/20 dark:text-yellow-400'
                   }`}>
                     {status.valid ? (
                       <CheckCircle className="h-4 w-4" />
@@ -646,32 +801,29 @@ export default function AIConfigPanel() {
 
             {/* 测试结果 */}
             {testResults[editingConfig.id] && (
-              <div className="mt-3 p-3 rounded-md border bg-muted/50">
-                <div className="flex items-center gap-2 mb-2">
+              <div className="mt-3 p-2 rounded-md border bg-muted/30">
+                <div className="flex items-center gap-2 mb-1">
                   {testResults[editingConfig.id].success ? (
-                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <CheckCircle className="h-3 w-3 text-green-600" />
                   ) : (
-                    <XCircle className="h-4 w-4 text-red-600" />
+                    <XCircle className="h-3 w-3 text-red-600" />
                   )}
-                  <span className="text-sm font-medium">
+                  <span className="text-xs font-medium">
                     {testResults[editingConfig.id].success ? '测试成功' : '测试失败'}
                   </span>
                 </div>
                 
-                <p className="text-sm text-muted-foreground mb-2">
-                  {testResults[editingConfig.id].message || testResults[editingConfig.id].error}
+                <p className="text-xs text-muted-foreground">
+                      {testResults[editingConfig.id].message || testResults[editingConfig.id].error}
                 </p>
 
                 {testResults[editingConfig.id].data && (
-                  <div className="text-xs text-muted-foreground">
+                  <div className="text-xs text-muted-foreground mt-1">
                     {testResults[editingConfig.id].data.models && (
                       <div>可用模型: {testResults[editingConfig.id].data.models.join(', ')}</div>
                     )}
                     {testResults[editingConfig.id].data.response && (
                       <div>响应: {testResults[editingConfig.id].data.response}</div>
-                    )}
-                    {testResults[editingConfig.id].data.usage && (
-                      <div>Token使用: {testResults[editingConfig.id].data.usage.total_tokens || 'N/A'}</div>
                     )}
                   </div>
                 )}
@@ -689,12 +841,8 @@ export default function AIConfigPanel() {
       return (
         <div className="text-center py-12 text-muted-foreground">
           <Settings className="h-12 w-12 mx-auto mb-4 opacity-50" />
-          <h3 className="text-lg font-medium mb-2">尚未配置AI服务</h3>
-          <p className="mb-6">请添加一个AI配置以开始使用</p>
-          <Button onClick={handleAddConfig}>
-            <Plus className="h-4 w-4 mr-2" />
-            添加AI配置
-          </Button>
+          <p className="text-lg font-medium">暂无AI配置</p>
+          <p className="text-sm">点击上方"添加AI配置"按钮开始配置</p>
         </div>
       );
     }
@@ -703,130 +851,152 @@ export default function AIConfigPanel() {
       <div className="space-y-4">
         {configs.map(config => {
           const providerInfo = AIProviderInfo[config.type];
+          const isEditing = editingConfigId === config.id;
+          
           return (
-            <Card key={config.id} className={`transition-all ${config.isDefault ? 'ring-2 ring-primary' : ''}`}>
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2">
-                      <AIIcon type={providerInfo?.icon} className="h-6 w-6" />
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-semibold">{config.name}</h3>
-                          {config.isDefault && (
-                            <Badge variant="default" className="text-xs">
-                              <Star className="h-3 w-3 mr-1" />
-                              默认
+            <div key={config.id}>
+              <Card className={`transition-all ${config.isDefault ? 'ring-2 ring-primary' : ''}`}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <AIIcon type={providerInfo?.icon} className="h-6 w-6" />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold">{config.name}</h3>
+                            {config.isDefault && (
+                              <Badge variant="default" className="text-xs">
+                                <Star className="h-3 w-3 mr-1" />
+                                默认
+                              </Badge>
+                            )}
+                            <Badge variant="outline" className="text-xs">
+                              {providerInfo?.displayName}
                             </Badge>
-                          )}
-                          <Badge variant="outline" className="text-xs">
-                            {providerInfo?.displayName}
-                          </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            模型: {config.model} | URL: {providerInfo?.useFixedUrl ? '固定URL' : config.baseUrl}
+                          </p>
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          模型: {config.model} | URL: {providerInfo?.useFixedUrl ? '固定URL' : config.baseUrl}
-                        </p>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleEditConfig(config)}
-                    >
-                      <Edit className="h-4 w-4 mr-2" />
-                      编辑
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleTestConnection(config)}
-                      disabled={testingConfigs[config.id]}
-                    >
-                      <Wifi className="h-4 w-4 mr-2" />
-                      {testingConfigs[config.id] ? '测试中...' : '测试'}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleCopyConfig(config)}
-                    >
-                      <Copy className="h-4 w-4 mr-2" />
-                      复制
-                    </Button>
-                    {!config.isDefault && (
+                    <div className="flex gap-2">
+                      {editingConfigId === config.id ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleCancelEdit()}
+                        >
+                          <X className="h-4 w-4 mr-2" />
+                          收起
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleEditConfig(config)}
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          编辑
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleSetDefault(config)}
+                        onClick={() => handleTestConnection(config)}
+                        disabled={testingConfigs[config.id]}
                       >
-                        <Star className="h-4 w-4 mr-2" />
-                        设为默认
+                        <Wifi className="h-4 w-4 mr-2" />
+                        {testingConfigs[config.id] ? '测试中...' : '测试'}
                       </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => handleDeleteConfig(config)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              
-              <CardContent className="pt-0">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id={`enabled-${config.id}`}
-                      checked={config.enabled}
-                      onCheckedChange={() => handleToggleEnabled(config)}
-                    />
-                    <Label htmlFor={`enabled-${config.id}`}>
-                      {config.enabled ? '已启用' : '已禁用'}
-                    </Label>
-                  </div>
-                  
-                  <div className="text-xs text-muted-foreground">
-                    创建时间: {new Date(config.createdAt).toLocaleDateString()}
-                  </div>
-                </div>
-
-                {/* 测试结果 */}
-                {testResults[config.id] && (
-                  <div className="mt-3 p-2 rounded-md border bg-muted/30">
-                    <div className="flex items-center gap-2 mb-1">
-                      {testResults[config.id].success ? (
-                        <CheckCircle className="h-3 w-3 text-green-600" />
-                      ) : (
-                        <XCircle className="h-3 w-3 text-red-600" />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleCopyConfig(config)}
+                      >
+                        <Copy className="h-4 w-4 mr-2" />
+                        复制
+                      </Button>
+                      {!config.isDefault && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleSetDefault(config)}
+                        >
+                          <Star className="h-4 w-4 mr-2" />
+                          设为默认
+                        </Button>
                       )}
-                      <span className="text-xs font-medium">
-                        {testResults[config.id].success ? '测试成功' : '测试失败'}
-                      </span>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleDeleteConfig(config)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                
+                <CardContent className="pt-0">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id={`enabled-${config.id}`}
+                        checked={config.enabled}
+                        onCheckedChange={() => handleToggleEnabled(config)}
+                      />
+                      <Label htmlFor={`enabled-${config.id}`}>
+                        {config.enabled ? '已启用' : '已禁用'}
+                      </Label>
                     </div>
                     
-                    <p className="text-xs text-muted-foreground">
-                      {testResults[config.id].message || testResults[config.id].error}
-                    </p>
-
-                    {testResults[config.id].data && (
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {testResults[config.id].data.models && (
-                          <div>可用模型: {testResults[config.id].data.models.join(', ')}</div>
-                        )}
-                        {testResults[config.id].data.response && (
-                          <div>响应: {testResults[config.id].data.response}</div>
-                        )}
-                      </div>
-                    )}
+                    <div className="text-xs text-muted-foreground">
+                      创建时间: {new Date(config.createdAt).toLocaleDateString()}
+                    </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+
+                  {/* 测试结果 */}
+                  {testResults[config.id] && (
+                    <div className="mt-3 p-2 rounded-md border bg-muted/30">
+                      <div className="flex items-center gap-2 mb-1">
+                        {testResults[config.id].success ? (
+                          <CheckCircle className="h-3 w-3 text-green-600" />
+                        ) : (
+                          <XCircle className="h-3 w-3 text-red-600" />
+                        )}
+                        <span className="text-xs font-medium">
+                          {testResults[config.id].success ? '测试成功' : '测试失败'}
+                        </span>
+                      </div>
+                      
+                      <p className="text-xs text-muted-foreground">
+                        {testResults[config.id].message || testResults[config.id].error}
+                      </p>
+
+                      {testResults[config.id].data && (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {testResults[config.id].data.models && (
+                            <div>可用模型: {testResults[config.id].data.models.join(', ')}</div>
+                          )}
+                          {testResults[config.id].data.response && (
+                            <div>响应: {testResults[config.id].data.response}</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              
+              {/* 编辑表单显示在对应配置下方 */}
+              {isEditing && (
+                <div className="mt-4">
+                  {renderConfigForm(config, true)}
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
@@ -849,8 +1019,12 @@ export default function AIConfigPanel() {
         </Button>
       </div>
 
-      {/* 配置表单 */}
-      {renderConfigForm()}
+      {/* 添加配置表单（仅在添加时显示在顶部） */}
+      {isAdding && (
+        <div>
+          {renderConfigForm()}
+        </div>
+      )}
 
       {/* 配置列表 */}
       {renderConfigList()}

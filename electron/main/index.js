@@ -1140,6 +1140,52 @@ ipcMain.handle('quit-and-install-update', () => {
   autoUpdater.quitAndInstall();
 });
 
+// 发送系统通知
+ipcMain.handle('show-notification', (event, notificationData) => {
+  try {
+    const { title, body, icon, requireInteraction = false, tag, silent = false } = notificationData;
+    
+    // 创建通知选项
+    const options = {
+      body: body || '',
+      icon: icon || path.join(__dirname, '../resources/icon.ico'),
+      requireInteraction: requireInteraction,
+      silent: silent,
+      tag: tag || 'default'
+    };
+    
+    // 发送通知到渲染进程
+    event.sender.send('notification-clicked', { title, body, tag });
+    
+    // 如果需要在主进程也显示通知（可选）
+    if (process.platform === 'win32') {
+      // Windows 平台使用 toast 通知
+      const { Notification } = require('electron');
+      const notification = new Notification({
+        title: title,
+        body: body,
+        icon: options.icon,
+        silent: options.silent
+      });
+      
+      notification.show();
+      
+      // 监听通知点击
+      notification.on('click', () => {
+        event.sender.send('notification-clicked', { title, body, tag });
+      });
+      
+      return { success: true, message: '通知已发送' };
+    } else {
+      // 其他平台直接返回成功
+      return { success: true, message: '通知已发送' };
+    }
+  } catch (error) {
+    console.error('发送通知失败:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 // IPC handlers
 function getActiveProfile() {
   const profiles = store.get('profiles', []);

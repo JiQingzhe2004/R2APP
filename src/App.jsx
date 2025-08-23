@@ -35,10 +35,43 @@ function AppUpdateDialog() {
   const { updateInfo, isUpdateModalOpen, setIsUpdateModalOpen } = useUpdate();
   const navigate = useNavigate();
 
+  // 当更新对话框打开时，同时显示系统通知
+  useEffect(() => {
+    if (isUpdateModalOpen && updateInfo) {
+      // 使用主进程发送系统通知
+      if (window.api && window.api.showNotification) {
+        window.api.showNotification({
+          title: '发现新版本',
+          body: `版本 ${updateInfo.version} 可用，点击前往下载`,
+          icon: '/src/assets/icon.ico',
+          requireInteraction: true,
+          tag: 'update-available',
+          silent: false
+        });
+      }
+    }
+  }, [isUpdateModalOpen, updateInfo]);
+
+  // 监听通知点击事件
+  useEffect(() => {
+    if (window.api && window.api.onNotificationClicked) {
+      const removeListener = window.api.onNotificationClicked((data) => {
+        if (data.tag === 'update-available') {
+          // 关闭对话框
+          setIsUpdateModalOpen(false);
+          // 跳转到更新页面
+          navigate('/update');
+        }
+      });
+      
+      return removeListener;
+    }
+  }, [setIsUpdateModalOpen, navigate]);
+
   const handleGoToUpdate = () => {
     navigate('/update');
     setIsUpdateModalOpen(false);
-  }
+  };
 
   return (
     <AlertDialog open={isUpdateModalOpen} onOpenChange={setIsUpdateModalOpen}>
