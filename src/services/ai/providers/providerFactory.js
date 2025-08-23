@@ -2,6 +2,7 @@ import { OpenAIProvider } from './openaiProvider';
 import { DeepSeekProvider } from './deepseekProvider';
 import { DoubaoProvider } from './doubaoProvider';
 import { ZhipuProvider } from './zhipuProvider';
+import { GeminiProvider } from './geminiProvider';
 import { AIProviderType } from '../types';
 
 /**
@@ -24,6 +25,8 @@ export class AIProviderFactory {
         return new DoubaoProvider(config);
       case AIProviderType.ZHIPU:
         return new ZhipuProvider(config);
+      case AIProviderType.GOOGLE:
+        return new GeminiProvider(config);
       // 可以继续添加其他提供商
       default:
         throw new Error(`不支持的AI提供商类型: ${config.type}`);
@@ -39,7 +42,8 @@ export class AIProviderFactory {
       AIProviderType.OPENAI,
       AIProviderType.DEEPSEEK,
       AIProviderType.DOUBAO,
-      AIProviderType.ZHIPU
+      AIProviderType.ZHIPU,
+      AIProviderType.GOOGLE
     ];
   }
 

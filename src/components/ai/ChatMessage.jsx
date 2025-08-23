@@ -61,16 +61,50 @@ export default function ChatMessage({ message, onRegenerate }) {
     // 处理流式输出，添加圆点等待效果
     if (message.isStreaming) {
       return (
-        <div className="inline">
-          <span className="whitespace-pre-wrap">{message.content}</span>
-          <span className="inline-block w-2 h-2 bg-current rounded-full dot-pulse ml-1"></span>
+        <div className="space-y-3">
+          {/* 思考过程（如果存在） */}
+          {message.thinking && (
+            <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">思考过程</span>
+              </div>
+              <div className="text-sm text-blue-600 dark:text-blue-400 whitespace-pre-wrap">
+                {message.thinking}
+              </div>
+            </div>
+          )}
+          
+          {/* 主要回答内容 */}
+          <div className="inline">
+            <span className="whitespace-pre-wrap">{message.content}</span>
+            <span className="inline-block w-2 h-2 bg-current rounded-full dot-pulse ml-1"></span>
+          </div>
         </div>
       );
     }
 
     // AI消息使用Markdown渲染，用户消息使用普通文本
     if (!isUser) {
-      return <MarkdownRenderer content={message.content} />;
+      return (
+        <div className="space-y-3">
+          {/* 思考过程（如果存在） */}
+          {message.thinking && (
+            <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">思考过程</span>
+              </div>
+              <div className="text-sm text-blue-600 dark:text-blue-400 whitespace-pre-wrap">
+                {message.thinking}
+              </div>
+            </div>
+          )}
+          
+          {/* 主要回答内容 */}
+          <MarkdownRenderer content={message.content} />
+        </div>
+      );
     }
 
     // 用户消息使用普通文本渲染

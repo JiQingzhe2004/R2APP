@@ -104,6 +104,7 @@ export default function AIChatPage() {
       id: aiMessageId,
       role: 'assistant',
       content: '',
+      thinking: '', // 添加思考内容字段
       timestamp: new Date().toISOString(),
       config: selectedConfig,
       isStreaming: true
@@ -131,10 +132,20 @@ export default function AIChatPage() {
           
           // 如果是流式响应，逐字更新内容
           let fullContent = '';
+          let thinkingContent = '';
+          
           for await (const chunk of response.data.stream) {
-            if (chunk.content) {
+            if (chunk.type === 'thinking') {
+              // 处理思考内容
+              thinkingContent += chunk.content;
+              setMessages(prev => prev.map(msg => 
+                msg.id === aiMessageId 
+                  ? { ...msg, thinking: thinkingContent }
+                  : msg
+              ));
+            } else if (chunk.content) {
+              // 处理正常内容
               fullContent += chunk.content;
-              // 更新消息内容
               setMessages(prev => prev.map(msg => 
                 msg.id === aiMessageId 
                   ? { ...msg, content: fullContent }
@@ -149,6 +160,7 @@ export default function AIChatPage() {
               ? { 
                   ...msg, 
                   content: fullContent,
+                  thinking: thinkingContent,
                   isStreaming: false,
                   usage: response.data.usage
                 }
@@ -161,6 +173,7 @@ export default function AIChatPage() {
               ? { 
                   ...msg, 
                   content: response.data.response,
+                  thinking: '', // 非流式响应没有思考内容
                   isStreaming: false,
                   usage: response.data.usage
                 }
@@ -183,6 +196,7 @@ export default function AIChatPage() {
           ? { 
               ...msg, 
               content: `发送失败: ${error.message}`,
+              thinking: '', // 错误时清空思考内容
               isStreaming: false,
               isError: true
             }
