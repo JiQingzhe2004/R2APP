@@ -1,8 +1,9 @@
-import { BrowserWindow, nativeImage } from 'electron';
+import { app, BrowserWindow, nativeImage } from 'electron';
 import { join } from 'path';
 import fs from 'fs';
 
 let splashWindow = null;
+let mainWindowInstance = null;
 
 /**
  * 将图片转换为base64
@@ -23,8 +24,25 @@ function imageToBase64(imagePath) {
  * 创建启动图HTML内容
  */
 function createSplashHTML() {
-  const logoPath = join(__dirname, '../../src/assets/qidong.png');
-  const logoBase64 = imageToBase64(logoPath);
+  // 尝试多个可能的图片路径
+  let logoBase64 = null;
+  
+  // 首先尝试开发环境的路径
+  const devPath = join(__dirname, '../../src/assets/qidong.png');
+  logoBase64 = imageToBase64(devPath);
+  
+  // 如果开发环境路径失败，尝试打包后的路径
+  if (!logoBase64 && app.isPackaged) {
+    const prodPath = join(process.resourcesPath, 'qidong.png');
+    logoBase64 = imageToBase64(prodPath);
+  }
+  
+  // 如果都失败了，使用一个简单的占位符
+  if (!logoBase64) {
+    console.warn('无法加载启动图LOGO，使用默认图标');
+    const fallbackPath = join(__dirname, '../../src/assets/BlackLOGO.png');
+    logoBase64 = imageToBase64(fallbackPath);
+  }
   
   return `
 <!DOCTYPE html>
@@ -250,7 +268,10 @@ function createSplashWindow() {
 /**
  * 显示启动图
  */
-function showSplash() {
+function showSplash(mainWindow = null) {
+  if (mainWindow) {
+    mainWindowInstance = mainWindow; // 保存主窗口实例
+  }
   if (!splashWindow) {
     createSplashWindow();
   } else {
@@ -268,10 +289,14 @@ function hideSplash() {
       document.body.classList.add('fade-out');
     `);
     
-    // 等待渐隐动画完成后隐藏窗口
+    // 等待渐隐动画完成后隐藏启动图并显示主窗口
     setTimeout(() => {
       if (splashWindow && !splashWindow.isDestroyed()) {
         splashWindow.hide();
+        // 启动图关闭后显示主窗口
+        if (mainWindowInstance && !mainWindowInstance.isDestroyed()) {
+          mainWindowInstance.show();
+        }
       }
     }, 1000); // 渐隐动画时间
   }

@@ -776,8 +776,8 @@ function createWindow() {
   });
 
   mainWindow.on('ready-to-show', () => {
-    // 主窗口准备好后显示，但保持启动图显示
-    mainWindow.show();
+    // 主窗口准备好后不立即显示，等待启动图关闭后再显示
+    // mainWindow.show(); // 注释掉，不立即显示
   })
 
   // 监听主窗口内容加载完成事件
@@ -926,7 +926,7 @@ app.whenReady().then(async () => {
   // 注释掉强制直连，让AI请求可以使用代理
   // await session.defaultSession.setProxy({ proxyRules: 'direct://' });
   
-  // 显示启动图
+  // 显示启动图（不传递主窗口，因为此时主窗口还未创建）
   showSplash();
   
   electronApp.setAppUserModelId('com.r2.explorer')
@@ -1046,6 +1046,11 @@ app.whenReady().then(async () => {
   }
 
   createWindow()
+  // 主窗口创建完成后，将主窗口实例传递给启动图
+  if (mainWindow) {
+    // 重新调用showSplash，这次传递主窗口实例
+    showSplash(mainWindow);
+  }
   setupAutoUpdater()
 
   // 发送用户统计
