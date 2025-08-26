@@ -225,9 +225,9 @@ function createSplashWindow() {
   // 创建启动图窗口
   splashWindow = new BrowserWindow({
     width: 400,
-    height: 400,
+    height: 600,
     minWidth: 400,
-    minHeight: 400,
+    minHeight: 600,
     show: false,
     frame: false,
     transparent: true,
