@@ -19,6 +19,7 @@ import SmmsAPI from './smms-api.js';
 import R2API from './r2-api.js';
 import OssAPI from './oss-api.js';
 import CosAPI from './cos-api.js';
+import { showSplash, hideSplash, destroySplash } from './splash-screen.js';
 
 const activeUploads = new Map();
 // Cache public URL and delete URL for providers that return them (SM.MS, LSKY)
@@ -775,7 +776,16 @@ function createWindow() {
   });
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
+    // 主窗口准备好后显示，但保持启动图显示
+    mainWindow.show();
+  })
+
+  // 监听主窗口内容加载完成事件
+  mainWindow.webContents.on('did-finish-load', () => {
+    // 主应用内容加载完成后，延迟2秒关闭启动图
+    setTimeout(() => {
+      hideSplash();
+    }, 2000);
   })
 
   mainWindow.on('maximize', () => {
@@ -915,6 +925,9 @@ if (!gotLock) {
 app.whenReady().then(async () => {
   // 注释掉强制直连，让AI请求可以使用代理
   // await session.defaultSession.setProxy({ proxyRules: 'direct://' });
+  
+  // 显示启动图
+  showSplash();
   
   electronApp.setAppUserModelId('com.r2.explorer')
 
@@ -1065,6 +1078,8 @@ app.whenReady().then(async () => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  // 销毁启动图
+  destroySplash();
 })
 
 app.on('window-all-closed', () => {

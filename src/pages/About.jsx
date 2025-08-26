@@ -12,7 +12,7 @@ export default function AboutPage() {
   const { theme } = useTheme();
   const [lightbox, setLightbox] = useState({ isOpen: false, image: null, title: '' });
   const [appInfo, setAppInfo] = useState({
-    name: 'R2 存储管理器',
+    name: 'CS-Explorer',
     version: '...',
     author: '...',
     description: '正在加载描述信息...',
