@@ -64,6 +64,9 @@ export function Header({
   const location = useLocation();
   const showSearch = location.pathname === '/files';
   const isAIChatPage = location.pathname === '/ai-chat';
+  
+  // 定义需要显示存储桶选择的页面
+  const showProfileSelector = ['/dashboard', '/files', '/uploads', '/downloads'].includes(location.pathname);
   const [activeNotification, setActiveNotification] = useState(null);
   const [isPopupVisible, setIsPopupVisible] = useState(false);
   const [progress, setProgress] = useState(100);
@@ -225,8 +228,8 @@ export function Header({
             </div>
           )
         ) : (
-          // 其他页面：显示存储配置选择器
-          profiles && profiles.length > 0 && (
+          // 只在指定页面显示存储配置选择器
+          showProfileSelector && profiles && profiles.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="w-[180px] justify-between">

@@ -165,7 +165,12 @@ export default function PreviewPage() {
   const handleDownload = async () => {
     if (!file) return;
     const key = `${file.filePath}${file.fileName}`;
-    window.api.downloadFile(key);
+    try {
+      await window.api.downloadFile(key);
+      toast.success('文件下载已开始');
+    } catch (error) {
+      toast.error('下载失败');
+    }
   };
 
   const handleShare = async () => {
@@ -181,6 +186,27 @@ export default function PreviewPage() {
         toast.success('已复制预览链接到剪贴板');
       } catch {
         toast.error('分享失败');
+      }
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!file) return;
+    if (isText) {
+      // 复制文本内容
+      try {
+        await navigator.clipboard.writeText(fileContent);
+        toast.success('已复制文件内容到剪贴板');
+      } catch {
+        toast.error('复制失败');
+      }
+    } else {
+      // 复制文件链接
+      try {
+        await navigator.clipboard.writeText(file.publicUrl);
+        toast.success('已复制文件链接到剪贴板');
+      } catch {
+        toast.error('复制失败');
       }
     }
   };
@@ -266,6 +292,7 @@ export default function PreviewPage() {
         onRotate={handleRotate}
         onDownload={handleDownload}
         onShare={handleShare}
+        onCopy={handleCopy}
       />
       <main className="flex-1 flex items-center justify-center overflow-hidden">
         {renderPreview()}

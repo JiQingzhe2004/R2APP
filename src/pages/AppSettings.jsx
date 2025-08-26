@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Label } from '@/components/ui/Label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useTheme } from '@/components/theme-provider';
 import { toast } from 'sonner';
 
@@ -74,48 +75,58 @@ export default function AppSettings() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="pref-theme">首选主题</Label>
-            <div className="flex gap-2">
-              <Button size="sm" variant={theme==='light' ? 'default' : 'outline'} onClick={() => setTheme('light')}>浅色</Button>
-              <Button size="sm" variant={theme==='dark' ? 'default' : 'outline'} onClick={() => setTheme('dark')}>深色</Button>
-              <Button size="sm" variant={theme==='system' ? 'default' : 'outline'} onClick={() => setTheme('system')}>跟随系统</Button>
-            </div>
+            <Select value={theme} onValueChange={setTheme}>
+              <SelectTrigger>
+                <SelectValue placeholder="选择主题" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="light">浅色</SelectItem>
+                <SelectItem value="dark">深色</SelectItem>
+                <SelectItem value="system">跟随系统</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <Label>关闭按钮行为</Label>
-            <div className="flex gap-2">
-              <Button size="sm" variant={closeAction==='minimize-to-tray' ? 'default' : 'outline'} onClick={() => saveCloseAction('minimize-to-tray')}>最小化到托盘</Button>
-              <Button size="sm" variant={closeAction==='exit' ? 'default' : 'outline'} onClick={() => saveCloseAction('exit')}>直接退出</Button>
-            </div>
+            <Select value={closeAction} onValueChange={saveCloseAction}>
+              <SelectTrigger>
+                <SelectValue placeholder="选择关闭行为" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="minimize-to-tray">最小化到托盘</SelectItem>
+                <SelectItem value="exit">直接退出</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <Label htmlFor="pref-open-preview">单击文件行为</Label>
-            <div className="flex gap-2">
-              <Button size="sm" variant={openBehavior==='preview' ? 'default' : 'outline'} onClick={() => saveOpenBehavior('preview')}>预览</Button>
-              <Button size="sm" variant={openBehavior==='download' ? 'default' : 'outline'} onClick={() => saveOpenBehavior('download')}>直接下载</Button>
-            </div>
+            <Select value={openBehavior} onValueChange={saveOpenBehavior}>
+              <SelectTrigger>
+                <SelectValue placeholder="选择文件行为" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="preview">预览</SelectItem>
+                <SelectItem value="download">直接下载</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        </div>
-
-        <div className="space-y-2 border-t pt-4 mt-2">
-          <Label>托盘图标</Label>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant={trayIconChoice === 'default' ? 'default' : 'outline'}
-              onClick={async () => { await window.api.setSetting('tray-icon-choice', 'default'); setTrayIconChoice('default'); }}
-            >默认原生</Button>
-            <Button
-              size="sm"
-              variant={trayIconChoice === 'light' ? 'default' : 'outline'}
-              onClick={async () => { await window.api.setSetting('tray-icon-choice', 'light'); setTrayIconChoice('light'); }}
-            >浅色图标（黑色LOGO）</Button>
-            <Button
-              size="sm"
-              variant={trayIconChoice === 'dark' ? 'default' : 'outline'}
-              onClick={async () => { await window.api.setSetting('tray-icon-choice', 'dark'); setTrayIconChoice('dark'); }}
-            >深色图标（白色LOGO）</Button>
+          <div className="space-y-2">
+            <Label>托盘图标</Label>
+            <Select value={trayIconChoice} onValueChange={async (value) => { 
+              await window.api.setSetting('tray-icon-choice', value); 
+              setTrayIconChoice(value); 
+            }}>
+              <SelectTrigger>
+                <SelectValue placeholder="选择托盘图标" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">默认原生</SelectItem>
+                <SelectItem value="light">浅色图标</SelectItem>
+                <SelectItem value="dark">深色图标</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="text-xs text-muted-foreground">选择托盘图标：默认为彩色图标，可根据喜好&系统颜色选择！😁</div>
           </div>
-          <div className="text-xs text-muted-foreground">选择托盘图标：默认为彩色图标，可根据喜好&系统颜色选择！😁</div>
         </div>
 
         <div className="space-y-2">
@@ -138,7 +149,7 @@ export default function AppSettings() {
               }
             }}>移除右键菜单</Button>
           </div>
-          <div className="text-xs text-muted-foreground">仅支持 Windows。注册后，可在资源管理器右键文件直接“上传到 R2 存储桶”。</div>
+          <div className="text-xs text-muted-foreground">仅支持 Windows。注册后，可在资源管理器右键文件直接"上传到 CS-Explorer"。</div>
         </div>
       </CardContent>
     </Card>

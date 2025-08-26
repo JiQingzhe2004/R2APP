@@ -56,6 +56,17 @@ function createSplashHTML() {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            /* 禁止选中文本 */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            /* 禁止拖动 */
+            -webkit-user-drag: none;
+            -khtml-user-drag: none;
+            -moz-user-drag: none;
+            -o-user-drag: none;
+            user-drag: none;
         }
 
         body {
@@ -68,6 +79,17 @@ function createSplashHTML() {
             color: white;
             opacity: 0;
             animation: fadeIn 0.8s ease-out forwards;
+            /* 禁止选中文本 */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            /* 禁止拖动 */
+            -webkit-user-drag: none;
+            -khtml-user-drag: none;
+            -moz-user-drag: none;
+            -o-user-drag: none;
+            user-drag: none;
         }
 
         @keyframes fadeIn {
@@ -83,6 +105,11 @@ function createSplashHTML() {
 
         .splash-container {
             text-align: center;
+            /* 禁止选中文本 */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
         }
 
         .logo {
@@ -91,6 +118,13 @@ function createSplashHTML() {
             border-radius: 20px;
             position: relative;
             animation: logoGlow 2s ease-in-out infinite alternate;
+            /* 禁止拖动图片 */
+            -webkit-user-drag: none;
+            -khtml-user-drag: none;
+            -moz-user-drag: none;
+            -o-user-drag: none;
+            user-drag: none;
+            pointer-events: none;
         }
 
         .logo::before {
@@ -164,6 +198,11 @@ function createSplashHTML() {
             color: rgba(255, 255, 255, 0.8);
             text-shadow: 0 2px 4px rgba(0,0,0,0.3);
             animation: textGlow 2s ease-in-out infinite alternate;
+            /* 禁止选中文本 */
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
         }
 
         @keyframes loadingBounce {

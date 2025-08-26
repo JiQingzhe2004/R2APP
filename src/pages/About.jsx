@@ -4,7 +4,8 @@ import WhiteLogo from '@/assets/WhiteLOGO.png'
 import BlackLogo from '@/assets/BlackLOGO.png'
 import WechatQR from '@/assets/wxzf.png'
 import AlipayQR from '@/assets/zfb.png'
-import { Github, GitCommit, UserCircle, Award, ArrowRight, BadgeCheck, Atom, ExternalLink, Cloud, Database, Image, Heart, Coffee, X } from 'lucide-react'
+import { Github, GitCommit, UserCircle, Award, ArrowRight, BadgeCheck, Atom, ExternalLink, Cloud, Database, Image, Heart, Coffee, X, Calendar } from 'lucide-react'
+import { Tiktok, MaillOne} from '@icon-park/react'
 import { useTheme } from '@/components/theme-provider';
 import versionData from '@/version.json';
 
@@ -104,38 +105,94 @@ export default function AboutPage() {
             {appInfo.description}
           </p>
           <div className="space-y-5">
-            <div className="flex items-center">
-              <GitCommit className="h-5 w-5 mr-4 text-muted-foreground" />
-              <span className="w-20 text-muted-foreground">版本</span>
-              <span className="font-semibold tracking-wider">v {appInfo.version}</span>
-            </div>
-            <div className="flex items-center">
-              <UserCircle className="h-5 w-5 mr-4 text-muted-foreground" />
-              <span className="w-20 text-muted-foreground">作者</span>
-              <span className="font-semibold">{appInfo.author}</span>
-            </div>
-            <div className="flex items-center">
-              <Award className="h-5 w-5 mr-4 text-muted-foreground" />
-              <span className="w-20 text-muted-foreground">许可证</span>
-              <span className="font-semibold">{appInfo.license}</span>
-            </div>
-            {appInfo.githubUrl && (
-               <div className="flex items-center">
-                <Github className="h-5 w-5 mr-4 text-muted-foreground" />
-                <span className="w-20 text-muted-foreground">源码</span>
-                <a href={appInfo.githubUrl} target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline">
-                  R2APP
-                </a>
+            {/* 第一行：版本、作者、许可证 */}
+            <div className="grid grid-cols-3 gap-4">
+              <div className="flex items-center">
+                <GitCommit className="h-5 w-5 mr-4 text-muted-foreground" />
+                <span className="w-16 text-muted-foreground">版本</span>
+                <span className="font-semibold tracking-wider">v {appInfo.version}</span>
               </div>
-            )}
-            <div className="flex items-center">
-              <Database className="h-5 w-5 mr-4 text-muted-foreground" />
-              <span className="w-20 text-muted-foreground">机器码</span>
-              <span className="font-mono text-xs bg-muted px-2 py-1 rounded">
-                {machineInfo.machineId}
-              </span>
+              <div className="flex items-center">
+                <UserCircle className="h-5 w-5 mr-4 text-muted-foreground" />
+                <span className="w-16 text-muted-foreground">作者</span>
+                <span className="font-semibold">{appInfo.author}</span>
+              </div>
+              <div className="flex items-center">
+                <Award className="h-5 w-5 mr-4 text-muted-foreground" />
+                <span className="w-16 text-muted-foreground">许可证</span>
+                <span className="font-semibold">{appInfo.license}</span>
+              </div>
+            </div>
+            
+            {/* 第二行：源码、机器码、构建时间 */}
+            <div className="grid grid-cols-3 gap-4">
+              {appInfo.githubUrl && (
+                <div className="flex items-center">
+                  <Github className="h-5 w-5 mr-4 text-muted-foreground" />
+                  <span className="w-16 text-muted-foreground">源码</span>
+                  <a href={appInfo.githubUrl} target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline">
+                    R2APP
+                  </a>
+                </div>
+              )}
+              <div className="flex items-center">
+                <Database className="h-5 w-5 mr-4 text-muted-foreground" />
+                <span className="w-16 text-muted-foreground">机器码</span>
+                <span className="font-mono text-xs bg-muted px-2 py-1 rounded">
+                  {machineInfo.machineId}
+                </span>
+              </div>
+              <div className="flex items-center">
+                <Calendar className="h-5 w-5 mr-4 text-muted-foreground" />
+                <span className="w-16 text-muted-foreground">发布时间</span>
+                <span className="font-semibold text-xs">
+                  {new Date().toLocaleDateString()}
+                </span>
+              </div>
             </div>
           </div>
+          <hr className="my-4" />
+          {/* 社交媒体链接 */}
+          <div className="text-center space-y-3 mt-6">
+            <p className="text-sm text-muted-foreground">
+              关注我的社交媒体
+            </p>
+            <div className="flex justify-center gap-4">
+              {/* 抖音 */}
+              <a 
+                href="https://v.douyin.com/WZoKGvJil18/ 9@1.com :1pm" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="p-2 rounded-xl transition-all duration-300 hover:scale-110"
+                title="抖音"
+              >
+                <Tiktok theme="filled" size="20" fill="currentColor" strokeWidth={1}/>
+              </a>
+
+              {/* Github */}
+              <a 
+                href="https://github.com/JiQingzhe2004" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="p-2 rounded-xl transition-all duration-300 hover:scale-110"
+                title="Github"
+              >
+                <Github size="20" fill="currentColor"/>
+              </a>
+
+              {/* 邮箱 */}
+              <a 
+                href="mailto:jqz1215@qq.com" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="p-2 rounded-xl transition-all duration-300 hover:scale-110"
+                title="邮箱"
+              >
+                <MaillOne theme="outline" size="20" fill="currentColor"/>
+              </a>
+            </div>
+          </div>
+          
           <div className="text-center space-y-2">
             <p className="text-sm text-muted-foreground">
               下方有各服务商的快捷通道！

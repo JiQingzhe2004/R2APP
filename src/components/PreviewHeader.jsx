@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Minus, Square, PictureInPicture2, X, ZoomIn, ZoomOut, RotateCwSquare, Download, Share2 } from 'lucide-react';
+import { Minus, Square, PictureInPicture2, X, ZoomIn, ZoomOut, RotateCwSquare, Download, Share2, Copy } from 'lucide-react';
 import { Button } from "@/components/ui/Button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-export function PreviewHeader({ fileName, isImage = false, onZoomIn, onZoomOut, onRotate, onDownload, onShare }) {
+export function PreviewHeader({ fileName, isImage = false, onZoomIn, onZoomOut, onRotate, onDownload, onShare, onCopy }) {
   const [isMaximized, setIsMaximized] = useState(false);
 
   useEffect(() => {
@@ -32,12 +32,12 @@ export function PreviewHeader({ fileName, isImage = false, onZoomIn, onZoomOut, 
   };
 
   return (
-    <header className="flex items-center justify-between h-10 bg-background border-b" style={{ WebkitAppRegion: 'drag' }}>
+    <header className="flex items-center h-10 bg-background border-b relative z-50" style={{ WebkitAppRegion: 'drag' }}>
       {/* 左侧：标题 */}
-      <div className="px-2 text-sm truncate">{fileName}</div>
+      <div className="px-2 text-sm truncate flex-1 min-w-0">{fileName}</div>
 
-      {/* 中间：功能按钮（分享/下载/图片工具） */}
-      <div className="flex items-center gap-1" style={{ WebkitAppRegion: 'no-drag' }}>
+      {/* 中间：功能按钮（分享/下载/图片工具）- 绝对居中 */}
+      <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 flex items-center gap-1 z-10" style={{ WebkitAppRegion: 'no-drag' }}>
         <TooltipProvider delayDuration={0}>
           {onShare && (
             <Tooltip>
@@ -57,6 +57,16 @@ export function PreviewHeader({ fileName, isImage = false, onZoomIn, onZoomOut, 
                 </Button>
               </TooltipTrigger>
               <TooltipContent>下载</TooltipContent>
+            </Tooltip>
+          )}
+          {onCopy && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="w-8 h-8 rounded-md" onClick={onCopy}>
+                  <Copy className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>复制</TooltipContent>
             </Tooltip>
           )}
           {isImage && (
@@ -91,7 +101,7 @@ export function PreviewHeader({ fileName, isImage = false, onZoomIn, onZoomOut, 
       </div>
 
       {/* 右侧：窗口控制按钮 */}
-      <div className="flex items-center" style={{ WebkitAppRegion: 'no-drag' }}>
+      <div className="flex items-center flex-shrink-0" style={{ WebkitAppRegion: 'no-drag' }}>
         <Button variant="ghost" size="icon" className="w-8 h-10 rounded-none" onClick={handleMinimize}>
           <Minus className="w-4 h-4" />
         </Button>
