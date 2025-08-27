@@ -1,3 +1,5 @@
+import { ThinkingAdapter } from '../adapters/thinkingAdapter.js';
+
 /**
  * AI提供商基类
  * 定义所有AI提供商必须实现的接口
@@ -125,5 +127,70 @@ export class BaseAIProvider {
   handleError(error) {
     console.error(`[${this.constructor.name}] API调用失败:`, error);
     throw error;
+  }
+
+  /**
+   * 处理流式响应中的思考链数据
+   */
+  processStreamChunk(chunk) {
+    console.log(`[BaseProvider] 处理流式数据块:`, chunk);
+    const result = ThinkingAdapter.processStreamChunk(this.config.type, chunk);
+    console.log(`[BaseProvider] 处理结果:`, result);
+    return result;
+  }
+
+  /**
+   * 处理非流式响应中的思考链数据
+   */
+  processNonStreamResponse(response) {
+    console.log(`[BaseProvider] 处理非流式响应:`, response);
+    const result = ThinkingAdapter.processNonStreamResponse(this.config.type, response);
+    console.log(`[BaseProvider] 非流式处理结果:`, result);
+    return result;
+  }
+
+  /**
+   * 创建统一的流式响应迭代器
+   */
+  createUnifiedStreamIterator(reader, decoder) {
+    const self = this; // 保存this引用
+    return {
+      async *[Symbol.asyncIterator]() {
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+                if (data === '[DONE]') {
+                  return;
+                }
+
+                try {
+                  const parsed = JSON.parse(data);
+                  console.log(`[BaseProvider] 解析的JSON数据:`, parsed);
+                  const processedChunk = self.processStreamChunk(parsed);
+                  
+                  if (processedChunk) {
+                    console.log(`[BaseProvider] 产生数据块:`, processedChunk);
+                    yield processedChunk;
+                  }
+                } catch (e) {
+                  console.error(`[BaseProvider] JSON解析错误:`, e);
+                  // 忽略解析错误
+                }
+              }
+            }
+          }
+        } finally {
+          reader.releaseLock();
+        }
+      }
+    };
   }
 }

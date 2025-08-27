@@ -5,13 +5,13 @@ import { Input } from '@/components/ui/Input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 import { Badge } from '@/components/ui/Badge';
 import { toast } from 'sonner';
-import { 
-  Send, 
-  Bot, 
-  User, 
-  Settings, 
-  RefreshCw, 
-  Copy, 
+import {
+  Send,
+  Bot,
+  User,
+  Settings,
+  RefreshCw,
+  Copy,
   Check,
   MessageSquare,
   Sparkles,
@@ -117,12 +117,18 @@ export default function AIChatPage() {
       // 创建AI提供商实例
       const provider = AIProviderFactory.createProvider(selectedConfig);
       
-      // 发送消息并处理流式响应
-      const response = await provider.sendMessage(inputMessage.trim(), {
-        maxTokens: selectedConfig.maxTokens,
-        temperature: selectedConfig.temperature,
-        stream: true // 启用流式输出
-      });
+      // 准备上下文消息 - 获取历史对话作为上下文
+      const contextMessages = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+      
+             // 发送消息并处理流式响应
+       // 思考链功能由各个AI提供商根据AI.md文档自动启用
+       const response = await provider.sendMessage(inputMessage.trim(), {
+         stream: true, // 启用流式输出
+         context: contextMessages // 添加上下文消息
+       });
 
       if (response.success) {
         // 处理流式响应
@@ -135,15 +141,18 @@ export default function AIChatPage() {
           let thinkingContent = '';
           
           for await (const chunk of response.data.stream) {
+            console.log(`[AIChatPage] 接收到数据块:`, chunk);
+            // 统一的思考链处理 - 现在所有提供商都返回统一格式
             if (chunk.type === 'thinking') {
-              // 处理思考内容
+              console.log(`[AIChatPage] 处理思考链内容:`, chunk.content);
               thinkingContent += chunk.content;
               setMessages(prev => prev.map(msg => 
                 msg.id === aiMessageId 
                   ? { ...msg, thinking: thinkingContent }
                   : msg
               ));
-            } else if (chunk.content) {
+            } else if (chunk.type === 'content') {
+              console.log(`[AIChatPage] 处理普通内容:`, chunk.content);
               // 处理正常内容
               fullContent += chunk.content;
               setMessages(prev => prev.map(msg => 
@@ -151,6 +160,8 @@ export default function AIChatPage() {
                   ? { ...msg, content: fullContent }
                   : msg
               ));
+            } else {
+              console.log(`[AIChatPage] 未知数据类型:`, chunk.type);
             }
           }
           
@@ -167,13 +178,14 @@ export default function AIChatPage() {
               : msg
           ));
         } else {
+          console.log(`[AIChatPage] 处理非流式响应:`, response.data);
           // 非流式响应，直接更新
           setMessages(prev => prev.map(msg => 
             msg.id === aiMessageId 
               ? { 
                   ...msg, 
                   content: response.data.response,
-                  thinking: '', // 非流式响应没有思考内容
+                  thinking: response.data.thinking || '', // 使用统一的思考内容
                   isStreaming: false,
                   usage: response.data.usage
                 }

@@ -122,18 +122,30 @@ export class DoubaoProvider extends BaseAIProvider {
         throw new Error('不支持的消息格式');
       }
 
+      // 准备消息数组
+      const messages = [];
+      
+      // 如果有上下文消息，添加到消息数组中
+      if (options.context && options.context.length > 0) {
+        messages.push(...options.context);
+      }
+      
+      // 添加当前消息
+      messages.push({
+        role: 'user',
+        content: messageContent
+      });
+
+      // 严格按照AI.md文档的豆包请求格式
       const requestBody = {
         model: this.config.model,
-        messages: [
-          {
-            role: 'user',
-            content: messageContent
-          }
-        ],
-        max_tokens: options.maxTokens || this.config.maxTokens || 1000,
-        temperature: options.temperature || this.config.temperature || 0.7,
+        messages: messages,
         stream: options.stream || false
       };
+
+      // 豆包默认支持思考链，响应中会自动包含 reasoning_content
+      // 不需要额外的请求参数，思考链适配器会处理响应中的 reasoning_content 字段
+      console.log('[DoubaoProvider] 发送豆包请求:', requestBody);
 
       if (options.stream) {
         // 流式响应处理
@@ -150,47 +162,11 @@ export class DoubaoProvider extends BaseAIProvider {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let fullContent = '';
+        let thinkingContent = '';
         let usage = null;
 
-        // 创建异步迭代器
-        const stream = {
-          async *[Symbol.asyncIterator]() {
-            try {
-              while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n');
-
-                for (const line of lines) {
-                  if (line.startsWith('data: ')) {
-                    const data = line.slice(6);
-                    if (data === '[DONE]') {
-                      return;
-                    }
-
-                    try {
-                      const parsed = JSON.parse(data);
-                      if (parsed.choices?.[0]?.delta?.content) {
-                        const content = parsed.choices[0].delta.content;
-                        fullContent += content;
-                        yield { content };
-                      }
-                      if (parsed.usage) {
-                        usage = parsed.usage;
-                      }
-                    } catch (e) {
-                      // 忽略解析错误
-                    }
-                  }
-                }
-              }
-            } finally {
-              reader.releaseLock();
-            }
-          }
-        };
+        // 使用统一的流式响应处理
+        const stream = this.createUnifiedStreamIterator(reader, decoder);
 
         return {
           success: true,
@@ -198,6 +174,7 @@ export class DoubaoProvider extends BaseAIProvider {
           data: {
             stream,
             response: fullContent,
+            thinking: thinkingContent,
             usage,
             model: this.config.model
           }
@@ -216,14 +193,13 @@ export class DoubaoProvider extends BaseAIProvider {
 
         const data = await response.json();
 
+        // 使用统一的非流式响应处理
+        const processedResponse = this.processNonStreamResponse(data);
+
         return {
           success: true,
           message: '消息发送成功',
-          data: {
-            response: data.choices?.[0]?.message?.content || '无响应内容',
-            usage: data.usage,
-            model: data.model
-          }
+          data: processedResponse
         };
       }
     } catch (error) {

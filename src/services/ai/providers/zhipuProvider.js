@@ -1,11 +1,14 @@
-import { BaseAIProvider } from './baseProvider';
+import { BaseAIProvider } from './baseProvider.js';
 
 /**
- * 智谱AI提供商实现
+ * 智谱AI提供商
  */
 export class ZhipuProvider extends BaseAIProvider {
   constructor(config) {
     super(config);
+    // 智谱特有配置
+    this.config.baseUrl = this.config.baseUrl || 'https://open.bigmodel.cn/api/paas/v4';
+    this.config.maxTokens = this.config.maxTokens || 2048;
   }
 
   /**
@@ -13,8 +16,9 @@ export class ZhipuProvider extends BaseAIProvider {
    */
   getHeaders() {
     return {
-      ...super.getHeaders(),
-      'Authorization': `Bearer ${this.config.apiKey}`
+      'Authorization': `Bearer ${this.config.apiKey}`,
+      'Content-Type': 'application/json',
+      'User-Agent': 'R2APP/1.0.0'
     };
   }
 
@@ -23,26 +27,37 @@ export class ZhipuProvider extends BaseAIProvider {
    */
   async testConnection() {
     try {
-      const response = await fetch(`${this.config.baseUrl}/models`, {
-        method: 'GET',
-        headers: this.getHeaders()
+      const testUrl = `${this.config.baseUrl}/chat/completions`;
+      
+      const response = await fetch(testUrl, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify({
+          model: this.config.model,
+          messages: [
+            {
+              role: 'user',
+              content: 'test'
+            }
+          ],
+          max_tokens: 10
+        })
       });
 
-      const data = await this.handleResponse(response);
-      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
       return {
         success: true,
-        message: '智谱AI连接成功',
-        data: {
-          models: data.data?.map(model => model.id) || [],
-          totalModels: data.data?.length || 0
-        }
+        message: '智谱AI API连接成功',
+        details: '聊天端点测试通过'
       };
     } catch (error) {
       return {
         success: false,
-        error: `智谱AI连接失败: ${error.message}`,
-        details: error.stack
+        message: `智谱AI API连接失败: ${error.message}`,
+        details: error.toString()
       };
     }
   }
@@ -52,13 +67,15 @@ export class ZhipuProvider extends BaseAIProvider {
    */
   async getModels() {
     try {
-      const response = await fetch(`${this.config.baseUrl}/models`, {
-        method: 'GET',
-        headers: this.getHeaders()
-      });
-
-      const data = await this.handleResponse(response);
-      return data.data?.map(model => model.id) || [];
+      // 智谱AI没有公开的模型列表API，返回预定义的模型
+      return [
+        'glm-4',
+        'glm-4-plus',
+        'glm-4-air',
+        'glm-4-vision',
+        'glm-3-turbo',
+        'glm-3-turbo-16k'
+      ];
     } catch (error) {
       return [this.config.model];
     }
@@ -66,23 +83,44 @@ export class ZhipuProvider extends BaseAIProvider {
 
   /**
    * 发送消息
+   * @param {string} message - 消息内容
+   * @param {Object} options - 选项
    */
   async sendMessage(message, options = {}) {
     try {
-      const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify({
-          model: this.config.model,
-          messages: [{ role: 'user', content: message }],
-          max_tokens: options.maxTokens || this.config.maxTokens || 1000,
-          temperature: options.temperature || this.config.temperature || 0.7,
-          stream: options.stream || false
-        })
+      // 准备消息数组
+      const messages = [];
+      
+      // 如果有上下文消息，添加到消息数组中
+      if (options.context && options.context.length > 0) {
+        messages.push(...options.context);
+      }
+      
+      // 添加当前消息
+      messages.push({
+        role: 'user',
+        content: message
       });
+
+      // 严格按照AI.md文档的智谱清言请求格式
+      const requestBody = {
+        model: this.config.model,
+        messages: messages,
+        stream: options.stream || false
+      };
+
+      // 智谱AI的思考链通过工具调用实现
+      // 思考链适配器会处理响应中的工具调用数据
+      console.log('[ZhipuProvider] 发送智谱AI请求:', requestBody);
 
       if (options.stream) {
         // 流式响应处理
+        const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: this.getHeaders(),
+          body: JSON.stringify(requestBody)
+        });
+
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
@@ -90,72 +128,11 @@ export class ZhipuProvider extends BaseAIProvider {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let fullContent = '';
+        let thinkingContent = '';
         let usage = null;
 
-        // 创建异步迭代器
-        const stream = {
-          async *[Symbol.asyncIterator]() {
-            try {
-              while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n');
-
-                for (const line of lines) {
-                  if (line.startsWith('data: ')) {
-                    const data = line.slice(6);
-                    if (data === '[DONE]') {
-                      // 在流式结束时，尝试获取最后一个chunk中的usage信息
-                      try {
-                        // 读取最后一个chunk，通常包含usage信息
-                        const lastChunk = await reader.read();
-                        if (!lastChunk.done) {
-                          const lastData = decoder.decode(lastChunk.value);
-                          const lastLines = lastData.split('\n');
-                          for (const lastLine of lastLines) {
-                            if (lastLine.startsWith('data: ')) {
-                              const lastDataContent = lastLine.slice(6);
-                              try {
-                                const lastParsed = JSON.parse(lastDataContent);
-                                if (lastParsed.usage) {
-                                  usage = lastParsed.usage;
-                                }
-                              } catch (e) {
-                                // 忽略解析错误
-                              }
-                            }
-                          }
-                        }
-                      } catch (e) {
-                        // 忽略读取错误
-                      }
-                      return;
-                    }
-
-                    try {
-                      const parsed = JSON.parse(data);
-                      if (parsed.choices?.[0]?.delta?.content) {
-                        const content = parsed.choices[0].delta.content;
-                        fullContent += content;
-                        yield { content };
-                      }
-                      // 在流式过程中也尝试获取usage信息
-                      if (parsed.usage) {
-                        usage = parsed.usage;
-                      }
-                    } catch (e) {
-                      // 忽略解析错误
-                    }
-                  }
-                }
-              }
-            } finally {
-              reader.releaseLock();
-            }
-          }
-        };
+        // 使用统一的流式响应处理
+        const stream = this.createUnifiedStreamIterator(reader, decoder);
 
         return {
           success: true,
@@ -163,37 +140,52 @@ export class ZhipuProvider extends BaseAIProvider {
           data: {
             stream,
             response: fullContent,
+            thinking: thinkingContent,
             usage,
             model: this.config.model
           }
         };
       } else {
         // 非流式响应处理
-        const data = await this.handleResponse(response);
-        
+        const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: this.getHeaders(),
+          body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        // 使用统一的非流式响应处理
+        const processedResponse = this.processNonStreamResponse(data);
+
         return {
           success: true,
           message: '消息发送成功',
-          data: {
-            response: data.choices?.[0]?.message?.content || '无响应内容',
-            usage: data.usage,
-            model: data.model
-          }
+          data: processedResponse
         };
       }
     } catch (error) {
       return {
         success: false,
-        error: `消息发送失败: ${error.message}`,
-        details: error.stack
+        message: `智谱AI API请求失败: ${error.message}`,
+        details: error.toString()
       };
     }
   }
 
   /**
-   * 测试消息发送
+   * 获取提供商信息
    */
-  async testMessage(message = '你好，这是一个测试消息') {
-    return await this.sendMessage(message, { maxTokens: 100 });
+  getProviderInfo() {
+    return {
+      name: 'ZhipuAI',
+      version: '1.0.0',
+      supports: ['text', 'image', 'streaming'],
+      models: this.getModels()
+    };
   }
 }
