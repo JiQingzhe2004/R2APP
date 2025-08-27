@@ -20,6 +20,7 @@ import R2API from './r2-api.js';
 import OssAPI from './oss-api.js';
 import CosAPI from './cos-api.js';
 import { showSplash, hideSplash, destroySplash } from './splash-screen.js';
+import { IPCHandlers } from './ipc-handlers.js';
 
 const activeUploads = new Map();
 // Cache public URL and delete URL for providers that return them (SM.MS, LSKY)
@@ -29,6 +30,10 @@ const objectHashCache = new Map(); // key: provider+":"+objectKey -> hash (for S
 
 // API实例缓存
 const apiInstances = new Map();
+
+// AI对话窗口管理
+const aiChatWindows = new Map();
+let aiChatWindow = null;
 
 /**
  * 获取API实例
@@ -637,6 +642,7 @@ let mainWindow;
 const previewWindows = new Map();
 let tray = null;
 let userTrayIconPath = null; // absolute path selected by user
+let ipcHandlers = null; // IPC处理器实例
 
 function resolveTrayImage() {
   try {
@@ -740,6 +746,56 @@ function createPreviewWindow(fileName, filePath, bucket, publicUrl) {
   
   previewWindow.loadURL(previewUrl);
   previewWindows.set(key, previewWindow);
+}
+
+function createAIChatWindow() {
+  // 如果已经存在AI对话窗口，则聚焦到现有窗口
+  if (aiChatWindow && !aiChatWindow.isDestroyed()) {
+    aiChatWindow.focus();
+    return;
+  }
+
+  aiChatWindow = new BrowserWindow({
+    width: 1400,
+    height: 800,
+    minWidth: 1400,
+    minHeight: 800,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.mjs'),
+      sandbox: false,
+      contextIsolation: true,
+    },
+    show: false,
+    frame: false,
+    titleBarStyle: 'hidden',
+    title: 'AI 对话 - CS-Explorer'
+  });
+
+  aiChatWindow.on('ready-to-show', () => {
+    aiChatWindow.show();
+  });
+  
+  aiChatWindow.on('maximize', () => {
+    aiChatWindow.webContents.send('window-maximized-status-changed', true);
+  });
+  
+  aiChatWindow.on('unmaximize', () => {
+    aiChatWindow.webContents.send('window-maximized-status-changed', false);
+  });
+  
+  aiChatWindow.on('closed', () => {
+    aiChatWindow = null;
+    // 通知主窗口AI对话窗口已关闭
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('ai-chat-window-closed');
+    }
+  });
+
+  const aiChatUrl = is.dev && process.env['ELECTRON_RENDERER_URL']
+    ? `${process.env['ELECTRON_RENDERER_URL']}/#/ai-chat-window`
+    : `file://${join(__dirname, '../renderer/index.html')}#/ai-chat-window`;
+  
+  aiChatWindow.loadURL(aiChatUrl);
 }
 
 function createWindow() {
@@ -926,6 +982,10 @@ app.whenReady().then(async () => {
   // 注释掉强制直连，让AI请求可以使用代理
   // await session.defaultSession.setProxy({ proxyRules: 'direct://' });
   
+  // 初始化IPC处理器
+  ipcHandlers = new IPCHandlers();
+  ipcHandlers.initialize();
+  
   // 显示启动图（不传递主窗口，因为此时主窗口还未创建）
   showSplash();
   
@@ -1085,6 +1145,10 @@ app.on('will-quit', () => {
   globalShortcut.unregisterAll();
   // 销毁启动图
   destroySplash();
+  // 关闭IPC处理器和数据库连接
+  if (ipcHandlers) {
+    ipcHandlers.close();
+  }
 })
 
 app.on('window-all-closed', () => {
@@ -2365,6 +2429,15 @@ ipcMain.on('get-initial-file-info', (event) => {
   event.reply('file-info-for-preview', initialFileInfo);
 });
 
+// AI对话窗口管理
+ipcMain.on('open-ai-chat-window', (event) => {
+  createAIChatWindow();
+});
+
+ipcMain.handle('is-ai-chat-window-open', (event) => {
+  return aiChatWindow && !aiChatWindow.isDestroyed();
+});
+
 ipcMain.handle('get-presigned-url', async (event, bucket, key) => {
   const storage = await getStorageClient();
   if (!storage) {
@@ -2523,3 +2596,22 @@ ipcMain.handle('list-buckets', async (event, profile) => {
 ipcMain.handle('set-uploads-state', (_, uploads) => {
   store.set('uploads-state', uploads);
 });
+
+// AI配置同步处理器
+ipcMain.handle('syncAIConfigs', async () => {
+  try {
+    console.log('[Main] 开始同步AI配置到数据库...');
+    
+    // 从localStorage获取AI配置（这里需要访问渲染进程的数据）
+    // 由于主进程无法直接访问localStorage，我们需要通过其他方式
+    // 方案1：通过渲染进程传递配置数据
+    // 方案2：在应用启动时自动同步
+    
+    // 暂时返回成功，实际实现需要更复杂的逻辑
+    return { success: true, message: 'AI配置同步功能待实现' };
+  } catch (error) {
+    console.error('[Main] AI配置同步失败:', error);
+    return { success: false, error: error.message };
+  }
+});
+

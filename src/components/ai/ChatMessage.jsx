@@ -195,7 +195,10 @@ export default function ChatMessage({ message, onRegenerate }) {
   };
 
   return (
-    <div className={`group flex ${isUser ? 'justify-end' : 'justify-start'} mb-6`}>
+    <div 
+      className={`group flex ${isUser ? 'justify-end' : 'justify-start'} mb-6`}
+      data-message-id={message.id}
+    >
       <div className={`flex ${isUser ? 'flex-row-reverse' : 'flex-row'} items-start gap-3 ${
         isUser 
           ? 'max-w-[85%]' 
@@ -229,16 +232,16 @@ export default function ChatMessage({ message, onRegenerate }) {
         
         {/* 消息内容及操作区域容器 */}
         <div className="flex flex-col flex-1 min-w-0">
-                  {/* 消息内容 */}
-        <div className={`rounded-2xl px-4 ${
-          isUser 
-            ? 'py-3 bg-primary text-primary-foreground' 
-            : isError
-              ? 'py-3 bg-destructive/10 text-destructive border border-destructive/20'
-              : 'pt-0 pb-3 text-foreground' // AI回复去掉上边距和背景
-        }`}>
-          {renderContent()}
-        </div>
+          {/* 消息内容 */}
+          <div className={`rounded-2xl px-4 ${
+            isUser 
+              ? 'py-3 bg-primary text-primary-foreground' 
+              : isError
+                ? 'py-3 bg-destructive/10 text-destructive border border-destructive/20'
+                : 'pt-0 pb-3 text-foreground' // AI回复去掉上边距和背景
+          }`}>
+            {renderContent()}
+          </div>
           
           {/* 操作按钮区域和时间信息（放在同一行） */}
           <div className={`flex items-center gap-2 mt-2 ${isUser ? 'justify-end' : 'justify-start'} flex-wrap`}>

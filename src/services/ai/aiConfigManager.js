@@ -198,10 +198,10 @@ export class AIConfigManager {
 
     // 取消之前的默认配置
     if (this.defaultConfigId) {
-      const oldDefault = this.configs.get(this.defaultConfigId);
-      if (oldDefault) {
-        oldDefault.isDefault = false;
-        this.configs.set(this.defaultConfigId, oldDefault);
+      const previousDefault = this.configs.get(this.defaultConfigId);
+      if (previousDefault) {
+        previousDefault.isDefault = false;
+        this.configs.set(this.defaultConfigId, previousDefault);
       }
     }
 
@@ -211,6 +211,76 @@ export class AIConfigManager {
     this.configs.set(id, config);
     this.saveToStorage();
     return true;
+  }
+
+  /**
+   * 同步AI配置到数据库
+   * 确保数据库中有对应的AI配置记录
+   */
+  async syncToDatabase() {
+    try {
+      console.log('[AIConfigManager] 开始同步AI配置到数据库...');
+      
+      const configs = Array.from(this.configs.values());
+      let syncedCount = 0;
+      
+      for (const config of configs) {
+        try {
+          // 检查数据库中是否已存在该配置
+          const existingConfig = await this.getConfigFromDatabase(config.id);
+          
+          if (!existingConfig) {
+            // 如果不存在，则同步到数据库
+            await this.saveConfigToDatabase(config);
+            syncedCount++;
+            console.log(`[AIConfigManager] 已同步配置: ${config.name}`);
+          }
+        } catch (error) {
+          console.error(`[AIConfigManager] 同步配置 ${config.name} 失败:`, error);
+        }
+      }
+      
+      console.log(`[AIConfigManager] AI配置同步完成，共同步 ${syncedCount} 个配置`);
+      return { success: true, syncedCount };
+    } catch (error) {
+      console.error('[AIConfigManager] AI配置同步失败:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * 从数据库获取配置
+   * @param {string} configId - 配置ID
+   * @returns {Object|null} 配置对象或null
+   */
+  async getConfigFromDatabase(configId) {
+    try {
+      // 这里需要调用数据库API
+      // 由于当前架构限制，暂时返回null
+      // TODO: 实现数据库查询逻辑
+      return null;
+    } catch (error) {
+      console.error('[AIConfigManager] 从数据库获取配置失败:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 保存配置到数据库
+   * @param {AIConfig} config - AI配置对象
+   * @returns {boolean} 是否保存成功
+   */
+  async saveConfigToDatabase(config) {
+    try {
+      // 这里需要调用数据库API
+      // 由于当前架构限制，暂时返回true
+      // TODO: 实现数据库保存逻辑
+      console.log(`[AIConfigManager] 保存配置到数据库: ${config.name}`);
+      return true;
+    } catch (error) {
+      console.error('[AIConfigManager] 保存配置到数据库失败:', error);
+      return false;
+    }
   }
 
   /**

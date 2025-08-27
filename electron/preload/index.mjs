@@ -112,6 +112,15 @@ export const api = {
   openPreviewWindow: (fileInfo) => ipcRenderer.send('open-preview-window', fileInfo),
   resizePreviewWindow: (size) => ipcRenderer.send('resize-preview-window', size),
 
+  // AI Chat window management
+  openAIChatWindow: () => ipcRenderer.send('open-ai-chat-window'),
+  isAIChatWindowOpen: () => ipcRenderer.invoke('is-ai-chat-window-open'),
+  onAIChatWindowClosed: (callback) => {
+    const handler = (event, ...args) => callback(...args);
+    ipcRenderer.on('ai-chat-window-closed', handler);
+    return () => ipcRenderer.removeListener('ai-chat-window-closed', handler);
+  },
+
   // R2 operations
   listBuckets: () => ipcRenderer.invoke('list-buckets'),
   listObjects: (bucket, prefix) => ipcRenderer.invoke('list-objects', bucket, prefix),
@@ -170,6 +179,16 @@ export const api = {
   // testAnalytics: () => ipcRenderer.invoke('test-analytics'),
   // onDebugLog: (callback) => ipcRenderer.on('debug-log', callback),
   // removeDebugLogListener: (callback) => ipcRenderer.removeListener('debug-log', callback),
+
+  // AI对话数据库API
+  chatSaveConfig: (config) => ipcRenderer.invoke('chat-save-config', config),
+  chatSaveMessages: (configId, messages) => ipcRenderer.invoke('chat-save-messages', configId, messages),
+  chatLoadMessages: (configId, limit) => ipcRenderer.invoke('chat-load-messages', configId, limit),
+  chatGetStats: () => ipcRenderer.invoke('chat-get-stats'),
+  chatClearConfig: (configId) => ipcRenderer.invoke('chat-clear-config', configId),
+  chatClearAll: () => ipcRenderer.invoke('chat-clear-all'),
+  chatCleanupExpired: () => ipcRenderer.invoke('chat-cleanup-expired'),
+  chatGetDatabaseSize: () => ipcRenderer.invoke('chat-get-database-size'),
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

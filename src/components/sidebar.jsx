@@ -25,11 +25,38 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { useState, useEffect } from 'react'
 
 export function Sidebar({ isCollapsed, onToggle }) {
   const { theme, setTheme } = useTheme()
   const location = useLocation();
   const isActive = (path) => location.pathname.startsWith(path);
+  const [isAIChatWindowOpen, setIsAIChatWindowOpen] = useState(false);
+
+  // 检查AI对话窗口状态
+  useEffect(() => {
+    const checkAIChatWindowStatus = async () => {
+      try {
+        const isOpen = await window.api.isAIChatWindowOpen();
+        setIsAIChatWindowOpen(isOpen);
+      } catch (error) {
+        console.error('检查AI对话窗口状态失败:', error);
+      }
+    };
+
+    checkAIChatWindowStatus();
+    
+    // 监听AI对话窗口关闭事件
+    const removeListener = window.api.onAIChatWindowClosed(() => {
+      setIsAIChatWindowOpen(false);
+    });
+
+    return () => {
+      if (removeListener && typeof removeListener === 'function') {
+        removeListener();
+      }
+    };
+  }, []);
 
   const navItems = [
     { id: 'dashboard', href: '/dashboard', icon: LayoutDashboard, label: '仪表盘' },
@@ -38,7 +65,21 @@ export function Sidebar({ isCollapsed, onToggle }) {
     { id: 'downloads', href: '/downloads', icon: CloudDownload, label: '下载' },
     { id: 'announcements', href: '/announcements', icon: Bell, label: '公告' },
     { id: 'settings', href: '/settings', icon: Settings, label: '设置' },
-    { id: 'ai-chat', href: '/ai-chat', icon: MessageSquare, label: 'AI 对话' },
+    { 
+      id: 'ai-chat', 
+      icon: MessageSquare, 
+      label: isAIChatWindowOpen ? 'AI 对话 (独立窗口)' : 'AI 对话',
+      isWindowOpen: isAIChatWindowOpen,
+      onClick: () => {
+        if (isAIChatWindowOpen) {
+          // 如果窗口已打开，聚焦到窗口
+          window.api.openAIChatWindow();
+        } else {
+          // 如果窗口未打开，打开新窗口
+          window.api.openAIChatWindow();
+        }
+      }
+    },
     { id: 'update', href: '/update', icon: HardDriveDownload, label: '应用更新' },
     { id: 'releasenotes', href: '/releasenotes', icon: ScrollText, label: '更新日志' },
     { id: 'about', href: '/about', icon: BadgeInfo, label: '关于' },
@@ -60,8 +101,8 @@ export function Sidebar({ isCollapsed, onToggle }) {
       </div>
       <nav className="flex-1 py-4 px-4">
         <ul className="space-y-1 h-full flex flex-col">
-          {navItems.map(({ id, href, icon: Icon, label, disabled }) => {
-            const isActive = location.pathname === href;
+          {navItems.map(({ id, href, icon: Icon, label, disabled, isWindowOpen, onClick }) => {
+            const isActive = href ? location.pathname === href : false;
             
             let liClass = '';
             // Push settings to the bottom, which will pull 'about' with it.
@@ -75,33 +116,49 @@ export function Sidebar({ isCollapsed, onToggle }) {
                 <span className={cn(isCollapsed && "hidden")}>
                   {label}
                   {disabled && ' (待开发)'}
+                  {isWindowOpen && (
+                    <span className="ml-1 text-xs text-green-500">●</span>
+                  )}
                 </span>
               </>
             );
 
-              const linkElement = disabled ? (
-                  <span
+            const linkElement = disabled ? (
+                <span
+                draggable="false"
+                  className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground opacity-50 cursor-not-allowed select-none",
+                    isCollapsed && "justify-center"
+                  )}
+                >
+                  {linkContent}
+                </span>
+              ) : onClick ? (
+                // 对于有onClick的项，使用button而不是Link
+                <button
                   draggable="false"
-                    className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground opacity-50 cursor-not-allowed select-none",
-                      isCollapsed && "justify-center"
-                    )}
-                  >
-                    {linkContent}
-                  </span>
-                ) : (
-                  <Link
-                    to={href}
-                  draggable="false"
-                    className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary select-none",
-                      isActive && 'bg-primary text-primary-foreground hover:text-primary-foreground',
-                      isCollapsed && "justify-center"
-                    )}
-                  >
-                    {linkContent}
-                  </Link>
-              );
+                  onClick={onClick}
+                  className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary select-none w-full text-left",
+                    isActive && 'bg-primary text-primary-foreground hover:text-primary-foreground',
+                    isCollapsed && "justify-center"
+                  )}
+                >
+                  {linkContent}
+                </button>
+              ) : (
+                <Link
+                  to={href}
+                draggable="false"
+                  className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary select-none",
+                    isActive && 'bg-primary text-primary-foreground hover:text-primary-foreground',
+                    isCollapsed && "justify-center"
+                  )}
+                >
+                  {linkContent}
+                </Link>
+            );
 
               return (
                 <li key={id} className={liClass}>

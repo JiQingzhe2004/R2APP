@@ -29,7 +29,7 @@ import ReleaseNotesPage from './pages/ReleaseNotes';
 import PreviewPage from './pages/PreviewPage';
 import UpdatePage from './pages/Update';
 import AnnouncementsPage from './pages/Announcements';
-import AIChatPage from './pages/AIChatPage';
+import AIChatWindowPage from './pages/AIChatWindowPage';
 
 function AppUpdateDialog() {
   const { updateInfo, isUpdateModalOpen, setIsUpdateModalOpen } = useUpdate();
@@ -194,7 +194,7 @@ function App() {
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/dashboard" element={<DashboardPage />} />
                   <Route path="/files" element={<FilesPage />} />
-                  <Route path="/ai-chat" element={<AIChatPage />} />
+
                   <Route path="/uploads" element={<UploadsPage />} />
                   <Route path="/downloads" element={<DownloadsPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
@@ -204,6 +204,7 @@ function App() {
                   <Route path="/update" element={<UpdatePage />} />
                 </Route>
                 <Route path="/preview" element={<PreviewPage />} />
+                <Route path="/ai-chat-window" element={<AIChatWindowPage />} />
               </Routes>
               <AppUpdateDialog />
             </UploadsProvider>
