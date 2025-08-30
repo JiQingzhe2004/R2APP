@@ -781,7 +781,7 @@ export default function SettingsPage() {
   return (
     <div className="p-4 sm:p-6 space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-3">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="profiles" className="flex items-center gap-2">
             <Cloud className="h-4 w-4" />
             存储配置

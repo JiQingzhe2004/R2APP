@@ -274,20 +274,50 @@ class CosAPI {
       
       let totalCount = 0;
       let totalSize = 0;
-      let continuationToken = undefined;
+      let marker = undefined;
 
       do {
+        console.log(`[COS API] Fetching batch with marker: ${marker}`);
+        
         const result = await this.client.getBucket({
           Bucket: this.bucket,
           Region: this.region,
-          Marker: continuationToken,
+          Marker: marker,
           MaxKeys: 1000
         });
         
-        totalCount += result.Contents?.length || 0;
-        totalSize += result.Contents?.reduce((acc, obj) => acc + obj.Size, 0) || 0;
-        continuationToken = result.NextMarker;
-      } while (continuationToken);
+        console.log(`[COS API] Batch result:`, {
+          contentsLength: result.Contents?.length || 0,
+          hasContents: !!result.Contents,
+          isArray: Array.isArray(result.Contents),
+          nextMarker: result.NextMarker
+        });
+        
+        if (result.Contents && Array.isArray(result.Contents)) {
+          const batchSize = result.Contents.length;
+          // 确保 Size 是数值类型，避免字符串拼接
+          const batchTotalSize = result.Contents.reduce((acc, obj) => {
+            const size = parseInt(obj.Size) || 0;
+            return acc + size;
+          }, 0);
+          
+          console.log(`[COS API] Batch: ${batchSize} files, ${batchTotalSize} bytes`);
+          
+          totalCount += batchSize;
+          totalSize += batchTotalSize;
+          
+          // 显示前几个文件的信息
+          if (result.Contents.length > 0) {
+            console.log(`[COS API] First few files:`, result.Contents.slice(0, 3).map(obj => ({
+              key: obj.Key,
+              size: obj.Size,
+              lastModified: obj.LastModified
+            })));
+          }
+        }
+        
+        marker = result.NextMarker;
+      } while (marker);
 
       console.log(`[COS API] Storage stats: ${totalCount} files, ${totalSize} bytes`);
       

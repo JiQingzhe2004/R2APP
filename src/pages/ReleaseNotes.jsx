@@ -57,10 +57,24 @@ export default function ReleaseNotesPage() {
 
   // 过滤版本
   const filteredVersions = useMemo(() => {
+    console.log('Filtering versions:', { selectedType, totalVersions: changelogData.versions.length });
+    
+    // 首先过滤掉 unreleased 版本
+    const releasedVersions = changelogData.versions.filter(version => version.version !== 'unreleased');
+    console.log('Released versions:', releasedVersions.length);
+    
     if (selectedType === 'all') {
-      return changelogData.versions;
+      return releasedVersions;
     }
-    return changelogData.versions.filter(version => version.type === selectedType);
+    
+    const filtered = releasedVersions.filter(version => {
+      const matches = version.type === selectedType;
+      console.log(`Version ${version.version}: type=${version.type}, selectedType=${selectedType}, matches=${matches}`);
+      return matches;
+    });
+    
+    console.log('Filtered results:', { selectedType, filteredCount: filtered.length, filtered });
+    return filtered;
   }, [selectedType]);
 
   // 切换版本展开状态
@@ -76,6 +90,7 @@ export default function ReleaseNotesPage() {
 
   // 清除筛选
   const clearFilter = () => {
+    console.log('clearFilter called, setting selectedType to "all"');
     setSelectedType('all');
   };
 
@@ -96,37 +111,58 @@ export default function ReleaseNotesPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-2 items-center">
-            <Button
-              variant={selectedType === 'all' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSelectedType('all')}
-            >
-              全部版本
-            </Button>
-            {Object.entries(changelogData.categories).map(([type, label]) => (
+          <div className="space-y-3">
+            {/* 当前过滤状态显示 */}
+            <div className="text-sm text-muted-foreground">
+              当前筛选：<span className="font-medium">{selectedType === 'all' ? '全部版本' : changelogData.categories[selectedType]}</span>
+              {selectedType !== 'all' && (
+                <span className="ml-2">
+                  (共 {filteredVersions.length} 个版本)
+                </span>
+              )}
+            </div>
+            
+            <div className="flex flex-wrap gap-2 items-center">
               <Button
-                key={type}
-                variant={selectedType === type ? 'default' : 'outline'}
+                variant={selectedType === 'all' ? 'default' : 'outline'}
                 size="sm"
-                onClick={() => setSelectedType(type)}
-                className="flex items-center gap-2"
+                onClick={() => {
+                  console.log('Clicking "全部版本" button');
+                  setSelectedType('all');
+                }}
               >
-                {getTypeIcon(type)}
-                {label}
+                全部版本
               </Button>
-            ))}
-            {selectedType !== 'all' && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearFilter}
-                className="flex items-center gap-2 text-muted-foreground"
-              >
-                <X className="h-4 w-4" />
-                清除筛选
-              </Button>
-            )}
+              {Object.entries(changelogData.categories).map(([type, label]) => (
+                <Button
+                  key={type}
+                  variant={selectedType === type ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    console.log('Clicking filter button:', { type, label });
+                    setSelectedType(type);
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  {getTypeIcon(type)}
+                  {label}
+                </Button>
+              ))}
+              {selectedType !== 'all' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    console.log('Clearing filter');
+                    clearFilter();
+                  }}
+                  className="flex items-center gap-2 text-muted-foreground"
+                >
+                  <X className="h-4 w-4" />
+                  清除筛选
+                </Button>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>

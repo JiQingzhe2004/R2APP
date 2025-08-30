@@ -1,6 +1,22 @@
 {
   "versions": [
     {
+      "version": "5.0.5",
+      "date": "2025-08-31",
+      "type": "问题修复",
+      "title": "问题修复",
+      "changes": [
+        "更新版本至5.0.5；优化COSAPI调用，提升性能和稳定性。",
+        "解决腾讯云COSAPI调用时，分页获取文件列表的逻辑BUG。",
+        "删除cos-nodejs-sdk-v5的依赖，减少项目体积。",
+        "更新依赖版本，提升项目安全性。",
+        "优化项目代码结构，提升代码可读性和可维护性。",
+        "优化项目性能，提升用户体验。",
+        "优化项目稳定性，提升用户体验。"
+      ],
+      "breaking": false
+    },
+    {
       "version": "5.0.4",
       "date": "2025-08-31",
       "type": "功能更新",
@@ -120,36 +136,7 @@
       ],
       "breaking": false
     },
-    {
-      "version": "unreleased",
-      "date": "2025-08-30",
-      "type": "功能更新",
-      "title": "功能更新",
-      "changes": [
-        "新增豆包AI提供商支持，包括图标、配置面板和消息发送功能；更新AI配置管理器以处理自定义模型输入，优化用户体验。"
-      ],
-      "breaking": false
-    },
-    {
-      "version": "unreleased",
-      "date": "2025-08-30",
-      "type": "问题修复",
-      "title": "功能更新",
-      "changes": [
-        "实现代理配置功能，支持AI请求通过代理访问；更新AI配置面板以包含代理设置选项，增强连接测试逻辑，确保代理信息的有效性；重构相关服务以支持代理请求。"
-      ],
-      "breaking": false
-    },
-    {
-      "version": "unreleased",
-      "date": "2025-08-30",
-      "type": "功能更新",
-      "title": "功能更新",
-      "changes": [
-        "新增AI对话页面及相关组件，支持多家AI厂商的配置和交互；重构AI配置管理器，优化连接测试和消息发送逻辑；更新样式以提升用户体验。"
-      ],
-      "breaking": false
-    },
+
     {
       "version": "4.3.2",
       "date": "2025-08-30",
@@ -160,16 +147,7 @@
       ],
       "breaking": false
     },
-    {
-      "version": "unreleased",
-      "date": "2025-08-30",
-      "type": "问题修复",
-      "title": "功能更新",
-      "changes": [
-        "更新README.md，修正打包后应用程序目录的描述，从`dist`更改为`release`。"
-      ],
-      "breaking": false
-    },
+
     {
       "version": "4.3.1",
       "date": "2025-08-30",
@@ -200,26 +178,7 @@
       ],
       "breaking": false
     },
-    {
-      "version": "unreleased",
-      "date": "2025-08-30",
-      "type": "问题修复",
-      "title": "功能更新",
-      "changes": [
-        "Create ACKNOWLEDGEMENTS.md\n\n致谢名单"
-      ],
-      "breaking": false
-    },
-    {
-      "version": "unreleased",
-      "date": "2025-08-30",
-      "type": "问题修复",
-      "title": "功能更新",
-      "changes": [
-        "Create SECURITY.md\n\n安全策略"
-      ],
-      "breaking": false
-    },
+
     {
       "version": "4.2.1",
       "date": "2025-08-30",
@@ -240,16 +199,7 @@
       ],
       "breaking": false
     },
-    {
-      "version": "unreleased",
-      "date": "2025-08-30",
-      "type": "问题修复",
-      "title": "功能更新",
-      "changes": [
-        "更新ReleaseNotes页面中的文档地址至新的URL，以确保用户获取最新的版本信息。"
-      ],
-      "breaking": false
-    },
+
     {
       "version": "4.1.0",
       "date": "2025-08-30",

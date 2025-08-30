@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input';
 import { useTheme } from '@/components/theme-provider';
 import { toast } from 'sonner';
 import { User, Upload, X, Database, Trash2, Download, RefreshCw } from 'lucide-react';
+import DownloadSettings from '@/components/DownloadSettings';
 
 
 export default function AppSettings() {
@@ -145,9 +146,8 @@ export default function AppSettings() {
         {/* 分隔线 */}
         <div className="border-t border-border my-6"></div>
 
-
-
-
+        {/* 下载设置 */}
+        <DownloadSettings />
 
         {/* 分隔线 */}
         <div className="border-t border-border my-6"></div>

@@ -1263,6 +1263,25 @@ ipcMain.handle('get-setting', (event, key) => {
   }
 });
 
+// 获取下载路径的辅助函数
+function getDownloadPath() {
+  const appSettings = store.get('app-settings', {});
+  if (appSettings['download-path']) {
+    return appSettings['download-path'];
+  }
+  return app.getPath('downloads');
+}
+
+// 获取默认下载路径
+ipcMain.handle('get-default-download-path', () => {
+  try {
+    const downloadsPath = app.getPath('downloads');
+    return { success: true, path: downloadsPath };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('save-profiles', (event, { profiles, activeProfileId }) => {
   try {
     store.set('profiles', profiles);
@@ -1452,9 +1471,12 @@ ipcMain.handle('get-bucket-stats', async () => {
       if (!cosAPI) throw new Error('COS API实例创建失败');
       const response = await executeWithoutProxy(() => cosAPI.getStorageStats());
       
+      console.log('[Main] COS storage stats response:', response);
+      
       if (response.success) {
         totalCount = response.data.totalCount;
         totalSize = response.data.totalSize;
+        console.log(`[Main] COS stats: ${totalCount} files, ${totalSize} bytes`);
       }
     } else if (storage.type === 'smms') {
       // SM.MS 统计
@@ -1977,13 +1999,23 @@ ipcMain.handle('get-downloads', (event) => {
 });
 
 ipcMain.handle('show-open-dialog', async (_, options) => {
-  if (!mainWindow) return [];
-  const result = await dialog.showOpenDialog(mainWindow, {
-    properties: ['openFile', 'multiSelections'],
-    ...options
-  });
-  // Keep backward compatibility: sometimes older renderer expects array directly
-  return result.filePaths || [];
+  if (!mainWindow) return { success: false, error: '主窗口未初始化' };
+  
+  try {
+    const result = await dialog.showOpenDialog(mainWindow, options);
+    
+    if (result.canceled) {
+      return { success: true, filePaths: [] };
+    }
+    
+    return { 
+      success: true, 
+      filePaths: result.filePaths || [] 
+    };
+  } catch (error) {
+    console.error('show-open-dialog error:', error);
+    return { success: false, error: error.message };
+  }
 });
 
 ipcMain.handle('upload-file', async (_, { filePath, key, checkpoint }) => {
@@ -2008,7 +2040,8 @@ ipcMain.on('download-file', async (event, key) => {
      return;
    }
   
-   const downloadsPath = app.getPath('downloads');
+   // 获取下载路径，优先使用自定义路径，否则使用默认路径
+   const downloadsPath = getDownloadPath();
    
    // 处理包含路径分隔符的 key（如兰空图床的 2025/08/17/filename.png）
    let fileName = key;
