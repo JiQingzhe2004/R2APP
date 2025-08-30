@@ -151,9 +151,12 @@ export default function UploadsPage() {
   }, [startAllUploads]);
 
   const handleFileSelect = async () => {
-    const selectedPaths = await window.api.showOpenDialog();
-    if (selectedPaths) {
-      const newUploads = selectedPaths.map((path) => ({
+    const result = await window.api.showOpenDialog({
+      properties: ['openFile', 'multiSelections']
+    });
+    
+    if (result && result.success && result.filePaths && result.filePaths.length > 0) {
+      const newUploads = result.filePaths.map((path) => ({
         path,
         key: path.split(/[\\/]/).pop(),
       }));

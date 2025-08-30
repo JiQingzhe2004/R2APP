@@ -525,61 +525,8 @@ async function startUpload(filePath, key, checkpoint) {
         mainWindow.webContents.send('upload-progress', { key, error: error.message, filePath });
         addRecentActivity('upload', `图片 ${key} 上传到兰空图床失败: ${error.message}`, 'error');
       }
-    } else if (storage.type === 'smms') {
-      // 读取上传历史作为文件列表
-      try {
-        const active = getActiveProfile();
-        const smmsAPI = getAPIInstance('smms');
-      if (!smmsAPI) throw new Error('SM.MS API实例创建失败');
-        
-        const response = await executeWithoutProxy(() => smmsAPI.getImageList());
-        
-        if (response.success) {
-          rawFiles = response.data.files;
-        } else {
-          rawFiles = [];
-        }
-      } catch (error) {
-        console.error('SM.MS 获取图片列表失败:', error);
-        rawFiles = [];
-      }
-      folders = [];
-      nextContinuationToken = null;
-    } else if (storage.type === 'lsky') {
-      // 读取图片列表
-      const active = getActiveProfile();
-      const lskyAPI = getAPIInstance('lsky');
-      if (!lskyAPI) throw new Error('Lsky API实例创建失败');
-      
-      try {
-        const response = await executeWithoutProxy(() => lskyAPI.getImageList({
-          page: 1,
-          order: 'newest',
-          permission: 'public'
-        }));
-
-        if (response.success) {
-          const arr = response.data.files || [];
-          rawFiles = arr.map(it => {
-            const fileName = it.origin_name || it.name || it.pathname?.split('/').pop() || it.key;
-            return {
-              Key: fileName, // 使用name字段作为文件名，如果没有则使用origin_name或从pathname提取
-              LastModified: it.date || it.created_at,
-              Size: Math.round(Number(it.size || 0)), // size字段直接是字节数
-              ETag: it.md5,
-              publicUrl: it.links?.url // 使用links.url字段
-            };
-          });
-        } else {
-          rawFiles = [];
-        }
-      } catch (error) {
-        console.error('兰空图床获取图片列表失败:', error);
-        rawFiles = [];
-      }
-      folders = [];
-      nextContinuationToken = null;
     }
+
   } catch (error) {
     if (error.name === 'AbortError' || error.name === 'CancelError') {
       console.log(`Upload of ${key} was aborted/cancelled.`);
@@ -1102,6 +1049,33 @@ app.on('window-all-closed', () => {
 })
 
 // --- Auto-updater handlers ---
+
+// 清理 releaseNotes 的辅助函数
+function cleanReleaseNotes(notes, defaultMessage = '新版本可用，包含功能更新和问题修复。') {
+  if (!notes) return defaultMessage;
+  
+  let cleanedNotes = notes;
+  
+  // 移除 HTML 标签
+  cleanedNotes = cleanedNotes.replace(/<[^>]*>/g, '');
+  
+  // 移除 GitHub 链接
+  cleanedNotes = cleanedNotes.replace(/https?:\/\/github\.com\/[^\s]+/g, '');
+  
+  // 移除 "Full Changelog" 相关文本
+  cleanedNotes = cleanedNotes.replace(/Full Changelog[^]*?v[\d.]+\.\.\.v[\d.]+/g, '');
+  
+  // 清理多余的换行和空格
+  cleanedNotes = cleanedNotes.replace(/\n\s*\n/g, '\n').trim();
+  
+  // 如果清理后为空，使用默认信息
+  if (!cleanedNotes) {
+    cleanedNotes = defaultMessage;
+  }
+  
+  return cleanedNotes;
+}
+
 function setupAutoUpdater() {
   console.log('Updater: Initializing event listeners...');
 
@@ -1111,6 +1085,10 @@ function setupAutoUpdater() {
 
   autoUpdater.on('update-available', (info) => {
     console.log('Updater: Update available.', info);
+    
+    // 清理 releaseNotes，移除 GitHub 链接等无用信息
+    info.releaseNotes = cleanReleaseNotes(info.releaseNotes, '新版本可用，包含功能更新和问题修复。');
+    
     mainWindow.webContents.send('update-available', info);
   })
 
@@ -1126,6 +1104,10 @@ function setupAutoUpdater() {
 
   autoUpdater.on('update-downloaded', (info) => {
     console.log('Updater: Update downloaded.', info);
+    
+    // 清理 releaseNotes，移除 GitHub 链接等无用信息
+    info.releaseNotes = cleanReleaseNotes(info.releaseNotes, '新版本已下载完成，包含功能更新和问题修复。');
+    
     mainWindow?.webContents.send('update-downloaded', info);
   });
 
