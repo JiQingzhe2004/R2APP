@@ -114,7 +114,6 @@ function createSplashHTML() {
 
         .logo {
             width: 200px;
-            margin-bottom: 30px;
             border-radius: 20px;
             position: relative;
             animation: logoGlow 2s ease-in-out infinite alternate;
@@ -194,7 +193,6 @@ function createSplashHTML() {
         .loading-text {
             font-size: 16px;
             font-weight: 500;
-            margin-top: 20px;
             color: rgba(255, 255, 255, 0.8);
             text-shadow: 0 2px 4px rgba(0,0,0,0.3);
             animation: textGlow 2s ease-in-out infinite alternate;

@@ -267,7 +267,50 @@ export default function PreviewPage() {
       />;
     }
     if (isAudio(file.fileName)) {
-      return <div className="p-8"><audio src={file.publicUrl} controls autoPlay className="w-full" /></div>;
+      return (
+        <div className="w-full max-w-2xl mx-auto p-8">
+          <div className="bg-card border rounded-lg p-6 shadow-lg">
+            {/* 音频文件图标和标题 */}
+            <div className="text-center mb-6">
+              <div className="w-20 h-20 mx-auto mb-4 bg-primary/10 rounded-full flex items-center justify-center">
+                <svg className="w-10 h-10 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-semibold text-foreground mb-2">{file.fileName}</h2>
+              <p className="text-sm text-muted-foreground">音频文件</p>
+            </div>
+
+            {/* 音频播放器 */}
+            <div className="mb-6">
+              <audio 
+                src={file.publicUrl} 
+                controls 
+                autoPlay 
+                className="w-full h-12"
+                preload="metadata"
+              />
+            </div>
+
+            {/* 音频波形可视化（模拟） */}
+            <div className="mb-6">
+              <div className="flex items-center justify-center gap-1 h-16">
+                {Array.from({ length: 50 }, (_, i) => (
+                  <div
+                    key={i}
+                    className="w-1 bg-primary/30 rounded-full animate-pulse"
+                    style={{
+                      height: `${Math.random() * 60 + 20}%`,
+                      animationDelay: `${i * 0.1}s`,
+                      animationDuration: '2s'
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
     }
     if (isText) {
       return <CodePreview code={fileContent} fileName={file.fileName} />;
