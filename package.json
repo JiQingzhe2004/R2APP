@@ -1,6 +1,6 @@
 {
   "name": "CS-Explorer",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "description": "一个用于管理在线云存储的现代化桌面应用。",
   "main": "out/main/index.js",
   "author": "吉庆喆",
@@ -39,7 +39,7 @@
     "@radix-ui/react-toggle-group": "^1.1.10",
     "@radix-ui/react-tooltip": "^1.2.7",
     "ali-oss": "^6.23.0",
-    "better-sqlite3": "^12.2.0",
+
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "cos-nodejs-sdk-v5": "^2.15.4",
@@ -50,15 +50,9 @@
     "form-data": "^4.0.4",
     "highlight.js": "^11.11.1",
     "lucide-react": "^0.525.0",
-    "openai": "^5.15.0",
     "proxy-agent": "^5.0.0",
     "qrcode": "^1.5.3",
-    "react-markdown": "^10.1.0",
     "react-router-dom": "^7.6.3",
-    "react-syntax-highlighter": "^15.6.1",
-    "rehype-highlight": "^7.0.2",
-    "rehype-raw": "^7.0.0",
-    "remark-gfm": "^4.0.1",
     "sonner": "^2.0.6",
     "uuid": "^11.1.0"
   },

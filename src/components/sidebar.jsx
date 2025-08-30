@@ -11,8 +11,7 @@ import {
   UploadCloud,
   BadgeInfo,
   CloudDownload,
-  Bell,
-  MessageSquare
+  Bell
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useTheme } from "./theme-provider"
@@ -31,32 +30,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
   const { theme, setTheme } = useTheme()
   const location = useLocation();
   const isActive = (path) => location.pathname.startsWith(path);
-  const [isAIChatWindowOpen, setIsAIChatWindowOpen] = useState(false);
 
-  // 检查AI对话窗口状态
-  useEffect(() => {
-    const checkAIChatWindowStatus = async () => {
-      try {
-        const isOpen = await window.api.isAIChatWindowOpen();
-        setIsAIChatWindowOpen(isOpen);
-      } catch (error) {
-        console.error('检查AI对话窗口状态失败:', error);
-      }
-    };
-
-    checkAIChatWindowStatus();
-    
-    // 监听AI对话窗口关闭事件
-    const removeListener = window.api.onAIChatWindowClosed(() => {
-      setIsAIChatWindowOpen(false);
-    });
-
-    return () => {
-      if (removeListener && typeof removeListener === 'function') {
-        removeListener();
-      }
-    };
-  }, []);
 
   const navItems = [
     { id: 'dashboard', href: '/dashboard', icon: LayoutDashboard, label: '仪表盘' },
@@ -65,21 +39,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
     { id: 'downloads', href: '/downloads', icon: CloudDownload, label: '下载' },
     { id: 'announcements', href: '/announcements', icon: Bell, label: '公告' },
     { id: 'settings', href: '/settings', icon: Settings, label: '设置' },
-    { 
-      id: 'ai-chat', 
-      icon: MessageSquare, 
-      label: isAIChatWindowOpen ? 'AI 对话 (独立窗口)' : 'AI 对话',
-      isWindowOpen: isAIChatWindowOpen,
-      onClick: () => {
-        if (isAIChatWindowOpen) {
-          // 如果窗口已打开，聚焦到窗口
-          window.api.openAIChatWindow();
-        } else {
-          // 如果窗口未打开，打开新窗口
-          window.api.openAIChatWindow();
-        }
-      }
-    },
+
     { id: 'update', href: '/update', icon: HardDriveDownload, label: '应用更新' },
     { id: 'releasenotes', href: '/releasenotes', icon: ScrollText, label: '更新日志' },
     { id: 'about', href: '/about', icon: BadgeInfo, label: '关于' },

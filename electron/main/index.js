@@ -20,7 +20,7 @@ import R2API from './r2-api.js';
 import OssAPI from './oss-api.js';
 import CosAPI from './cos-api.js';
 import { showSplash, hideSplash, destroySplash } from './splash-screen.js';
-import { IPCHandlers } from './ipc-handlers.js';
+
 
 const activeUploads = new Map();
 // Cache public URL and delete URL for providers that return them (SM.MS, LSKY)
@@ -31,9 +31,7 @@ const objectHashCache = new Map(); // key: provider+":"+objectKey -> hash (for S
 // API实例缓存
 const apiInstances = new Map();
 
-// AI对话窗口管理
-const aiChatWindows = new Map();
-let aiChatWindow = null;
+
 
 /**
  * 获取API实例
@@ -158,12 +156,11 @@ async function executeWithoutProxy(operation) {
 // 执行AI操作时确保可以使用代理的包装函数
 async function executeWithProxy(operation) {
   // 保持现有的代理环境变量，不做任何修改
-  // 这样AI请求就可以使用系统代理设置
   try {
     const result = await operation();
     return result;
   } catch (error) {
-    console.error('[AI Proxy] AI请求执行失败:', error);
+    console.error('[Proxy] 请求执行失败:', error);
     throw error;
   }
 }
@@ -642,7 +639,7 @@ let mainWindow;
 const previewWindows = new Map();
 let tray = null;
 let userTrayIconPath = null; // absolute path selected by user
-let ipcHandlers = null; // IPC处理器实例
+
 
 function resolveTrayImage() {
   try {
@@ -748,55 +745,7 @@ function createPreviewWindow(fileName, filePath, bucket, publicUrl) {
   previewWindows.set(key, previewWindow);
 }
 
-function createAIChatWindow() {
-  // 如果已经存在AI对话窗口，则聚焦到现有窗口
-  if (aiChatWindow && !aiChatWindow.isDestroyed()) {
-    aiChatWindow.focus();
-    return;
-  }
 
-  aiChatWindow = new BrowserWindow({
-    width: 1400,
-    height: 800,
-    minWidth: 1400,
-    minHeight: 800,
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
-      sandbox: false,
-      contextIsolation: true,
-    },
-    show: false,
-    frame: false,
-    titleBarStyle: 'hidden',
-    title: 'AI 对话 - CS-Explorer'
-  });
-
-  aiChatWindow.on('ready-to-show', () => {
-    aiChatWindow.show();
-  });
-  
-  aiChatWindow.on('maximize', () => {
-    aiChatWindow.webContents.send('window-maximized-status-changed', true);
-  });
-  
-  aiChatWindow.on('unmaximize', () => {
-    aiChatWindow.webContents.send('window-maximized-status-changed', false);
-  });
-  
-  aiChatWindow.on('closed', () => {
-    aiChatWindow = null;
-    // 通知主窗口AI对话窗口已关闭
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('ai-chat-window-closed');
-    }
-  });
-
-  const aiChatUrl = is.dev && process.env['ELECTRON_RENDERER_URL']
-    ? `${process.env['ELECTRON_RENDERER_URL']}/#/ai-chat-window`
-    : `file://${join(__dirname, '../renderer/index.html')}#/ai-chat-window`;
-  
-  aiChatWindow.loadURL(aiChatUrl);
-}
 
 function createWindow() {
   // Resolve icon path for packaged vs dev
@@ -979,12 +928,10 @@ if (!gotLock) {
 // Defer initial argv handling until after the main window is created
 
 app.whenReady().then(async () => {
-  // 注释掉强制直连，让AI请求可以使用代理
+  // 注释掉强制直连，让请求可以使用代理
   // await session.defaultSession.setProxy({ proxyRules: 'direct://' });
   
-  // 初始化IPC处理器
-  ipcHandlers = new IPCHandlers();
-  ipcHandlers.initialize();
+
   
   // 显示启动图（不传递主窗口，因为此时主窗口还未创建）
   showSplash();
@@ -1145,10 +1092,7 @@ app.on('will-quit', () => {
   globalShortcut.unregisterAll();
   // 销毁启动图
   destroySplash();
-  // 关闭IPC处理器和数据库连接
-  if (ipcHandlers) {
-    ipcHandlers.close();
-  }
+
 })
 
 app.on('window-all-closed', () => {
@@ -2429,14 +2373,7 @@ ipcMain.on('get-initial-file-info', (event) => {
   event.reply('file-info-for-preview', initialFileInfo);
 });
 
-// AI对话窗口管理
-ipcMain.on('open-ai-chat-window', (event) => {
-  createAIChatWindow();
-});
 
-ipcMain.handle('is-ai-chat-window-open', (event) => {
-  return aiChatWindow && !aiChatWindow.isDestroyed();
-});
 
 ipcMain.handle('get-presigned-url', async (event, bucket, key) => {
   const storage = await getStorageClient();

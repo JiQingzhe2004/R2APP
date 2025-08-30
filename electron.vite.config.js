@@ -9,7 +9,7 @@ export default defineConfig({
         input: {
           index: resolve(__dirname, 'electron/main/index.js')
         },
-        external: ['@electron-toolkit/utils', 'electron-store', 'ali-oss', '@aws-sdk/client-s3', '@aws-sdk/lib-storage', '@aws-sdk/s3-request-presigner', 'better-sqlite3']
+        external: ['@electron-toolkit/utils', 'electron-store', 'ali-oss', '@aws-sdk/client-s3', '@aws-sdk/lib-storage', '@aws-sdk/s3-request-presigner']
       }
     }
   },
