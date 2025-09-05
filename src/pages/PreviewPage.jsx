@@ -61,6 +61,7 @@ export default function PreviewPage() {
 
         const routedPublicUrl = new URLSearchParams(window.location.hash.split('?')[1]).get('publicUrl');
         const publicUrl = routedPublicUrl || await window.api.getPresignedUrl(bucket, `${filePath}${fileName}`);
+        
         if (!publicUrl) {
           throw new Error('无法获取文件预览链接。');
         }
@@ -68,17 +69,124 @@ export default function PreviewPage() {
         setFile({ fileName, filePath, bucket, publicUrl });
         
         if (isImage(fileName)) {
+          // 对于Gitee，先尝试直接加载，如果失败再使用主进程获取内容
+          if (bucket === 'gitee' || publicUrl.includes('gitee.com')) {
+            // 先尝试直接加载，看看是否真的被代理拦截
+            const testImg = new Image();
+            testImg.onload = () => {
+              // 直接加载成功，使用原始方法
+              const img = new Image();
+              img.onload = () => {
+                window.api.resizePreviewWindow({ width: img.naturalWidth, height: img.naturalHeight });
+                setLoading(false);
+              }
+              img.onerror = (error) => {
+                setError(`图片加载失败: ${publicUrl}`);
+                setLoading(false);
+              }
+              img.src = publicUrl;
+            };
+            testImg.onerror = async (error) => {
+              // 直接加载失败，使用主进程获取内容
+              try {
+                const result = await window.api.getObjectContent(bucket, `${filePath}${fileName}`);
+                if (result.success && result.content) {
+                  // 将base64内容转换为blob URL
+                  const base64Data = result.content;
+                  const byteCharacters = atob(base64Data);
+                  const byteNumbers = new Array(byteCharacters.length);
+                  for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                  }
+                  const byteArray = new Uint8Array(byteNumbers);
+                  const blob = new Blob([byteArray], { type: 'image/jpeg' });
+                  const blobUrl = URL.createObjectURL(blob);
+                  
+                  const img = new Image();
+                  img.onload = () => {
+                    window.api.resizePreviewWindow({ width: img.naturalWidth, height: img.naturalHeight });
+                    setLoading(false);
+                  }
+                  img.onerror = (error) => {
+                    setError('图片加载失败');
+                    setLoading(false);
+                  }
+                  img.src = blobUrl;
+                  
+                  // 更新file对象使用blob URL
+                  setFile({ fileName, filePath, bucket, publicUrl: blobUrl });
+                  return;
+                } else {
+                  setError(`获取图片内容失败: ${result.error}`);
+                  setLoading(false);
+                  return;
+                }
+              } catch (error) {
+                setError(`获取图片内容异常: ${error.message}`);
+                setLoading(false);
+                return;
+              }
+            };
+            testImg.src = publicUrl;
+            return;
+          }
+          
+          // 对于其他存储服务，使用直接URL加载
           const img = new Image();
           img.onload = () => {
             window.api.resizePreviewWindow({ width: img.naturalWidth, height: img.naturalHeight });
             setLoading(false);
           }
-          img.onerror = () => {
-            setError('图片加载失败。');
+          img.onerror = (error) => {
+            setError(`图片加载失败: ${publicUrl}`);
             setLoading(false);
           }
           img.src = publicUrl;
         } else if (isVideo(fileName)) {
+          // 对于Gitee视频，使用主进程获取内容来避免CORS问题
+          if (bucket === 'gitee' || publicUrl.includes('gitee.com')) {
+            try {
+              const result = await window.api.getObjectContent(bucket, `${filePath}${fileName}`);
+              if (result.success && result.content) {
+                // 将base64内容转换为blob URL
+                const base64Data = result.content;
+                const byteCharacters = atob(base64Data);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                  byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: 'video/mp4' });
+                const blobUrl = URL.createObjectURL(blob);
+                
+                const video = document.createElement('video');
+                video.preload = 'metadata';
+                video.onloadedmetadata = () => {
+                  window.api.resizePreviewWindow({ width: video.videoWidth, height: video.videoHeight });
+                  setLoading(false);
+                }
+                video.onerror = (error) => {
+                  setError('视频加载失败');
+                  setLoading(false);
+                }
+                video.src = blobUrl;
+                
+                // 更新file对象使用blob URL
+                setFile({ fileName, filePath, bucket, publicUrl: blobUrl });
+                return;
+              } else {
+                setError(`获取视频内容失败: ${result.error}`);
+                setLoading(false);
+                return;
+              }
+            } catch (error) {
+              setError(`获取视频内容异常: ${error.message}`);
+              setLoading(false);
+              return;
+            }
+          }
+          
+          // 对于其他存储服务，使用直接URL加载
           const video = document.createElement('video');
           // 更快拿到元数据以便尽快调整窗口尺寸
           video.preload = 'metadata';
@@ -93,37 +201,40 @@ export default function PreviewPage() {
           video.src = publicUrl;
 
           // 异步尝试查找首帧海报（同路径同名的 .jpg/.png/.webp）
-          const baseKey = `${filePath}${fileName}`;
-          const dotIndex = baseKey.lastIndexOf('.');
-          const withoutExt = dotIndex > -1 ? baseKey.slice(0, dotIndex) : baseKey;
-          const posterKeys = [
-            `${withoutExt}.jpg`,
-            `${withoutExt}.png`,
-            `${withoutExt}.webp`,
-          ];
-          const testImage = (url) => new Promise((resolve) => {
-            const img = new Image();
-            img.crossOrigin = 'anonymous';
-            img.onload = () => resolve(true);
-            img.onerror = () => resolve(false);
-            img.src = url;
-          });
-          (async () => {
-            for (const k of posterKeys) {
-              try {
-                const signed = await window.api.getPresignedUrl(bucket, k);
-                if (signed) {
-                  const ok = await testImage(signed);
-                  if (ok) {
-                    setPosterUrl(signed);
-                    break;
+          // 对于Gitee，跳过海报查找以避免CORS问题
+          if (!(bucket === 'gitee' || publicUrl.includes('gitee.com'))) {
+            const baseKey = `${filePath}${fileName}`;
+            const dotIndex = baseKey.lastIndexOf('.');
+            const withoutExt = dotIndex > -1 ? baseKey.slice(0, dotIndex) : baseKey;
+            const posterKeys = [
+              `${withoutExt}.jpg`,
+              `${withoutExt}.png`,
+              `${withoutExt}.webp`,
+            ];
+            const testImage = (url) => new Promise((resolve) => {
+              const img = new Image();
+              img.crossOrigin = 'anonymous';
+              img.onload = () => resolve(true);
+              img.onerror = () => resolve(false);
+              img.src = url;
+            });
+            (async () => {
+              for (const k of posterKeys) {
+                try {
+                  const signed = await window.api.getPresignedUrl(bucket, k);
+                  if (signed) {
+                    const ok = await testImage(signed);
+                    if (ok) {
+                      setPosterUrl(signed);
+                      break;
+                    }
                   }
+                } catch (_) {
+                  // ignore and try next
                 }
-              } catch (_) {
-                // ignore and try next
               }
-            }
-          })();
+            })();
+          }
         } else if (isAudio(fileName)) {
             // For audio, we don't need to wait for metadata to show the player
             setLoading(false);

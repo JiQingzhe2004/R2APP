@@ -4,7 +4,7 @@ import WhiteLogo from '@/assets/WhiteLOGO.png'
 import BlackLogo from '@/assets/BlackLOGO.png'
 import WechatQR from '@/assets/wxzf.png'
 import AlipayQR from '@/assets/zfb.png'
-import { Github, GitCommit, UserCircle, Award, ArrowRight, BadgeCheck, Atom, ExternalLink, Cloud, Database, Image, Heart, Coffee, X, Calendar } from 'lucide-react'
+import { Github, GitCommit, UserCircle, Award, ArrowRight, BadgeCheck, Atom, ExternalLink, Cloud, Database, Image, Heart, Coffee, X, Calendar, GitBranch } from 'lucide-react'
 import { Tiktok, MaillOne} from '@icon-park/react'
 import { useTheme } from '@/components/theme-provider';
 import versionData from '@/version.json';
@@ -85,6 +85,14 @@ export default function AboutPage() {
       url: 'https://github.com/lsky-org/lsky-pro',
       color: 'text-blue-500',
       bgColor: 'bg-blue-50 dark:bg-blue-900/20'
+    },
+    {
+      name: 'Gitee-码云',
+      description: '基于Git的代码托管和文件存储国内服务',
+      icon: GitBranch,
+      url: 'https://gitee.com/',
+      color: 'text-red-500',
+      bgColor: 'bg-red-50 dark:bg-red-900/20'
     }
   ];
 

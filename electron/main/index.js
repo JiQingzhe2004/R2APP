@@ -19,6 +19,7 @@ import SmmsAPI from './smms-api.js';
 import R2API from './r2-api.js';
 import OssAPI from './oss-api.js';
 import CosAPI from './cos-api.js';
+import GiteeAPI from './gitee-api.js';
 import { showSplash, hideSplash, destroySplash } from './splash-screen.js';
 
 
@@ -77,6 +78,37 @@ function getAPIInstance(type) {
           secretKey: profile.secretKey,
           bucket: profile.bucket,
           publicDomain: profile.publicDomain
+        });
+      }
+      break;
+    case 'gitee':
+      console.log('[Main] Creating Gitee API instance with profile:', {
+        hasAccessToken: !!profile.accessToken,
+        hasOwner: !!profile.owner,
+        hasRepo: !!profile.repo,
+        branch: profile.branch,
+        publicDomain: profile.publicDomain
+      });
+      
+      if (profile.accessToken && profile.owner && profile.repo) {
+        try {
+          apiInstance = new GiteeAPI({
+            accessToken: profile.accessToken,
+            owner: profile.owner,
+            repo: profile.repo,
+            branch: profile.branch || 'main',
+            publicDomain: profile.publicDomain
+          });
+          console.log('[Main] Gitee API instance created successfully');
+        } catch (error) {
+          console.error('[Main] Failed to create Gitee API instance:', error);
+          throw error;
+        }
+      } else {
+        console.error('[Main] Missing required Gitee configuration:', {
+          accessToken: !!profile.accessToken,
+          owner: !!profile.owner,
+          repo: !!profile.repo
         });
       }
       break;
@@ -456,6 +488,19 @@ async function startUpload(filePath, key, checkpoint) {
       activeUploads.set(key, { cancel: () => { /* COS upload doesn't support direct cancel */ } });
 
       await executeWithoutProxy(() => cosAPI.uploadFile(filePath, key, onProgress));
+      mainWindow.webContents.send('upload-progress', { key, percentage: 100, filePath });
+      addRecentActivity('upload', `文件 ${key} 上传成功。`, 'success');
+    } else if (storage.type === 'gitee') {
+      const giteeAPI = getAPIInstance('gitee');
+      if (!giteeAPI) throw new Error('Gitee API实例创建失败');
+
+      const onProgress = (percentage, loaded, total) => {
+        mainWindow.webContents.send('upload-progress', { key, percentage, filePath });
+      };
+
+      activeUploads.set(key, { cancel: () => { /* Gitee upload doesn't support direct cancel */ } });
+
+      await executeWithoutProxy(() => giteeAPI.uploadFile(filePath, key, onProgress));
       mainWindow.webContents.send('upload-progress', { key, percentage: 100, filePath });
       addRecentActivity('upload', `文件 ${key} 上传成功。`, 'success');
     } else if (storage.type === 'smms') {
@@ -1341,6 +1386,40 @@ ipcMain.handle('test-connection', async (event, profile) => {
     } catch (error) {
       return { success: false, error: `兰空图床连接失败: ${error.message}` };
     }
+  } else if (profile.type === 'gitee') {
+    console.log('[Main] Testing Gitee connection with profile:', {
+      hasAccessToken: !!profile.accessToken,
+      hasOwner: !!profile.owner,
+      hasRepo: !!profile.repo,
+      branch: profile.branch
+    });
+    
+    if (!profile.accessToken || !profile.owner || !profile.repo) {
+      const missing = [];
+      if (!profile.accessToken) missing.push('AccessToken');
+      if (!profile.owner) missing.push('Owner');
+      if (!profile.repo) missing.push('Repo');
+      return { success: false, error: `缺少 Gitee 配置信息: ${missing.join(', ')}` };
+    }
+    
+    try {
+      console.log('[Main] Creating Gitee API instance for connection test...');
+      // 直接创建API实例，不依赖活动配置
+      const giteeAPI = new GiteeAPI({
+        accessToken: profile.accessToken,
+        owner: profile.owner,
+        repo: profile.repo,
+        branch: profile.branch || 'main',
+        publicDomain: profile.publicDomain
+      });
+      console.log('[Main] Gitee API instance created, testing connection...');
+      const result = await executeWithoutProxy(() => giteeAPI.testConnection());
+      console.log('[Main] Gitee connection test result:', result);
+      return result;
+    } catch (error) {
+      console.error('[Main] Gitee connection test failed:', error);
+      return { success: false, error: `Gitee 连接失败: ${error.message}` };
+    }
   } else {
     return { success: false, error: '未知的配置类型。' };
   }
@@ -1388,6 +1467,16 @@ async function getStorageClient() {
             bucket: 'lsky',
             token: profile.lskyToken,
             url: profile.lskyUrl,
+        };
+    } else if (profile.type === 'gitee') {
+        if (!profile.accessToken || !profile.owner || !profile.repo) return null;
+        return {
+            client: null, // Gitee 使用 GiteeAPI 模块
+            type: 'gitee',
+            bucket: `${profile.owner}/${profile.repo}`,
+            owner: profile.owner,
+            repo: profile.repo,
+            branch: profile.branch || 'main',
         };
     }
     return null;
@@ -1459,6 +1548,18 @@ ipcMain.handle('get-bucket-stats', async () => {
         totalCount = response.data.totalCount;
         totalSize = response.data.totalSize;
         console.log(`[Main] COS stats: ${totalCount} files, ${totalSize} bytes`);
+      }
+    } else if (storage.type === 'gitee') {
+      const giteeAPI = getAPIInstance('gitee');
+      if (!giteeAPI) throw new Error('Gitee API实例创建失败');
+      const response = await executeWithoutProxy(() => giteeAPI.getStorageStats());
+      
+      console.log('[Main] Gitee storage stats response:', response);
+      
+      if (response.success) {
+        totalCount = response.data.totalCount;
+        totalSize = response.data.totalSize;
+        console.log(`[Main] Gitee stats: ${totalCount} files, ${totalSize} bytes`);
       }
     } else if (storage.type === 'smms') {
       // SM.MS 统计
@@ -1546,6 +1647,20 @@ ipcMain.handle('list-objects', async (event, options) => {
       const cosAPI = getAPIInstance('cos');
       if (!cosAPI) throw new Error('COS API实例创建失败');
       const response = await executeWithoutProxy(() => cosAPI.listFiles({
+        prefix: apiPrefix,
+        delimiter: apiDelimiter,
+        continuationToken: continuationToken
+      }));
+      
+      if (response.success) {
+        rawFiles = response.data.files || [];
+        folders = response.data.folders || [];
+        nextContinuationToken = response.data.nextContinuationToken;
+      }
+    } else if (storage.type === 'gitee') {
+      const giteeAPI = getAPIInstance('gitee');
+      if (!giteeAPI) throw new Error('Gitee API实例创建失败');
+      const response = await executeWithoutProxy(() => giteeAPI.listFiles({
         prefix: apiPrefix,
         delimiter: apiDelimiter,
         continuationToken: continuationToken
@@ -1719,6 +1834,10 @@ ipcMain.handle('delete-object', async (_, key) => {
       const cosAPI = getAPIInstance('cos');
       if (!cosAPI) throw new Error('COS API实例创建失败');
       await executeWithoutProxy(() => cosAPI.deleteFile(key));
+    } else if (storage.type === 'gitee') {
+      const giteeAPI = getAPIInstance('gitee');
+      if (!giteeAPI) throw new Error('Gitee API实例创建失败');
+      await executeWithoutProxy(() => giteeAPI.deleteFile(key));
     } else if (storage.type === 'smms') {
       // SM.MS 删除
       try {
@@ -1963,6 +2082,20 @@ ipcMain.handle('get-object-content', async (event, bucket, key) => {
           content = response.data.content;
         }
       }
+    } else if (type === 'gitee') {
+      const giteeAPI = getAPIInstance('gitee');
+      if (!giteeAPI) throw new Error('Gitee API实例创建失败');
+      
+      const response = await executeWithoutProxy(() => giteeAPI.getFileContent(key, PREVIEW_FILE_SIZE_LIMIT));
+      if (response.success) {
+        if (response.data.tooLarge) {
+          fileTooLarge = true;
+        } else {
+          content = response.data.content;
+        }
+      } else {
+        throw new Error(response.error);
+      }
     }
 
     if (fileTooLarge) {
@@ -2108,6 +2241,30 @@ ipcMain.on('download-file', async (event, key) => {
          };
          
          await executeWithoutProxy(() => cosAPI.downloadFile(key, filePath, onProgress));
+         
+         const finalTasks = store.get('download-tasks', {});
+         if (finalTasks[taskId]) {
+           finalTasks[taskId].status = 'completed';
+           finalTasks[taskId].progress = 100;
+           store.set('download-tasks', finalTasks);
+         }
+         mainWindow.webContents.send('download-update', { 
+           type: 'progress', 
+           data: { id: taskId, progress: 100, status: 'completed' } 
+         });
+         addRecentActivity('download', `下载了 ${key}`);
+     } else if (storage.type === 'gitee') {
+         const giteeAPI = getAPIInstance('gitee');
+         if (!giteeAPI) throw new Error('Gitee API实例创建失败');
+         
+         const onProgress = (percentage, loaded, total) => {
+           mainWindow.webContents.send('download-update', { 
+             type: 'progress', 
+             data: { id: taskId, progress: percentage } 
+           });
+         };
+         
+         await executeWithoutProxy(() => giteeAPI.downloadFile(key, filePath, onProgress));
          
          const finalTasks = store.get('download-tasks', {});
          if (finalTasks[taskId]) {
@@ -2411,6 +2568,11 @@ ipcMain.handle('get-presigned-url', async (event, bucket, key) => {
       const cosAPI = getAPIInstance('cos');
       if (!cosAPI) throw new Error('COS API实例创建失败');
       url = await executeWithoutProxy(() => cosAPI.getPresignedUrl(key, 900));
+    } else if (storage.type === 'gitee') {
+      // Gitee 获取公共URL
+      const giteeAPI = getAPIInstance('gitee');
+      if (!giteeAPI) throw new Error('Gitee API实例创建失败');
+      url = await executeWithoutProxy(() => giteeAPI.getPresignedUrl(key, 900));
     }
     return url;
   } catch (error) {
@@ -2452,6 +2614,14 @@ ipcMain.on('start-search', async (event, searchTerm) => {
         const cosAPI = getAPIInstance('cos');
         if (!cosAPI) throw new Error('COS API实例创建失败');
         const searchResponse = await executeWithoutProxy(() => cosAPI.searchFiles(lowerCaseSearchTerm, { continuationToken }));
+        response = {
+          Contents: searchResponse.data.files,
+          NextContinuationToken: null // 搜索已经处理了分页
+        };
+      } else if (storage.type === 'gitee') {
+        const giteeAPI = getAPIInstance('gitee');
+        if (!giteeAPI) throw new Error('Gitee API实例创建失败');
+        const searchResponse = await executeWithoutProxy(() => giteeAPI.searchFiles(lowerCaseSearchTerm, { continuationToken }));
         response = {
           Contents: searchResponse.data.files,
           NextContinuationToken: null // 搜索已经处理了分页

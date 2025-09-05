@@ -24,6 +24,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -90,6 +100,18 @@ const LSKY_TEMPLATE = {
   createdAt: new Date().toISOString(),
 };
 
+const GITEE_TEMPLATE = {
+  type: 'gitee',
+  name: '新 Gitee 配置',
+  accessToken: '',
+  owner: '',
+  repo: '',
+  branch: 'main',
+  storageQuotaGB: 10,
+  storageQuotaUnit: 'GB',
+  createdAt: new Date().toISOString(),
+};
+
 const PROVIDER_INFO = {
   r2: {
     name: 'Cloudflare R2',
@@ -120,6 +142,12 @@ const PROVIDER_INFO = {
     icon: Image,
     color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
     description: '标准的兰空图床，支持多种存储策略'
+  },
+  gitee: {
+    name: 'Gitee 仓库',
+    icon: Database,
+    color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+    description: '使用 Gitee 仓库作为文件存储，支持版本控制'
   }
 };
 
@@ -128,6 +156,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(profile.name);
   const [showBucketSelector, setShowBucketSelector] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const providerInfo = PROVIDER_INFO[profile.type] || {
     name: '未知服务',
     icon: Cloud,
@@ -135,9 +164,18 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
     description: '未知的存储服务类型'
   };
 
-  const handleNameSave = () => {
+  const handleNameSave = async () => {
+    // 先更新配置
     onChange(profile.id, { target: { name: 'name', value: tempName } });
     setIsEditingName(false);
+    
+    // 直接使用更新后的配置进行保存
+    const updatedProfile = { ...profile, name: tempName };
+    try {
+      await onSave(profile.id, updatedProfile);
+    } catch (error) {
+      console.error('自动保存失败:', error);
+    }
   };
 
   const handleNameCancel = () => {
@@ -232,7 +270,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
             <Button 
               size="sm" 
               variant="destructive" 
-              onClick={() => onRemove(profile.id)} 
+              onClick={() => setShowDeleteDialog(true)} 
               disabled={isSaving}
             >
               <Trash2 className="h-4 w-4" />
@@ -526,6 +564,85 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
             </>
           )}
 
+          {profile.type === 'gitee' && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`accessToken-${profile.id}`} className="flex items-center gap-2">
+                    <KeyRound className="h-4 w-4" />
+                    Access Token
+                  </Label>
+                  <Input 
+                    id={`accessToken-${profile.id}`} 
+                    name="accessToken" 
+                    type="password" 
+                    value={profile.accessToken} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="您的 Gitee Access Token" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`owner-${profile.id}`} className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    仓库所有者
+                  </Label>
+                  <Input 
+                    id={`owner-${profile.id}`} 
+                    name="owner" 
+                    value={profile.owner} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="Gitee 用户名或组织名" 
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`repo-${profile.id}`} className="flex items-center gap-2">
+                    <Container className="h-4 w-4" />
+                    仓库名称
+                  </Label>
+                  <Input 
+                    id={`repo-${profile.id}`} 
+                    name="repo" 
+                    value={profile.repo} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="仓库名称" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`branch-${profile.id}`} className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    分支名称
+                  </Label>
+                  <Input 
+                    id={`branch-${profile.id}`} 
+                    name="branch" 
+                    value={profile.branch} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="例如: main, master" 
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor={`publicDomain-${profile.id}`} className="flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  自定义域名
+                </Label>
+                <Input 
+                  id={`publicDomain-${profile.id}`} 
+                  name="publicDomain" 
+                  value={profile.publicDomain || ''} 
+                  onChange={(e) => onChange(profile.id, e)} 
+                  placeholder="例如: https://cdn.yourdomain.com (可选)" 
+                />
+                <p className="text-xs text-muted-foreground">
+                  配置自定义域名后，文件访问将使用您的域名而不是默认的Gitee域名，务必正确解析！
+                </p>
+              </div>
+            </>
+          )}
+
           {profile.type === 'smms' && (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -636,6 +753,30 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
           onChange(profile.id, { target: { name: fieldName, value: bucketName } });
         }}
       />
+      
+      {/* 删除确认对话框 */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除配置</AlertDialogTitle>
+            <AlertDialogDescription>
+              您确定要删除配置 "{profile.name}" 吗？此操作无法撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                onRemove(profile.id);
+                setShowDeleteDialog(false);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 };
@@ -704,7 +845,7 @@ export default function SettingsPage() {
   };
   
   const handleAddProfile = (type) => {
-    const template = type === 'r2' ? R2_TEMPLATE : type === 'oss' ? OSS_TEMPLATE : type === 'cos' ? COS_TEMPLATE : type === 'smms' ? SMMS_TEMPLATE : LSKY_TEMPLATE;
+    const template = type === 'r2' ? R2_TEMPLATE : type === 'oss' ? OSS_TEMPLATE : type === 'cos' ? COS_TEMPLATE : type === 'smms' ? SMMS_TEMPLATE : type === 'lsky' ? LSKY_TEMPLATE : GITEE_TEMPLATE;
     const newProfile = {
       id: uuidv4(),
       ...template,
@@ -719,11 +860,20 @@ export default function SettingsPage() {
     setActiveTab('profiles');
   };
 
-  const handleRemoveProfile = (id) => {
+  const handleRemoveProfile = async (id) => {
     const newProfiles = profiles.filter(p => p.id !== id);
     setProfiles(newProfiles);
     if (activeProfileId === id) {
       setActiveProfileId(newProfiles.length > 0 ? newProfiles[0].id : null);
+    }
+    
+    // 自动保存配置
+    try {
+      await window.api.saveProfiles({ profiles: newProfiles, activeProfileId: newProfiles.length > 0 ? newProfiles[0].id : null });
+      addNotification({ message: '配置已删除并保存', type: 'success' });
+    } catch (error) {
+      console.error('保存配置失败:', error);
+      addNotification({ message: '删除配置失败', type: 'error' });
     }
   };
 
@@ -744,8 +894,8 @@ export default function SettingsPage() {
     setIsTesting(prev => ({...prev, [profileId]: false}));
   };
 
-  const handleSaveProfile = async (profileId) => {
-    const profileToSave = profiles.find(p => p.id === profileId);
+  const handleSaveProfile = async (profileId, updatedProfile = null) => {
+    const profileToSave = updatedProfile || profiles.find(p => p.id === profileId);
     if (!profileToSave) return;
 
     setIsSaving(prev => ({...prev, [profileId]: true}));
@@ -831,6 +981,10 @@ export default function SettingsPage() {
                     <DropdownMenuItem onClick={() => handleAddProfile('lsky')}>
                       <Image className="mr-2 h-4 w-4 text-blue-600" />
                       <span>兰空图床</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleAddProfile('gitee')}>
+                      <Database className="mr-2 h-4 w-4 text-red-600" />
+                      <span>Gitee 仓库</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
