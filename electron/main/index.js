@@ -700,6 +700,7 @@ function createPreviewWindow(fileName, filePath, bucket, publicUrl) {
       preload: join(__dirname, '../preload/index.mjs'),
       sandbox: false,
       contextIsolation: true,
+      webSecurity: false, // 禁用web安全策略以允许跨域图片加载
     },
     show: false,
     frame: false,
@@ -758,7 +759,8 @@ function createWindow() {
       preload: join(__dirname, '../preload/index.mjs'),
       sandbox: false,
       contextIsolation: true,
-      devTools: !app.isPackaged
+      devTools: !app.isPackaged,
+      webSecurity: false, // 禁用web安全策略以允许跨域图片加载
     }
   })
   // Intercept close to support minimize-to-tray
