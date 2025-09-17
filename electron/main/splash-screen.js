@@ -116,7 +116,7 @@ function createSplashHTML() {
             width: 200px;
             border-radius: 20px;
             position: relative;
-            animation: logoGlow 2s ease-in-out infinite alternate;
+            animation: logoFloat 3s ease-in-out infinite, logoGlow 2s ease-in-out infinite alternate;
             /* 禁止拖动图片 */
             -webkit-user-drag: none;
             -khtml-user-drag: none;
@@ -124,102 +124,31 @@ function createSplashHTML() {
             -o-user-drag: none;
             user-drag: none;
             pointer-events: none;
+            /* 透明背景，只添加轻微阴影增加层次感 */
+            filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.2));
         }
 
-        .logo::before {
-            content: '';
-            position: absolute;
-            top: -3px;
-            left: -3px;
-            right: -3px;
-            bottom: -3px;
-            border-radius: 23px;
-            background: linear-gradient(45deg, #00ffff, #ff00ff, #ffff00, #00ff00, #ff0000, #0000ff);
-            background-size: 400% 400%;
-            animation: borderGlow 3s ease-in-out infinite;
-            z-index: -1;
-            filter: blur(2px);
+        @keyframes logoFloat {
+            0%, 100% {
+                transform: translateY(0px) rotate(0deg);
+            }
+            33% {
+                transform: translateY(-8px) rotate(2deg);
+            }
+            66% {
+                transform: translateY(4px) rotate(-1deg);
+            }
         }
 
         @keyframes logoGlow {
             0% {
-                filter: drop-shadow(0 0 5px rgba(0, 255, 255, 0.5)) 
-                        drop-shadow(0 0 10px rgba(255, 0, 255, 0.3));
+                filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.2))
+                        drop-shadow(0 0 20px rgba(255, 255, 255, 0.3));
             }
             100% {
-                filter: drop-shadow(0 0 15px rgba(0, 255, 255, 0.8)) 
-                        drop-shadow(0 0 25px rgba(255, 0, 255, 0.6))
-                        drop-shadow(0 0 35px rgba(255, 255, 0, 0.4));
-            }
-        }
-
-        @keyframes borderGlow {
-            0% {
-                background-position: 0% 50%;
-                opacity: 0.7;
-            }
-            50% {
-                background-position: 100% 50%;
-                opacity: 1;
-            }
-            100% {
-                background-position: 0% 50%;
-                opacity: 0.7;
-            }
-        }
-
-
-
-        .loading-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .loading-dot {
-            width: 10px;
-            height: 10px;
-            background-color: white;
-            border-radius: 50%;
-            animation: loadingBounce 1.6s ease-in-out infinite both;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-
-        .loading-dot:nth-child(1) { animation-delay: -0.32s; }
-        .loading-dot:nth-child(2) { animation-delay: -0.16s; }
-        .loading-dot:nth-child(3) { animation-delay: 0s; }
-
-        .loading-text {
-            font-size: 16px;
-            font-weight: 500;
-            color: rgba(255, 255, 255, 0.8);
-            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-            animation: textGlow 2s ease-in-out infinite alternate;
-            /* 禁止选中文本 */
-            -webkit-user-select: none;
-            -moz-user-select: none;
-            -ms-user-select: none;
-            user-select: none;
-        }
-
-        @keyframes loadingBounce {
-            0%, 80%, 100% {
-                transform: scale(0.8);
-                opacity: 0.5;
-            }
-            40% {
-                transform: scale(1);
-                opacity: 1;
-            }
-        }
-
-        @keyframes textGlow {
-            0% {
-                text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-            }
-            100% {
-                text-shadow: 0 2px 8px rgba(255,255,255,0.5), 0 4px 12px rgba(0,255,255,0.3);
+                filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.2))
+                        drop-shadow(0 0 30px rgba(255, 255, 255, 0.5))
+                        drop-shadow(0 0 40px rgba(255, 255, 255, 0.2));
             }
         }
 
@@ -242,15 +171,7 @@ function createSplashHTML() {
 <body>
     <div class="splash-container">
         <img src="${logoBase64 || '../../src/assets/qidong.png'}" alt="CS-Explorer" class="logo">
-        <div class="loading-container">
-            <div class="loading-dot"></div>
-            <div class="loading-dot"></div>
-            <div class="loading-dot"></div>
-        </div>
-        <div class="loading-text">应用加载中，请稍后</div>
     </div>
-
-
 </body>
 </html>`;
 }

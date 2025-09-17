@@ -770,8 +770,40 @@ function createWindow() {
       if (action === 'minimize-to-tray') {
         e.preventDefault();
         mainWindow.hide();
+      } else {
+        // 设置为直接关闭时，清理所有资源并强制退出应用
+        console.log('Direct close mode: cleaning up resources...');
+        
+        // 销毁托盘图标
+        if (tray) {
+          tray.destroy();
+          tray = null;
+        }
+        
+        // 移除自动更新器事件监听器，防止访问已销毁的窗口
+        autoUpdater.removeAllListeners();
+        
+        // 强制退出应用 - 多层退出策略确保完全退出
+        setImmediate(() => {
+          app.quit();
+        });
+        
+        // 如果 app.quit() 没有生效，使用更强制的退出方式
+        setTimeout(() => {
+          console.log('Force exit application...');
+          process.exit(0);
+        }, 500);
       }
-    } catch (_) {}
+    } catch (error) {
+      console.error('Error during close handling:', error);
+      // 出错时也强制退出，使用更强制的方式
+      setImmediate(() => {
+        app.quit();
+      });
+      setTimeout(() => {
+        process.exit(1);
+      }, 300);
+    }
   });
 
   mainWindow.on('ready-to-show', () => {
@@ -953,7 +985,7 @@ app.whenReady().then(async () => {
       {
         label: '显示主窗口',
         click: () => {
-          if (mainWindow) {
+          if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.show();
             mainWindow.focus();
           }
@@ -962,7 +994,7 @@ app.whenReady().then(async () => {
       {
         label: '打开仪表盘',
         click: () => {
-          if (mainWindow) {
+          if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.show();
             mainWindow.focus();
             mainWindow.webContents.send('navigate', '/dashboard');
@@ -972,7 +1004,7 @@ app.whenReady().then(async () => {
       {
         label: '打开文件管理',
         click: () => {
-          if (mainWindow) {
+          if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.show();
             mainWindow.focus();
             mainWindow.webContents.send('navigate', '/files');
@@ -982,7 +1014,7 @@ app.whenReady().then(async () => {
       {
         label: '新增配置',
         click: () => {
-          if (mainWindow) {
+          if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.show();
             mainWindow.focus();
             mainWindow.webContents.send('navigate', '/settings?tab=profiles&action=new');
@@ -992,7 +1024,7 @@ app.whenReady().then(async () => {
       {
         label: '应用设置',
         click: () => {
-          if (mainWindow) {
+          if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.show();
             mainWindow.focus();
             mainWindow.webContents.send('navigate', '/settings?tab=app');
@@ -1002,7 +1034,7 @@ app.whenReady().then(async () => {
       {
         label: '打开上传页',
         click: () => {
-          if (mainWindow) {
+          if (mainWindow && !mainWindow.isDestroyed()) {
             mainWindow.show();
             mainWindow.focus();
             mainWindow.webContents.send('navigate', '/uploads');
@@ -1012,8 +1044,10 @@ app.whenReady().then(async () => {
       {
         label: '开始全部上传',
         click: () => {
-          mainWindow?.webContents.send('tray-command', 'start-all-uploads');
-          mainWindow?.show();
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('tray-command', 'start-all-uploads');
+            mainWindow.show();
+          }
         }
       },
       {
@@ -1026,14 +1060,17 @@ app.whenReady().then(async () => {
       {
         label: '退出',
         click: () => {
-          app.exit(0);
+          // 清理自动更新器
+          autoUpdater.removeAllListeners();
+          // 正常退出应用，触发清理过程
+          app.quit();
         }
       }
     ]);
     tray.setToolTip('CS-Explorer');
     tray.setContextMenu(contextMenu);
     tray.on('click', () => {
-      if (mainWindow) {
+      if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.show();
         mainWindow.focus();
       }
@@ -1080,7 +1117,17 @@ app.on('will-quit', () => {
   globalShortcut.unregisterAll();
   // 销毁启动图
   destroySplash();
-
+  // 销毁托盘图标
+  if (tray) {
+    tray.destroy();
+    tray = null;
+  }
+  // 清理自动更新器（后备机制）
+  try {
+    autoUpdater.removeAllListeners();
+  } catch (error) {
+    console.error('Error removing autoUpdater listeners:', error);
+  }
 })
 
 app.on('window-all-closed', () => {
@@ -1130,17 +1177,23 @@ function setupAutoUpdater() {
     // 清理 releaseNotes，移除 GitHub 链接等无用信息
     info.releaseNotes = cleanReleaseNotes(info.releaseNotes, '新版本可用，包含功能更新和问题修复。');
     
-    mainWindow.webContents.send('update-available', info);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-available', info);
+    }
   })
 
   autoUpdater.on('update-not-available', (info) => {
     console.log('Updater: Update not available.', info);
-    mainWindow.webContents.send('update-not-available');
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-not-available');
+    }
   });
 
   autoUpdater.on('download-progress', (progressObj) => {
     console.log(`Updater: Download progress: ${progressObj.percent.toFixed(2)}%`);
-    mainWindow?.webContents.send('update-download-progress', progressObj);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-download-progress', progressObj);
+    }
   });
 
   autoUpdater.on('update-downloaded', (info) => {
@@ -1149,7 +1202,9 @@ function setupAutoUpdater() {
     // 清理 releaseNotes，移除 GitHub 链接等无用信息
     info.releaseNotes = cleanReleaseNotes(info.releaseNotes, '新版本已下载完成，包含功能更新和问题修复。');
     
-    mainWindow?.webContents.send('update-downloaded', info);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-downloaded', info);
+    }
   });
 
   autoUpdater.on('error', (err) => {
@@ -1159,11 +1214,16 @@ function setupAutoUpdater() {
       console.log('Updater: GitHub provider failed. Trying Gitee as a fallback...');
       currentProvider = 'gitee';
       autoUpdater.setFeedURL(giteeProvider);
-      autoUpdater.checkForUpdates();
+      // 只有在窗口存在时才继续更新检查
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        autoUpdater.checkForUpdates();
+      }
     } else {
       // If Gitee also fails, then send the final error to the renderer.
       console.error('Updater: Gitee provider also failed. Reporting error to renderer.');
-      mainWindow?.webContents.send('update-error', err);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('update-error', err);
+      }
     }
   });
 }

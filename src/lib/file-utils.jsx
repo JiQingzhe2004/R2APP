@@ -10,7 +10,7 @@ export function formatBytes(bytes, decimals = 2) {
 }
 
 const fileTypeMappings = [
-  { type: '图片', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'], icon: <FileImage className="h-10 w-10 text-blue-500" /> },
+  { type: '图片', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico', 'bmp'], icon: <FileImage className="h-10 w-10 text-blue-500" /> },
   { type: '视频', extensions: ['mp4', 'mov', 'avi', 'mkv'], icon: <FileVideo className="h-10 w-10 text-red-500" /> },
   { type: '音频', extensions: ['mp3', 'wav', 'flac', 'aac'], icon: <FileAudio className="h-10 w-10 text-green-500" /> },
   { type: '文档', extensions: ['pdf', 'doc', 'docx', 'txt', 'md'], icon: <FileText className="h-10 w-10 text-yellow-500" /> },
@@ -65,7 +65,7 @@ export const getFileTypeDescription = (file) => {
 };
 
 export const isImage = (fileName = '') => {
-  const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
+  const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico', '.bmp'];
   const lowercasedName = fileName.toLowerCase();
   return imageExtensions.some(ext => lowercasedName.endsWith(ext));
 };
