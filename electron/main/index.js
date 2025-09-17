@@ -800,12 +800,6 @@ function createWindow() {
     return { action: 'deny' }
   })
   
-  mainWindow.on('close', () => {
-    if (mainWindow.isMainWindow) {
-        // Quit the app if the main window is closed
-        app.quit();
-    }
-  });
   
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
