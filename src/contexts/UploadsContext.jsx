@@ -137,6 +137,14 @@ export const UploadsProvider = ({ children }) => {
 
     setIsUploading(false);
   };
+
+  const startUpload = async (id) => {
+    const upload = uploads.find(u => u.id === id);
+    if (upload && upload.status === 'pending') {
+      setUploads(prev => prev.map(u => u.id === id ? { ...u, status: 'uploading' } : u));
+      await window.api.uploadFile({ filePath: upload.path, key: upload.key, checkpoint: upload.checkpoint });
+    }
+  };
   
   const pauseUpload = async (id) => {
     const upload = uploads.find(u => u.id === id);
@@ -178,6 +186,7 @@ export const UploadsProvider = ({ children }) => {
     isUploading,
     addUploads,
     startAllUploads,
+    startUpload,
     removeUpload,
     clearAll,
     clearCompleted,

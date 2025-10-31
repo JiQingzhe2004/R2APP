@@ -93,6 +93,14 @@ export default function AboutPage() {
       url: 'https://gitee.com/',
       color: 'text-red-500',
       bgColor: 'bg-red-50 dark:bg-red-900/20'
+    },
+    {
+      name: 'Google Cloud',
+      description: '谷歌云存储，全球分布式高性能对象存储',
+      icon: Cloud,
+      url: 'https://cloud.google.com/storage',
+      color: 'text-blue-400',
+      bgColor: 'bg-blue-50 dark:bg-blue-900/20'
     }
   ];
 

@@ -35,14 +35,14 @@ export function Sidebar({ isCollapsed, onToggle }) {
   const navItems = [
     { id: 'dashboard', href: '/dashboard', icon: LayoutDashboard, label: '仪表盘' },
     { id: 'files', href: '/files', icon: File, label: '文件管理' },
-    { id: 'uploads', href: '/uploads', icon: UploadCloud, label: '上传' },
-    { id: 'downloads', href: '/downloads', icon: CloudDownload, label: '下载' },
-    { id: 'announcements', href: '/announcements', icon: Bell, label: '公告' },
-    { id: 'settings', href: '/settings', icon: Settings, label: '设置' },
+    { id: 'uploads', href: '/uploads', icon: UploadCloud, label: '文件上传' },
+    { id: 'downloads', href: '/downloads', icon: CloudDownload, label: '文件下载' },
+    { id: 'announcements', href: '/announcements', icon: Bell, label: '系统公告' },
+    { id: 'settings', href: '/settings', icon: Settings, label: '系统设置' },
 
     { id: 'update', href: '/update', icon: HardDriveDownload, label: '应用更新' },
     { id: 'releasenotes', href: '/releasenotes', icon: ScrollText, label: '更新日志' },
-    { id: 'about', href: '/about', icon: BadgeInfo, label: '关于' },
+    { id: 'about', href: '/about', icon: BadgeInfo, label: '关于应用' },
   ]
 
   return (

@@ -20,6 +20,8 @@ import R2API from './r2-api.js';
 import OssAPI from './oss-api.js';
 import CosAPI from './cos-api.js';
 import GiteeAPI from './gitee-api.js';
+import GCSAPI from './gcs-api.js';
+import { testProxyConnection } from './proxy-config.js';
 import { showSplash, hideSplash, destroySplash } from './splash-screen.js';
 
 
@@ -120,6 +122,18 @@ function getAPIInstance(type) {
     case 'smms':
       if (profile.smmsToken) {
         apiInstance = new SmmsAPI(profile.smmsToken);
+      }
+      break;
+    case 'gcs':
+      if (profile.projectId && (profile.keyFilename || profile.credentials)) {
+        apiInstance = new GCSAPI({
+          projectId: profile.projectId,
+          bucketName: profile.bucketName,
+          keyFilename: profile.keyFilename,
+          credentials: profile.credentials,
+          publicDomain: profile.publicDomain,
+          proxyConfig: profile.proxyConfig // 传入代理配置
+        });
       }
       break;
   }
@@ -501,6 +515,19 @@ async function startUpload(filePath, key, checkpoint) {
       activeUploads.set(key, { cancel: () => { /* Gitee upload doesn't support direct cancel */ } });
 
       await executeWithoutProxy(() => giteeAPI.uploadFile(filePath, key, onProgress));
+      mainWindow.webContents.send('upload-progress', { key, percentage: 100, filePath });
+      addRecentActivity('upload', `文件 ${key} 上传成功。`, 'success');
+    } else if (storage.type === 'gcs') {
+      const gcsAPI = getAPIInstance('gcs');
+      if (!gcsAPI) throw new Error('GCS API实例创建失败');
+
+      const onProgress = (percentage, loaded, total) => {
+        mainWindow.webContents.send('upload-progress', { key, percentage, filePath });
+      };
+
+      activeUploads.set(key, { cancel: () => { /* GCS upload doesn't support direct cancel */ } });
+
+      await executeWithoutProxy(() => gcsAPI.uploadFile(filePath, key, onProgress));
       mainWindow.webContents.send('upload-progress', { key, percentage: 100, filePath });
       addRecentActivity('upload', `文件 ${key} 上传成功。`, 'success');
     } else if (storage.type === 'smms') {
@@ -1476,6 +1503,40 @@ ipcMain.handle('test-connection', async (event, profile) => {
       console.error('[Main] Gitee connection test failed:', error);
       return { success: false, error: `Gitee 连接失败: ${error.message}` };
     }
+  } else if (profile.type === 'gcs') {
+    console.log('[Main] Testing GCS connection with profile:', {
+      hasProjectId: !!profile.projectId,
+      hasBucketName: !!profile.bucketName,
+      hasKeyFilename: !!profile.keyFilename,
+      hasCredentials: !!profile.credentials
+    });
+    
+    if (!profile.projectId || !profile.bucketName || (!profile.keyFilename && !profile.credentials)) {
+      const missing = [];
+      if (!profile.projectId) missing.push('Project ID');
+      if (!profile.bucketName) missing.push('Bucket Name');
+      if (!profile.keyFilename && !profile.credentials) missing.push('Credentials');
+      return { success: false, error: `缺少 GCS 配置信息: ${missing.join(', ')}` };
+    }
+    
+    try {
+      console.log('[Main] Creating GCS API instance for connection test...');
+      const gcsAPI = new GCSAPI({
+        projectId: profile.projectId,
+        bucketName: profile.bucketName,
+        keyFilename: profile.keyFilename,
+        credentials: profile.credentials,
+        publicDomain: profile.publicDomain,
+        proxyConfig: profile.proxyConfig // 传入代理配置
+      });
+      console.log('[Main] GCS API instance created, testing connection...');
+      const result = await executeWithoutProxy(() => gcsAPI.testConnection());
+      console.log('[Main] GCS connection test result:', result);
+      return result;
+    } catch (error) {
+      console.error('[Main] GCS connection test failed:', error);
+      return { success: false, error: `GCS 连接失败: ${error.message}` };
+    }
   } else {
     return { success: false, error: '未知的配置类型。' };
   }
@@ -1534,6 +1595,14 @@ async function getStorageClient() {
             repo: profile.repo,
             branch: profile.branch || 'main',
         };
+    } else if (profile.type === 'gcs') {
+        if (!profile.projectId || !profile.bucketName || (!profile.keyFilename && !profile.credentials)) return null;
+        return {
+            client: null, // GCS 使用 GCSAPI 模块
+            type: 'gcs',
+            bucket: profile.bucketName,
+            projectId: profile.projectId,
+        };
     }
     return null;
 }
@@ -1554,6 +1623,11 @@ ipcMain.handle('check-status', async () => {
       const ossAPI = getAPIInstance('oss');
       if (!ossAPI) throw new Error('OSS API实例创建失败');
       const result = await ossAPI.testConnection();
+      return result;
+    } else if (storage.type === 'gcs') {
+      const gcsAPI = getAPIInstance('gcs');
+      if (!gcsAPI) throw new Error('GCS API实例创建失败');
+      const result = await executeWithoutProxy(() => gcsAPI.testConnection());
       return result;
     }
      return { success: true, message: '连接成功' };
@@ -1616,6 +1690,18 @@ ipcMain.handle('get-bucket-stats', async () => {
         totalCount = response.data.totalCount;
         totalSize = response.data.totalSize;
         console.log(`[Main] Gitee stats: ${totalCount} files, ${totalSize} bytes`);
+      }
+    } else if (storage.type === 'gcs') {
+      const gcsAPI = getAPIInstance('gcs');
+      if (!gcsAPI) throw new Error('GCS API实例创建失败');
+      const response = await executeWithoutProxy(() => gcsAPI.getStorageStats());
+      
+      console.log('[Main] GCS storage stats response:', response);
+      
+      if (response.success) {
+        totalCount = response.data.totalCount;
+        totalSize = response.data.totalSize;
+        console.log(`[Main] GCS stats: ${totalCount} files, ${totalSize} bytes`);
       }
     } else if (storage.type === 'smms') {
       // SM.MS 统计
@@ -1717,6 +1803,20 @@ ipcMain.handle('list-objects', async (event, options) => {
       const giteeAPI = getAPIInstance('gitee');
       if (!giteeAPI) throw new Error('Gitee API实例创建失败');
       const response = await executeWithoutProxy(() => giteeAPI.listFiles({
+        prefix: apiPrefix,
+        delimiter: apiDelimiter,
+        continuationToken: continuationToken
+      }));
+      
+      if (response.success) {
+        rawFiles = response.data.files || [];
+        folders = response.data.folders || [];
+        nextContinuationToken = response.data.nextContinuationToken;
+      }
+    } else if (storage.type === 'gcs') {
+      const gcsAPI = getAPIInstance('gcs');
+      if (!gcsAPI) throw new Error('GCS API实例创建失败');
+      const response = await executeWithoutProxy(() => gcsAPI.listFiles({
         prefix: apiPrefix,
         delimiter: apiDelimiter,
         continuationToken: continuationToken
@@ -1894,6 +1994,10 @@ ipcMain.handle('delete-object', async (_, key) => {
       const giteeAPI = getAPIInstance('gitee');
       if (!giteeAPI) throw new Error('Gitee API实例创建失败');
       await executeWithoutProxy(() => giteeAPI.deleteFile(key));
+    } else if (storage.type === 'gcs') {
+      const gcsAPI = getAPIInstance('gcs');
+      if (!gcsAPI) throw new Error('GCS API实例创建失败');
+      await executeWithoutProxy(() => gcsAPI.deleteFile(key));
     } else if (storage.type === 'smms') {
       // SM.MS 删除
       try {
@@ -2152,6 +2256,20 @@ ipcMain.handle('get-object-content', async (event, bucket, key) => {
       } else {
         throw new Error(response.error);
       }
+    } else if (type === 'gcs') {
+      const gcsAPI = getAPIInstance('gcs');
+      if (!gcsAPI) throw new Error('GCS API实例创建失败');
+      
+      const response = await executeWithoutProxy(() => gcsAPI.getFileContent(key, PREVIEW_FILE_SIZE_LIMIT));
+      if (response.success) {
+        if (response.data.tooLarge) {
+          fileTooLarge = true;
+        } else {
+          content = response.data.content;
+        }
+      } else {
+        throw new Error(response.error);
+      }
     }
 
     if (fileTooLarge) {
@@ -2310,29 +2428,53 @@ ipcMain.on('download-file', async (event, key) => {
          });
          addRecentActivity('download', `下载了 ${key}`);
      } else if (storage.type === 'gitee') {
-         const giteeAPI = getAPIInstance('gitee');
-         if (!giteeAPI) throw new Error('Gitee API实例创建失败');
-         
-         const onProgress = (percentage, loaded, total) => {
-           mainWindow.webContents.send('download-update', { 
-             type: 'progress', 
-             data: { id: taskId, progress: percentage } 
-           });
-         };
-         
-         await executeWithoutProxy(() => giteeAPI.downloadFile(key, filePath, onProgress));
-         
-         const finalTasks = store.get('download-tasks', {});
-         if (finalTasks[taskId]) {
-           finalTasks[taskId].status = 'completed';
-           finalTasks[taskId].progress = 100;
-           store.set('download-tasks', finalTasks);
-         }
-         mainWindow.webContents.send('download-update', { 
-           type: 'progress', 
-           data: { id: taskId, progress: 100, status: 'completed' } 
-         });
-         addRecentActivity('download', `下载了 ${key}`);
+        const giteeAPI = getAPIInstance('gitee');
+        if (!giteeAPI) throw new Error('Gitee API实例创建失败');
+        
+        const onProgress = (percentage, loaded, total) => {
+          mainWindow.webContents.send('download-update', { 
+            type: 'progress', 
+            data: { id: taskId, progress: percentage } 
+          });
+        };
+        
+        await executeWithoutProxy(() => giteeAPI.downloadFile(key, filePath, onProgress));
+        
+        const finalTasks = store.get('download-tasks', {});
+        if (finalTasks[taskId]) {
+          finalTasks[taskId].status = 'completed';
+          finalTasks[taskId].progress = 100;
+          store.set('download-tasks', finalTasks);
+        }
+        mainWindow.webContents.send('download-update', { 
+          type: 'progress', 
+          data: { id: taskId, progress: 100, status: 'completed' } 
+        });
+        addRecentActivity('download', `下载了 ${key}`);
+     } else if (storage.type === 'gcs') {
+        const gcsAPI = getAPIInstance('gcs');
+        if (!gcsAPI) throw new Error('GCS API实例创建失败');
+        
+        const onProgress = (percentage, loaded, total) => {
+          mainWindow.webContents.send('download-update', { 
+            type: 'progress', 
+            data: { id: taskId, progress: percentage } 
+          });
+        };
+        
+        await executeWithoutProxy(() => gcsAPI.downloadFile(key, filePath, onProgress));
+        
+        const finalTasks = store.get('download-tasks', {});
+        if (finalTasks[taskId]) {
+          finalTasks[taskId].status = 'completed';
+          finalTasks[taskId].progress = 100;
+          store.set('download-tasks', finalTasks);
+        }
+        mainWindow.webContents.send('download-update', { 
+          type: 'progress', 
+          data: { id: taskId, progress: 100, status: 'completed' } 
+        });
+        addRecentActivity('download', `下载了 ${key}`);
      } else if (storage.type === 'smms' || storage.type === 'lsky') {
         // 通用公网 URL 下载器
         const https = require('https');
@@ -2629,6 +2771,11 @@ ipcMain.handle('get-presigned-url', async (event, bucket, key) => {
       const giteeAPI = getAPIInstance('gitee');
       if (!giteeAPI) throw new Error('Gitee API实例创建失败');
       url = await executeWithoutProxy(() => giteeAPI.getPresignedUrl(key, 900));
+    } else if (storage.type === 'gcs') {
+      // GCS 获取预签名URL
+      const gcsAPI = getAPIInstance('gcs');
+      if (!gcsAPI) throw new Error('GCS API实例创建失败');
+      url = await executeWithoutProxy(() => gcsAPI.getPresignedUrl(key, 900));
     }
     return url;
   } catch (error) {
@@ -2678,6 +2825,14 @@ ipcMain.on('start-search', async (event, searchTerm) => {
         const giteeAPI = getAPIInstance('gitee');
         if (!giteeAPI) throw new Error('Gitee API实例创建失败');
         const searchResponse = await executeWithoutProxy(() => giteeAPI.searchFiles(lowerCaseSearchTerm, { continuationToken }));
+        response = {
+          Contents: searchResponse.data.files,
+          NextContinuationToken: null // 搜索已经处理了分页
+        };
+      } else if (storage.type === 'gcs') {
+        const gcsAPI = getAPIInstance('gcs');
+        if (!gcsAPI) throw new Error('GCS API实例创建失败');
+        const searchResponse = await executeWithoutProxy(() => gcsAPI.searchFiles(lowerCaseSearchTerm, { continuationToken }));
         response = {
           Contents: searchResponse.data.files,
           NextContinuationToken: null // 搜索已经处理了分页
@@ -2789,6 +2944,18 @@ ipcMain.handle('syncAIConfigs', async () => {
     return { success: true, message: 'AI配置同步功能待实现' };
   } catch (error) {
     console.error('[Main] AI配置同步失败:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// 代理配置测试处理器
+ipcMain.handle('test-proxy-connection', async (event, proxyConfig) => {
+  try {
+    console.log('[Main] Testing proxy connection...');
+    const result = await testProxyConnection(proxyConfig);
+    return result;
+  } catch (error) {
+    console.error('[Main] Test proxy connection failed:', error);
     return { success: false, error: error.message };
   }
 });

@@ -541,6 +541,7 @@ export default function FilesPage() {
   const getPublicUrl = (key) => {
     if (!settings) return null;
 
+    // 优先使用自定义域名
     if (settings.publicDomain) {
       let domain = settings.publicDomain;
       if (domain.endsWith('/')) {
@@ -552,19 +553,30 @@ export default function FilesPage() {
       return `${domain}/${key}`;
     }
 
+    // R2 默认域名
     if (settings.type === 'r2' && settings.accountId && settings.bucketName) {
       return `https://${settings.bucketName}.${settings.accountId}.r2.cloudflarestorage.com/${key}`;
     }
     
+    // 阿里云 OSS 默认域名
     if (settings.type === 'oss' && settings.region && settings.bucket) {
       return `https://${settings.bucket}.${settings.region}.aliyuncs.com/${key}`;
     }
 
+    // 腾讯云 COS 默认域名
     if (settings.type === 'cos' && settings.region && (settings.bucket || settings.bucketName)) {
       const bucket = settings.bucket || settings.bucketName;
       return `https://${bucket}.cos.${settings.region}.myqcloud.com/${key}`;
     }
 
+    // Google Cloud 默认域名
+    if (settings.type === 'gcs' && (settings.bucketName || settings.bucket)) {
+      const bucket = settings.bucketName || settings.bucket;
+      return `https://storage.googleapis.com/${bucket}/${key}`;
+    }
+
+    // 对于 SM.MS、Lsky、Gitee，如果没有配置自定义域名，返回占位符
+    // 这些服务的 URL 通常由服务器返回，在 file.publicUrl 中
     return null;
   };
 
@@ -763,42 +775,29 @@ export default function FilesPage() {
                 />
               </div>
             </div>
-            {!isDir && publicUrl && (
+            {!isDir && (
               <div className="mt-4 flex items-center gap-2">
-                  <Input readOnly value={publicUrl} className="bg-muted flex-1"/>
+                  <Input 
+                    readOnly 
+                    value={publicUrl || '暂无公开链接（请配置自定义域名）'} 
+                    className={`flex-1 ${publicUrl ? 'bg-muted' : 'bg-muted text-muted-foreground italic'}`}
+                  />
                   <TooltipProvider delayDuration={0}>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="outline" size="icon" onClick={() => handleCopyUrl(publicUrl)}><Copy className="h-4 w-4"/></Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>复制链接</p>
-                      </TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="outline" size="icon" onClick={() => handleDownload(key)} disabled={downloading[key]}>
-                          <Download className="h-4 w-4"/>
+                        <Button 
+                          variant="outline" 
+                          size="icon" 
+                          onClick={() => handleCopyUrl(publicUrl)}
+                          disabled={!publicUrl}
+                        >
+                          <Copy className="h-4 w-4"/>
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>下载</p>
+                        <p>{publicUrl ? '复制链接' : '无可用链接'}</p>
                       </TooltipContent>
                     </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(key)} disabled={downloading[key]}><Trash2 className="h-4 w-4"/></Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>删除</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-              </div>
-            )}
-            {!isDir && !publicUrl && (
-               <div className="mt-4 flex items-center justify-end gap-2">
-                  <TooltipProvider delayDuration={0}>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button variant="outline" size="icon" onClick={() => handleDownload(key)} disabled={downloading[key]}>

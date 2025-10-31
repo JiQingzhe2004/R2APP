@@ -112,6 +112,27 @@ const GITEE_TEMPLATE = {
   createdAt: new Date().toISOString(),
 };
 
+const GCS_TEMPLATE = {
+  type: 'gcs',
+  name: '新 GCS 配置',
+  projectId: '',
+  bucketName: '',
+  credentials: '',
+  keyFilename: '',
+  proxyConfig: {
+    enabled: false,
+    proxyUrl: '',
+    proxyHost: '',
+    proxyPort: '',
+    proxyProtocol: 'http',
+    proxyUsername: '',
+    proxyPassword: ''
+  },
+  storageQuotaGB: 10,
+  storageQuotaUnit: 'GB',
+  createdAt: new Date().toISOString(),
+};
+
 const PROVIDER_INFO = {
   r2: {
     name: 'Cloudflare R2',
@@ -148,6 +169,12 @@ const PROVIDER_INFO = {
     icon: Database,
     color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
     description: '使用 Gitee 仓库作为文件存储，支持版本控制'
+  },
+  gcs: {
+    name: 'Google Cloud',
+    icon: Cloud,
+    color: 'bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200',
+    description: 'Google 云存储服务，企业级对象存储'
   }
 };
 
@@ -643,6 +670,262 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
             </>
           )}
 
+          {profile.type === 'gcs' && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`projectId-${profile.id}`} className="flex items-center gap-2">
+                    <Container className="h-4 w-4" />
+                    项目 ID
+                  </Label>
+                  <Input 
+                    id={`projectId-${profile.id}`} 
+                    name="projectId" 
+                    value={profile.projectId} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="您的 GCP 项目 ID" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`bucketName-${profile.id}`} className="flex items-center gap-2">
+                    <Container className="h-4 w-4" />
+                    存储桶名称
+                  </Label>
+                  <Input 
+                    id={`bucketName-${profile.id}`} 
+                    name="bucketName" 
+                    value={profile.bucketName} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="您的 GCS 存储桶名称" 
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor={`credentials-${profile.id}`} className="flex items-center gap-2">
+                  <KeyRound className="h-4 w-4" />
+                  服务账号 JSON 密钥（JSON 格式）
+                </Label>
+                <textarea 
+                  id={`credentials-${profile.id}`} 
+                  name="credentials" 
+                  value={profile.credentials || ''} 
+                  onChange={(e) => onChange(profile.id, e)} 
+                  placeholder='粘贴服务账号 JSON 密钥内容，例如: {"type":"service_account",...}'
+                  rows={4}
+                  className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  从 GCP 控制台下载的服务账号 JSON 密钥文件内容
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor={`keyFilename-${profile.id}`} className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  或者指定密钥文件路径
+                </Label>
+                <Input 
+                  id={`keyFilename-${profile.id}`} 
+                  name="keyFilename" 
+                  value={profile.keyFilename || ''} 
+                  onChange={(e) => onChange(profile.id, e)} 
+                  placeholder="例如: /path/to/service-account-key.json (可选)" 
+                />
+                <p className="text-xs text-muted-foreground">
+                  如果不想直接粘贴 JSON，可以指定密钥文件的绝对路径
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor={`publicDomain-${profile.id}`} className="flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  自定义域名
+                </Label>
+                <Input 
+                  id={`publicDomain-${profile.id}`} 
+                  name="publicDomain" 
+                  value={profile.publicDomain || ''} 
+                  onChange={(e) => onChange(profile.id, e)} 
+                  placeholder="例如: https://cdn.yourdomain.com (可选)" 
+                />
+                <p className="text-xs text-muted-foreground">
+                  配置自定义域名后，文件访问将使用您的域名而不是默认的 GCS 域名
+                </p>
+              </div>
+
+              <Separator className="my-4" />
+              
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="text-base font-semibold">网络代理配置</Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      当您无法正常访问时，可以配置代理来解决。正常访问则可以不开启！
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id={`proxyEnabled-${profile.id}`}
+                      checked={profile.proxyConfig?.enabled || false}
+                      onChange={(e) => {
+                        const newProxyConfig = {
+                          ...(profile.proxyConfig || {}),
+                          enabled: e.target.checked
+                        };
+                        onChange(profile.id, { target: { name: 'proxyConfig', value: newProxyConfig } });
+                      }}
+                      className="h-4 w-4"
+                    />
+                    <Label htmlFor={`proxyEnabled-${profile.id}`} className="cursor-pointer">
+                      启用代理
+                    </Label>
+                  </div>
+                </div>
+
+                {profile.proxyConfig?.enabled && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor={`proxyUrl-${profile.id}`} className="flex items-center gap-2">
+                        <Link2 className="h-4 w-4" />
+                        代理 URL（完整格式）
+                      </Label>
+                      <Input 
+                        id={`proxyUrl-${profile.id}`}
+                        value={profile.proxyConfig?.proxyUrl || ''}
+                        onChange={(e) => {
+                          const newProxyConfig = {
+                            ...(profile.proxyConfig || {}),
+                            proxyUrl: e.target.value
+                          };
+                          onChange(profile.id, { target: { name: 'proxyConfig', value: newProxyConfig } });
+                        }}
+                        placeholder="例如: http://127.0.0.1:7890 或 socks5://127.0.0.1:1080"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        推荐：直接填写完整的代理 URL，包括协议、主机和端口
+                      </p>
+                    </div>
+
+                    <div className="text-center text-xs text-muted-foreground my-2">
+                      或者分别配置以下选项
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor={`proxyProtocol-${profile.id}`}>协议</Label>
+                        <select
+                          id={`proxyProtocol-${profile.id}`}
+                          value={profile.proxyConfig?.proxyProtocol || 'http'}
+                          onChange={(e) => {
+                            const newProxyConfig = {
+                              ...(profile.proxyConfig || {}),
+                              proxyProtocol: e.target.value
+                            };
+                            onChange(profile.id, { target: { name: 'proxyConfig', value: newProxyConfig } });
+                          }}
+                          className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm"
+                        >
+                          <option value="http">HTTP</option>
+                          <option value="https">HTTPS</option>
+                          <option value="socks5">SOCKS5</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`proxyHost-${profile.id}`}>主机</Label>
+                        <Input 
+                          id={`proxyHost-${profile.id}`}
+                          value={profile.proxyConfig?.proxyHost || ''}
+                          onChange={(e) => {
+                            const newProxyConfig = {
+                              ...(profile.proxyConfig || {}),
+                              proxyHost: e.target.value
+                            };
+                            onChange(profile.id, { target: { name: 'proxyConfig', value: newProxyConfig } });
+                          }}
+                          placeholder="127.0.0.1"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`proxyPort-${profile.id}`}>端口</Label>
+                        <Input 
+                          id={`proxyPort-${profile.id}`}
+                          value={profile.proxyConfig?.proxyPort || ''}
+                          onChange={(e) => {
+                            const newProxyConfig = {
+                              ...(profile.proxyConfig || {}),
+                              proxyPort: e.target.value
+                            };
+                            onChange(profile.id, { target: { name: 'proxyConfig', value: newProxyConfig } });
+                          }}
+                          placeholder="7890"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor={`proxyUsername-${profile.id}`}>用户名（可选）</Label>
+                        <Input 
+                          id={`proxyUsername-${profile.id}`}
+                          value={profile.proxyConfig?.proxyUsername || ''}
+                          onChange={(e) => {
+                            const newProxyConfig = {
+                              ...(profile.proxyConfig || {}),
+                              proxyUsername: e.target.value
+                            };
+                            onChange(profile.id, { target: { name: 'proxyConfig', value: newProxyConfig } });
+                          }}
+                          placeholder="如果代理需要认证"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`proxyPassword-${profile.id}`}>密码（可选）</Label>
+                        <Input 
+                          id={`proxyPassword-${profile.id}`}
+                          type="password"
+                          value={profile.proxyConfig?.proxyPassword || ''}
+                          onChange={(e) => {
+                            const newProxyConfig = {
+                              ...(profile.proxyConfig || {}),
+                              proxyPassword: e.target.value
+                            };
+                            onChange(profile.id, { target: { name: 'proxyConfig', value: newProxyConfig } });
+                          }}
+                          placeholder="如果代理需要认证"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            const result = await window.api.testProxyConnection(profile.proxyConfig);
+                            if (result.success) {
+                              toast.success('代理测试成功', { description: result.message });
+                            } else {
+                              toast.error('代理测试失败', { description: result.error });
+                            }
+                          } catch (error) {
+                            toast.error('代理测试失败', { description: error.message });
+                          }
+                        }}
+                      >
+                        <Plug className="h-4 w-4 mr-2" />
+                        测试代理连接
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+
           {profile.type === 'smms' && (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -845,7 +1128,16 @@ export default function SettingsPage() {
   };
   
   const handleAddProfile = (type) => {
-    const template = type === 'r2' ? R2_TEMPLATE : type === 'oss' ? OSS_TEMPLATE : type === 'cos' ? COS_TEMPLATE : type === 'smms' ? SMMS_TEMPLATE : type === 'lsky' ? LSKY_TEMPLATE : GITEE_TEMPLATE;
+    const templates = {
+      'r2': R2_TEMPLATE,
+      'oss': OSS_TEMPLATE,
+      'cos': COS_TEMPLATE,
+      'smms': SMMS_TEMPLATE,
+      'lsky': LSKY_TEMPLATE,
+      'gitee': GITEE_TEMPLATE,
+      'gcs': GCS_TEMPLATE
+    };
+    const template = templates[type] || R2_TEMPLATE;
     const newProfile = {
       id: uuidv4(),
       ...template,
@@ -985,6 +1277,10 @@ export default function SettingsPage() {
                     <DropdownMenuItem onClick={() => handleAddProfile('gitee')}>
                       <Database className="mr-2 h-4 w-4 text-red-600" />
                       <span>Gitee 仓库</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleAddProfile('gcs')}>
+                      <Cloud className="mr-2 h-4 w-4 text-sky-600" />
+                      <span>Google Cloud</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

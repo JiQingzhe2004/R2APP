@@ -138,6 +138,9 @@ export const api = {
   registerShellUploadMenu: () => ipcRenderer.invoke('register-shell-upload-menu'),
   unregisterShellUploadMenu: () => ipcRenderer.invoke('unregister-shell-upload-menu'),
 
+  // Proxy configuration
+  testProxyConnection: (proxyConfig) => ipcRenderer.invoke('test-proxy-connection', proxyConfig),
+
   // Navigation from main
   onNavigate: (callback) => {
     const handler = (event, path) => callback(path);

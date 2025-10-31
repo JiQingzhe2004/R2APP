@@ -3,7 +3,13 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Progress } from '@/components/ui/Progress';
 import { Card } from '@/components/ui/Card';
-import { UploadCloud, File, X, CheckCircle, PauseCircle, PlayCircle, Cloud, Settings, Plus, Zap, Shield } from 'lucide-react';
+import { UploadCloud, File, X, CheckCircle, PauseCircle, PlayCircle, Cloud, Settings, Plus, Zap, Shield, FolderOpen, Trash2, Upload } from 'lucide-react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useUploads } from '@/contexts/UploadsContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { cn } from '@/lib/utils';
@@ -107,6 +113,7 @@ export default function UploadsPage() {
     isUploading, 
     addUploads, 
     startAllUploads, 
+    startUpload,
     removeUpload, 
     clearAll,
     clearCompleted,
@@ -177,36 +184,39 @@ export default function UploadsPage() {
     addUploads(newUploads);
   };
 
-  // 处理清除已完成/失败的上传
-  const handleClearCompleted = async () => {
-    const completedOrFailedUploads = uploads.filter(u => u.status === 'completed' || u.status === 'error');
-    if (completedOrFailedUploads.length === 0) return;
-    
-    startDelete(completedOrFailedUploads.length, '正在清除已完成/失败的上传...');
-    
-    try {
-      clearCompleted();
-    } catch (error) {
-      console.error('清除上传失败:', error);
-      addNotification({ message: '清除上传失败', type: 'error' });
-    } finally {
-      endDelete();
-    }
-  };
-  
-  // 处理清空列表
-  const handleClearAll = async () => {
+  // 处理清空列表（包含清除已完成和清空全部）
+  const handleClearList = async () => {
     if (uploads.length === 0) return;
     
-    startDelete(uploads.length, '正在清空上传列表...');
+    // 如果有正在上传的文件，只清除已完成/失败的
+    const hasUploading = uploads.some(u => u.status === 'uploading' || u.status === 'paused');
     
-    try {
-      clearAll();
-    } catch (error) {
-      console.error('清空列表失败:', error);
-      addNotification({ message: '清空列表失败', type: 'error' });
-    } finally {
-      endDelete();
+    if (hasUploading) {
+      const completedOrFailedUploads = uploads.filter(u => u.status === 'completed' || u.status === 'error');
+      if (completedOrFailedUploads.length === 0) return;
+      
+      startDelete(completedOrFailedUploads.length, '正在清除已完成/失败的上传...');
+      
+      try {
+        clearCompleted();
+      } catch (error) {
+        console.error('清除上传失败:', error);
+        addNotification({ message: '清除上传失败', type: 'error' });
+      } finally {
+        endDelete();
+      }
+    } else {
+      // 如果没有正在上传的，清空全部
+      startDelete(uploads.length, '正在清空上传列表...');
+      
+      try {
+        clearAll();
+      } catch (error) {
+        console.error('清空列表失败:', error);
+        addNotification({ message: '清空列表失败', type: 'error' });
+      } finally {
+        endDelete();
+      }
     }
   };
   
@@ -286,24 +296,41 @@ export default function UploadsPage() {
           <UploadCloud className="mx-auto h-12 w-12 text-muted-foreground" />
           <h3 className="mt-4 text-lg font-medium">选择要上传的文件</h3>
           <p className="mt-1 text-sm text-muted-foreground">或者将文件拖放到这里</p>
-          <div className="mt-6">
-            <Button onClick={handleFileSelect} disabled={isUploading}>选择文件</Button>
+          <div className="mt-6 flex justify-center">
+            <Button onClick={handleFileSelect} disabled={isUploading} className="flex items-center gap-2">
+              <FolderOpen className="h-4 w-4" />
+              选择文件
+            </Button>
           </div>
         </div>
       </Card>
 
       {uploads.length > 0 && (
         <div className="flex justify-end gap-2 mt-4">
-            {uploads.some(u => u.status === 'completed' || u.status === 'error') && (
-              <Button variant="outline" onClick={handleClearCompleted} disabled={isUploading}>
-                清除已完成/失败
-              </Button>
-            )}
-            <Button variant="outline" onClick={handleClearAll} disabled={isUploading}>
-                清空列表
-            </Button>
-            <Button onClick={startAllUploads} disabled={isUploading || uploads.every(u => u.status !== 'pending')}>
-                {isUploading ? '正在上传...' : '全部上传'}
+            <TooltipProvider delayDuration={0}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="icon"
+                    onClick={handleClearList} 
+                    disabled={isUploading}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{uploads.some(u => u.status === 'uploading' || u.status === 'paused') ? '清除已完成/失败' : '清空列表'}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <Button 
+              onClick={startAllUploads} 
+              disabled={isUploading || uploads.every(u => u.status !== 'pending')}
+              className="flex items-center gap-2"
+            >
+              <UploadCloud className="h-4 w-4" />
+              {isUploading ? '正在上传...' : '全部上传'}
             </Button>
         </div>
       )}
@@ -337,37 +364,96 @@ export default function UploadsPage() {
                     )}
                   </div>
                   {file.status === 'completed' ? (
-                    <div className="flex items-center">
-                      <CheckCircle className="h-6 w-6 text-green-500 mr-1" />
+                    <div className="flex items-center gap-1">
+                      <CheckCircle className="h-6 w-6 text-green-500" />
                       {file.imageUrl && (
                         <Button 
                           variant="outline" 
                           size="sm" 
                           onClick={() => navigator.clipboard.writeText(file.imageUrl)}
-                          className="mr-2"
                         >
                           复制图片链接
                         </Button>
                       )}
-                      <Button variant="ghost" size="icon" onClick={() => handleRemoveUpload(file.id)}>
-                        <X className="h-4 w-4" />
-                      </Button>
+                      <TooltipProvider delayDuration={0}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" onClick={() => handleRemoveUpload(file.id)}>
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>移除</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                   ) : (
-                    <div className="flex items-center">
+                    <div className="flex items-center gap-1">
                       {file.status === 'uploading' && (
-                        <Button variant="ghost" size="icon" onClick={() => pauseUpload(file.id)}>
-                          <PauseCircle className="h-6 w-6" />
-                        </Button>
+                        <TooltipProvider delayDuration={0}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" onClick={() => pauseUpload(file.id)}>
+                                <PauseCircle className="h-6 w-6" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>暂停上传</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       )}
                       {file.status === 'paused' && (
-                        <Button variant="ghost" size="icon" onClick={() => resumeUpload(file.id)}>
-                          <PlayCircle className="h-6 w-6" />
-                        </Button>
+                        <TooltipProvider delayDuration={0}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" onClick={() => resumeUpload(file.id)}>
+                                <PlayCircle className="h-6 w-6" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>继续上传</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       )}
-                      <Button variant="ghost" size="icon" onClick={() => handleRemoveUpload(file.id)} disabled={file.status === 'uploading'}>
-                        <X className="h-4 w-4" />
-                      </Button>
+                      {file.status === 'pending' && (
+                        <TooltipProvider delayDuration={0}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => startUpload(file.id)}
+                                disabled={isUploading}
+                              >
+                                <Upload className="h-5 w-5 text-primary" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>立即上传</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                      <TooltipProvider delayDuration={0}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => handleRemoveUpload(file.id)} 
+                              disabled={file.status === 'uploading'}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>移除</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
                   )}
                 </Card>
