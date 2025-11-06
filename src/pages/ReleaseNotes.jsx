@@ -20,7 +20,7 @@ import changelogData from '@/data/changelog.json';
 export default function ReleaseNotesPage() {
   const { theme } = useTheme();
   const [selectedType, setSelectedType] = useState('all');
-  const [expandedVersions, setExpandedVersions] = useState(new Set(['5.0.12'])); // 默认展开最新版本
+  const [expandedVersions, setExpandedVersions] = useState(new Set(['5.0.13'])); // 默认展开最新版本
 
   // 获取版本类型标签的样式
   const getTypeBadgeVariant = (type) => {

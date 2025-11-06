@@ -5,15 +5,24 @@ import CodePreview from '@/components/CodePreview';
 import { toast } from 'sonner';
 import QRCode from 'qrcode';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import LottieAnimation from '@/components/LottieAnimation';
+import LoadingLottie from '@/assets/lottie/loding.lottie';
+import ErrorLottie from '@/assets/lottie/error.lottie';
 // removed inline context menu
 
 const compressedExtensions = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'iso'];
 
 const LoadingSpinner = () => (
-  <svg className="animate-spin -ml-1 mr-3 h-10 w-10 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-  </svg>
+  <div className="flex items-center justify-center w-full h-full">
+    <div className="w-64 h-64">
+      <LottieAnimation 
+        src={LoadingLottie}
+        autoplay={true}
+        loop={true}
+        speed={1}
+      />
+    </div>
+  </div>
 );
 
 export default function PreviewPage() {
@@ -28,10 +37,26 @@ export default function PreviewPage() {
   const [rotation, setRotation] = useState(0);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
+  const loadingStartTimeRef = useRef(0);
   // removed inline context menu state
+
+  // 确保加载动画至少显示 2 秒
+  const finishLoading = () => {
+    const elapsed = Date.now() - loadingStartTimeRef.current;
+    const minLoadingTime = 2000; // 2 秒
+    
+    if (elapsed < minLoadingTime) {
+      setTimeout(() => {
+        setLoading(false);
+      }, minLoadingTime - elapsed);
+    } else {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     const getFileFromURL = async () => {
+      loadingStartTimeRef.current = Date.now();
       setLoading(true);
       setError('');
       setFile(null);
@@ -46,7 +71,7 @@ export default function PreviewPage() {
         if (fileName && compressedExtensions.includes(extension)) {
           setFile({ fileName });
           setError('压缩文件请下载后查看');
-          setLoading(false);
+          finishLoading();
           return;
         }
 
@@ -55,7 +80,7 @@ export default function PreviewPage() {
 
         if (!fileName || !bucket) {
           setError('无效的文件信息。');
-          setLoading(false);
+          finishLoading();
           return;
         }
 
@@ -73,11 +98,11 @@ export default function PreviewPage() {
           const img = new Image();
           img.onload = () => {
             window.api.resizePreviewWindow({ width: img.naturalWidth, height: img.naturalHeight });
-            setLoading(false);
+            finishLoading();
           }
           img.onerror = (error) => {
             setError(`图片加载失败: ${publicUrl}`);
-            setLoading(false);
+            finishLoading();
           }
           img.src = publicUrl;
         } else if (isVideo(fileName)) {
@@ -87,11 +112,11 @@ export default function PreviewPage() {
           video.preload = 'metadata';
           video.onloadedmetadata = () => {
              window.api.resizePreviewWindow({ width: video.videoWidth, height: video.videoHeight });
-             setLoading(false);
+             finishLoading();
           }
           video.onerror = () => {
             setError('视频加载失败。');
-            setLoading(false);
+            finishLoading();
           }
           video.src = publicUrl;
 
@@ -129,7 +154,7 @@ export default function PreviewPage() {
           })();
         } else if (isAudio(fileName)) {
             // For audio, we don't need to wait for metadata to show the player
-            setLoading(false);
+            finishLoading();
         } else {
             // Handle text and other files
             try {
@@ -143,14 +168,14 @@ export default function PreviewPage() {
             } catch (e) {
                 console.error(`Error calling getObjectContent:`, e);
             } finally {
-                setLoading(false);
+                finishLoading();
             }
         }
 
       } catch (e) {
         console.error("加载预览时出错:", e);
         setError(`加载预览时出错: ${e.message}`);
-        setLoading(false);
+        finishLoading();
       }
     };
 
@@ -234,7 +259,19 @@ export default function PreviewPage() {
     }
 
     if (error) {
-      return <div className="flex items-center justify-center h-full p-4 text-red-500 text-center">{error}</div>;
+      return (
+        <div className="flex flex-col items-center justify-center h-full p-4">
+          <div className="w-66 h-66 mb-4">
+            <LottieAnimation 
+              src={ErrorLottie}
+              autoplay={true}
+              loop={true}
+              speed={1}
+            />
+          </div>
+          <div className="text-red-500 text-center text-lg">{error}</div>
+        </div>
+      );
     }
 
     if (!file) {
@@ -329,7 +366,7 @@ export default function PreviewPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="preview-page flex flex-col h-screen bg-background">
       <PreviewHeader 
         fileName={file ? file.fileName : '...'} 
         isImage={file ? isImage(file.fileName) : false}
