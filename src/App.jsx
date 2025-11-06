@@ -9,6 +9,8 @@ import { HashRouter as Router, Routes, Route, Navigate, useNavigate, Outlet } fr
 import { NotificationProvider, useNotifications } from './contexts/NotificationContext';
 import { UpdateProvider, useUpdate } from './contexts/UpdateContext';
 import { UploadsProvider } from './contexts/UploadsContext';
+import { ConfettiProvider, useConfetti } from './contexts/ConfettiContext';
+import ConfettiOverlay from './components/ConfettiOverlay';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -181,36 +183,47 @@ function MainLayout() {
   );
 }
 
+function AppContent() {
+  const { isVisible, hideConfetti } = useConfetti();
+  
+  return (
+    <>
+      <Toaster richColors position="top-center" />
+      <Routes>
+        <Route element={<MainLayout />}>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/files" element={<FilesPage />} />
+          <Route path="/uploads" element={<UploadsPage />} />
+          <Route path="/downloads" element={<DownloadsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/announcements" element={<AnnouncementsPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/releasenotes" element={<ReleaseNotesPage />} />
+          <Route path="/update" element={<UpdatePage />} />
+        </Route>
+        <Route path="/preview" element={<PreviewPage />} />
+      </Routes>
+      <AppUpdateDialog />
+      <ConfettiOverlay isVisible={isVisible} onComplete={hideConfetti} />
+    </>
+  );
+}
+
 function App() {
   return (
     <Router>
       <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
         <UpdateProvider>
           <NotificationProvider>
-            <UploadsProvider>
-      <Toaster richColors position="top-center" />
-              <Routes>
-                <Route element={<MainLayout />}>
-                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                  <Route path="/dashboard" element={<DashboardPage />} />
-                  <Route path="/files" element={<FilesPage />} />
-
-                  <Route path="/uploads" element={<UploadsPage />} />
-                  <Route path="/downloads" element={<DownloadsPage />} />
-                  <Route path="/settings" element={<SettingsPage />} />
-                  <Route path="/announcements" element={<AnnouncementsPage />} />
-                  <Route path="/about" element={<AboutPage />} />
-                  <Route path="/releasenotes" element={<ReleaseNotesPage />} />
-                  <Route path="/update" element={<UpdatePage />} />
-                </Route>
-                <Route path="/preview" element={<PreviewPage />} />
-
-              </Routes>
-              <AppUpdateDialog />
-            </UploadsProvider>
-      </NotificationProvider>
+            <ConfettiProvider>
+              <UploadsProvider>
+                <AppContent />
+              </UploadsProvider>
+            </ConfettiProvider>
+          </NotificationProvider>
         </UpdateProvider>
-    </ThemeProvider>
+      </ThemeProvider>
     </Router>
   )
 }

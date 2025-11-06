@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
+import LottieAnimation from '@/components/LottieAnimation';
+import WelcomeLottie from '@/assets/lottie/Welcome.lottie';
 import { 
   Dialog,
   DialogContent,
@@ -1127,8 +1129,28 @@ export default function FilesPage() {
                   {loading && <div className="text-center p-4">加载中...</div>}
                 </>
               ) : (
-                <div className="flex items-center justify-center h-full text-muted-foreground">
-                  没有文件
+                <div className="flex flex-col items-center justify-center h-full min-h-[400px] p-8">
+                  <div className="w-64 h-64 mb-6">
+                    <LottieAnimation 
+                      src={WelcomeLottie}
+                      autoplay={true}
+                      loop={true}
+                      speed={1}
+                    />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                    当前文件夹为空
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-6">
+                    上传一些文件开始使用吧
+                  </p>
+                  <Button 
+                    onClick={handleFileSelectAndUpload}
+                    className="flex items-center gap-2"
+                  >
+                    <UploadCloud className="w-4 h-4" />
+                    上传文件
+                  </Button>
                 </div>
               )}
             </div>

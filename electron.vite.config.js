@@ -40,6 +40,7 @@ export default defineConfig({
         '@': resolve('src/')
       }
     },
+    assetsInclude: ['**/*.lottie'],
     plugins: [react()]
   }
 }) 

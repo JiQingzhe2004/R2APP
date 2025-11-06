@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import { useConfetti } from './ConfettiContext';
 
 const UploadsContext = createContext();
 
@@ -9,6 +10,7 @@ export const UploadsProvider = ({ children }) => {
   const [uploads, setUploads] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const isInitialLoad = useRef(true);
+  const { showConfetti } = useConfetti();
 
   // Load state from store on initial mount
   useEffect(() => {
@@ -87,6 +89,13 @@ export const UploadsProvider = ({ children }) => {
             
             // Otherwise, it's a normal progress update.
             const isCompleted = totalProgress >= 100;
+            const wasNotCompleted = upload.status !== 'completed';
+            
+            // 触发庆祝动画（只在首次完成时触发）
+            if (isCompleted && wasNotCompleted) {
+              showConfetti();
+            }
+            
             return {
               ...upload,
               status: isCompleted ? 'completed' : 'uploading',
