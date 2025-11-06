@@ -110,6 +110,13 @@ const BucketSelector = ({ profile, onSelect, isOpen, onClose }) => {
             <p>例如：my-r2-bucket</p>
           </div>
         );
+      case 'obs':
+        return (
+          <div className="text-sm text-muted-foreground space-y-1">
+            <p>华为云 OBS 存储桶名称</p>
+            <p>例如：my-obs-bucket</p>
+          </div>
+        );
       default:
         return null;
     }

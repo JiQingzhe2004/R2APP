@@ -577,6 +577,12 @@ export default function FilesPage() {
       return `https://storage.googleapis.com/${bucket}/${key}`;
     }
 
+    // 华为云 OBS 默认域名
+    if (settings.type === 'obs' && settings.region && settings.bucket) {
+      const endpoint = settings.endpoint || `obs.${settings.region}.myhuaweicloud.com`;
+      return `https://${settings.bucket}.${endpoint}/${key}`;
+    }
+
     // 对于 SM.MS、Lsky、Gitee，如果没有配置自定义域名，返回占位符
     // 这些服务的 URL 通常由服务器返回，在 file.publicUrl 中
     return null;

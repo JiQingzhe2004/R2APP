@@ -21,6 +21,7 @@ import GiteeIcon from '@/assets/cloudico/GITEE.svg';
 import GoogleCloudIcon from '@/assets/cloudico/谷歌云.svg';
 import LskyIcon from '@/assets/cloudico/lsky.ico';
 import SmmsIcon from '@/assets/cloudico/smms.app.png';
+import HuaweiIcon from '@/assets/cloudico/华为云.svg';
 
 import { v4 as uuidv4 } from 'uuid';
 import { useOutletContext } from 'react-router-dom';
@@ -142,6 +143,19 @@ const GCS_TEMPLATE = {
   createdAt: new Date().toISOString(),
 };
 
+const OBS_TEMPLATE = {
+  type: 'obs',
+  name: '新华为云 OBS 配置',
+  accessKeyId: '',
+  secretAccessKey: '',
+  region: 'cn-north-4',
+  bucket: '',
+  endpoint: '',
+  storageQuotaGB: 10,
+  storageQuotaUnit: 'GB',
+  createdAt: new Date().toISOString(),
+};
+
 const PROVIDER_INFO = {
   r2: {
     name: 'Cloudflare R2',
@@ -184,6 +198,12 @@ const PROVIDER_INFO = {
     icon: GoogleCloudIcon,
     color: 'bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200',
     description: 'Google 云存储服务，企业级对象存储'
+  },
+  obs: {
+    name: '华为云 OBS',
+    icon: HuaweiIcon,
+    color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+    description: '华为云对象存储服务，企业级云存储'
   }
 };
 
@@ -939,6 +959,107 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
             </>
           )}
 
+          {profile.type === 'obs' && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`accessKeyId-${profile.id}`} className="flex items-center gap-2">
+                    <KeyRound className="h-4 w-4" />
+                    Access Key ID
+                  </Label>
+                  <Input 
+                    id={`accessKeyId-${profile.id}`} 
+                    name="accessKeyId" 
+                    value={profile.accessKeyId} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="您的华为云 Access Key ID" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`secretAccessKey-${profile.id}`} className="flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    Secret Access Key
+                  </Label>
+                  <Input 
+                    id={`secretAccessKey-${profile.id}`} 
+                    name="secretAccessKey" 
+                    type="password" 
+                    value={profile.secretAccessKey} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="您的华为云 Secret Access Key" 
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`region-${profile.id}`} className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    区域
+                  </Label>
+                  <Select 
+                    value={profile.region} 
+                    onValueChange={(value) => onChange(profile.id, { target: { name: 'region', value } })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="选择区域" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cn-north-4">华北-北京四（cn-north-4）</SelectItem>
+                      <SelectItem value="cn-north-1">华北-北京一（cn-north-1）</SelectItem>
+                      <SelectItem value="cn-east-3">华东-上海一（cn-east-3）</SelectItem>
+                      <SelectItem value="cn-east-2">华东-上海二（cn-east-2）</SelectItem>
+                      <SelectItem value="cn-south-1">华南-广州（cn-south-1）</SelectItem>
+                      <SelectItem value="ap-southeast-1">亚太-香港（ap-southeast-1）</SelectItem>
+                      <SelectItem value="ap-southeast-3">亚太-新加坡（ap-southeast-3）</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`bucket-${profile.id}`} className="flex items-center gap-2">
+                    <Container className="h-4 w-4" />
+                    存储桶名称
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      id={`bucket-${profile.id}`} 
+                      name="bucket" 
+                      value={profile.bucket} 
+                      onChange={(e) => onChange(profile.id, e)} 
+                      placeholder="您的 OBS 存储桶名称" 
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setShowBucketSelector(true)}
+                      title="选择存储桶"
+                    >
+                      <FolderOpen className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor={`publicDomain-${profile.id}`} className="flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  自定义域名
+                </Label>
+                <Input 
+                  id={`publicDomain-${profile.id}`} 
+                  name="publicDomain" 
+                  value={profile.publicDomain || ''} 
+                  onChange={(e) => onChange(profile.id, e)} 
+                  placeholder="例如: https://cdn.yourdomain.com (可选)" 
+                />
+                <p className="text-xs text-muted-foreground">
+                  配置自定义域名后，文件访问将使用您的域名
+                </p>
+              </div>
+            </>
+          )}
+
           {profile.type === 'smms' && (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1148,7 +1269,8 @@ export default function SettingsPage() {
       'smms': SMMS_TEMPLATE,
       'lsky': LSKY_TEMPLATE,
       'gitee': GITEE_TEMPLATE,
-      'gcs': GCS_TEMPLATE
+      'gcs': GCS_TEMPLATE,
+      'obs': OBS_TEMPLATE
     };
     const template = templates[type] || R2_TEMPLATE;
     const newProfile = {
@@ -1294,6 +1416,10 @@ export default function SettingsPage() {
                     <DropdownMenuItem onClick={() => handleAddProfile('gcs')}>
                       <img src={GoogleCloudIcon} alt="Google Cloud" className="mr-2 h-4 w-4" />
                       <span>Google Cloud</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleAddProfile('obs')}>
+                      <img src={HuaweiIcon} alt="华为云 OBS" className="mr-2 h-4 w-4" />
+                      <span>华为云 OBS</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

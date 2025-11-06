@@ -21,6 +21,7 @@ import OssAPI from './oss-api.js';
 import CosAPI from './cos-api.js';
 import GiteeAPI from './gitee-api.js';
 import GCSAPI from './gcs-api.js';
+import ObsHuaweiAPI from './obs-huawei-api.js';
 import { testProxyConnection } from './proxy-config.js';
 import { showSplash, hideSplash, destroySplash } from './splash-screen.js';
 
@@ -133,6 +134,18 @@ function getAPIInstance(type) {
           credentials: profile.credentials,
           publicDomain: profile.publicDomain,
           proxyConfig: profile.proxyConfig // 传入代理配置
+        });
+      }
+      break;
+    case 'obs':
+      if (profile.accessKeyId && profile.secretAccessKey && profile.bucket) {
+        const endpoint = profile.endpoint || `obs.${profile.region}.myhuaweicloud.com`;
+        apiInstance = new ObsHuaweiAPI({
+          accessKeyId: profile.accessKeyId,
+          secretAccessKey: profile.secretAccessKey,
+          server: endpoint,
+          bucket: profile.bucket,
+          publicDomain: profile.publicDomain
         });
       }
       break;
@@ -597,6 +610,20 @@ async function startUpload(filePath, key, checkpoint) {
         mainWindow.webContents.send('upload-progress', { key, error: error.message, filePath });
         addRecentActivity('upload', `图片 ${key} 上传到兰空图床失败: ${error.message}`, 'error');
       }
+    } else if (storage.type === 'obs') {
+      // 华为云 OBS 上传
+      const obsAPI = getAPIInstance('obs');
+      if (!obsAPI) throw new Error('OBS API实例创建失败');
+
+      const onProgress = (percentage) => {
+        mainWindow.webContents.send('upload-progress', { key, percentage, filePath });
+      };
+
+      activeUploads.set(key, { cancel: () => { /* OBS upload doesn't support direct cancel */ } });
+
+      await obsAPI.uploadFile(filePath, key, onProgress);
+      mainWindow.webContents.send('upload-progress', { key, percentage: 100, filePath });
+      addRecentActivity('upload', `文件 ${key} 上传成功。`, 'success');
     }
 
   } catch (error) {
@@ -1537,6 +1564,40 @@ ipcMain.handle('test-connection', async (event, profile) => {
       console.error('[Main] GCS connection test failed:', error);
       return { success: false, error: `GCS 连接失败: ${error.message}` };
     }
+  } else if (profile.type === 'obs') {
+    console.log('[Main] Testing OBS connection with profile:', {
+      hasAccessKeyId: !!profile.accessKeyId,
+      hasSecretAccessKey: !!profile.secretAccessKey,
+      hasBucket: !!profile.bucket,
+      hasRegion: !!profile.region
+    });
+    
+    if (!profile.accessKeyId || !profile.secretAccessKey || !profile.bucket) {
+      const missing = [];
+      if (!profile.accessKeyId) missing.push('Access Key ID');
+      if (!profile.secretAccessKey) missing.push('Secret Access Key');
+      if (!profile.bucket) missing.push('Bucket');
+      return { success: false, error: `缺少华为云 OBS 配置信息: ${missing.join(', ')}` };
+    }
+    
+    try {
+      console.log('[Main] Creating OBS API instance for connection test...');
+      const endpoint = profile.endpoint || `obs.${profile.region}.myhuaweicloud.com`;
+      const obsAPI = new ObsHuaweiAPI({
+        accessKeyId: profile.accessKeyId,
+        secretAccessKey: profile.secretAccessKey,
+        server: endpoint,
+        bucket: profile.bucket,
+        publicDomain: profile.publicDomain
+      });
+      console.log('[Main] OBS API instance created, testing connection...');
+      const result = await obsAPI.testConnection();
+      console.log('[Main] OBS connection test result:', result);
+      return result;
+    } catch (error) {
+      console.error('[Main] OBS connection test failed:', error);
+      return { success: false, error: `华为云 OBS 连接失败: ${error.message}` };
+    }
   } else {
     return { success: false, error: '未知的配置类型。' };
   }
@@ -1603,6 +1664,14 @@ async function getStorageClient() {
             bucket: profile.bucketName,
             projectId: profile.projectId,
         };
+    } else if (profile.type === 'obs') {
+        if (!profile.accessKeyId || !profile.secretAccessKey || !profile.bucket) return null;
+        return {
+            client: null, // OBS 使用 ObsHuaweiAPI 模块
+            type: 'obs',
+            bucket: profile.bucket,
+            region: profile.region,
+        };
     }
     return null;
 }
@@ -1628,6 +1697,11 @@ ipcMain.handle('check-status', async () => {
       const gcsAPI = getAPIInstance('gcs');
       if (!gcsAPI) throw new Error('GCS API实例创建失败');
       const result = await executeWithoutProxy(() => gcsAPI.testConnection());
+      return result;
+    } else if (storage.type === 'obs') {
+      const obsAPI = getAPIInstance('obs');
+      if (!obsAPI) throw new Error('OBS API实例创建失败');
+      const result = await obsAPI.testConnection();
       return result;
     }
      return { success: true, message: '连接成功' };
@@ -1722,6 +1796,19 @@ ipcMain.handle('get-bucket-stats', async () => {
       if (response.success) {
         totalCount = response.data.totalCount;
         totalSize = response.data.totalSize;
+      }
+    } else if (storage.type === 'obs') {
+      // 华为云 OBS 统计
+      const obsAPI = getAPIInstance('obs');
+      if (!obsAPI) throw new Error('OBS API实例创建失败');
+      const response = await obsAPI.getStorageStats();
+      
+      console.log('[Main] OBS storage stats response:', response);
+      
+      if (response.success) {
+        totalCount = response.data.totalCount;
+        totalSize = response.data.totalSize;
+        console.log(`[Main] OBS stats: ${totalCount} files, ${totalSize} bytes`);
       }
     }
     
@@ -1889,6 +1976,21 @@ ipcMain.handle('list-objects', async (event, options) => {
       folders = [];
       nextContinuationToken = null;
 
+    } else if (storage.type === 'obs') {
+      // 华为云 OBS: 列出对象
+      const obsAPI = getAPIInstance('obs');
+      if (!obsAPI) throw new Error('OBS API实例创建失败');
+      const response = await obsAPI.listObjects({
+        prefix: apiPrefix,
+        delimiter: apiDelimiter,
+        continuationToken: continuationToken
+      });
+      
+      if (response.success) {
+        rawFiles = response.data.files || [];
+        folders = response.data.folders || [];
+        nextContinuationToken = response.data.nextContinuationToken;
+      }
     } else if (storage.type === 'lsky') {
       // 兰空图床: 列出图片
       const active = getActiveProfile();
@@ -2058,6 +2160,18 @@ ipcMain.handle('delete-object', async (_, key) => {
         console.log(`[LSKY DELETE] Delete failed: ${error.message}`);
         throw error;
       }
+    } else if (storage.type === 'obs') {
+      // 华为云 OBS 删除
+      const obsAPI = getAPIInstance('obs');
+      if (!obsAPI) throw new Error('OBS API实例创建失败');
+      
+      if (key.endsWith('/')) {
+        // 删除文件夹
+        await obsAPI.deleteFolder(key);
+      } else {
+        // 删除文件
+        await obsAPI.deleteObject(key);
+      }
     }
     addRecentActivity('delete', `删除了 ${key}`, 'success');
     return { success: true };
@@ -2177,6 +2291,10 @@ ipcMain.handle('create-folder', async (event, folderName) => {
       const cosAPI = getAPIInstance('cos');
       if (!cosAPI) throw new Error('COS API实例创建失败');
       await executeWithoutProxy(() => cosAPI.uploadFile('', folderName)); // 创建空文件作为文件夹
+    } else if (type === 'obs') {
+      const obsAPI = getAPIInstance('obs');
+      if (!obsAPI) throw new Error('OBS API实例创建失败');
+      await obsAPI.createFolder(folderName);
     } else {
       return { success: false, error: '不支持的存储类型' };
     }
@@ -2261,6 +2379,20 @@ ipcMain.handle('get-object-content', async (event, bucket, key) => {
       if (!gcsAPI) throw new Error('GCS API实例创建失败');
       
       const response = await executeWithoutProxy(() => gcsAPI.getFileContent(key, PREVIEW_FILE_SIZE_LIMIT));
+      if (response.success) {
+        if (response.data.tooLarge) {
+          fileTooLarge = true;
+        } else {
+          content = response.data.content;
+        }
+      } else {
+        throw new Error(response.error);
+      }
+    } else if (type === 'obs') {
+      const obsAPI = getAPIInstance('obs');
+      if (!obsAPI) throw new Error('OBS API实例创建失败');
+      
+      const response = await obsAPI.getFileContent(key, PREVIEW_FILE_SIZE_LIMIT);
       if (response.success) {
         if (response.data.tooLarge) {
           fileTooLarge = true;
@@ -2463,6 +2595,24 @@ ipcMain.on('download-file', async (event, key) => {
         };
         
         await executeWithoutProxy(() => gcsAPI.downloadFile(key, filePath, onProgress));
+        
+        const finalTasks = store.get('download-tasks', {});
+        if (finalTasks[taskId]) {
+          finalTasks[taskId].status = 'completed';
+          finalTasks[taskId].progress = 100;
+          store.set('download-tasks', finalTasks);
+        }
+        mainWindow.webContents.send('download-update', { 
+          type: 'progress', 
+          data: { id: taskId, progress: 100, status: 'completed' } 
+        });
+        addRecentActivity('download', `下载了 ${key}`);
+     } else if (storage.type === 'obs') {
+        // 华为云 OBS 下载
+        const obsAPI = getAPIInstance('obs');
+        if (!obsAPI) throw new Error('OBS API实例创建失败');
+        
+        await obsAPI.downloadFile(key, filePath);
         
         const finalTasks = store.get('download-tasks', {});
         if (finalTasks[taskId]) {
@@ -2776,6 +2926,11 @@ ipcMain.handle('get-presigned-url', async (event, bucket, key) => {
       const gcsAPI = getAPIInstance('gcs');
       if (!gcsAPI) throw new Error('GCS API实例创建失败');
       url = await executeWithoutProxy(() => gcsAPI.getPresignedUrl(key, 900));
+    } else if (storage.type === 'obs') {
+      // 华为云 OBS 获取预签名URL
+      const obsAPI = getAPIInstance('obs');
+      if (!obsAPI) throw new Error('OBS API实例创建失败');
+      url = await obsAPI.getPresignedUrl(key, 900);
     }
     return url;
   } catch (error) {
@@ -2833,6 +2988,15 @@ ipcMain.on('start-search', async (event, searchTerm) => {
         const gcsAPI = getAPIInstance('gcs');
         if (!gcsAPI) throw new Error('GCS API实例创建失败');
         const searchResponse = await executeWithoutProxy(() => gcsAPI.searchFiles(lowerCaseSearchTerm, { continuationToken }));
+        response = {
+          Contents: searchResponse.data.files,
+          NextContinuationToken: null // 搜索已经处理了分页
+        };
+      } else if (storage.type === 'obs') {
+        // 华为云 OBS 搜索
+        const obsAPI = getAPIInstance('obs');
+        if (!obsAPI) throw new Error('OBS API实例创建失败');
+        const searchResponse = await obsAPI.searchFiles(lowerCaseSearchTerm, { continuationToken });
         response = {
           Contents: searchResponse.data.files,
           NextContinuationToken: null // 搜索已经处理了分页
@@ -2917,6 +3081,23 @@ ipcMain.handle('list-buckets', async (event, profile) => {
         success: false, 
         error: 'R2需要手动输入存储桶名称' 
       };
+    } else if (profile.type === 'obs') {
+      // 华为云OBS获取存储桶列表
+      const endpoint = profile.endpoint || `obs.${profile.region}.myhuaweicloud.com`;
+      const api = new ObsHuaweiAPI({
+        accessKeyId: profile.accessKeyId,
+        secretAccessKey: profile.secretAccessKey,
+        server: endpoint,
+        bucket: profile.bucket,
+        publicDomain: profile.publicDomain
+      });
+      
+      const result = await api.listBuckets();
+      if (result.success) {
+        buckets = result.data || [];
+      } else {
+        throw new Error('获取华为云 OBS 存储桶列表失败');
+      }
     }
     
     return { success: true, buckets };
