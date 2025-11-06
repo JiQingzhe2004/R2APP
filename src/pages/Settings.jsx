@@ -13,6 +13,15 @@ import {
 } from 'lucide-react'
 import AppSettings from './AppSettings';
 
+// 导入云服务图标
+import CloudflareIcon from '@/assets/cloudico/Cloudflare.svg';
+import AliyunIcon from '@/assets/cloudico/阿里云.svg';
+import TencentIcon from '@/assets/cloudico/腾讯云.svg';
+import GiteeIcon from '@/assets/cloudico/GITEE.svg';
+import GoogleCloudIcon from '@/assets/cloudico/谷歌云.svg';
+import LskyIcon from '@/assets/cloudico/lsky.ico';
+import SmmsIcon from '@/assets/cloudico/smms.app.png';
+
 import { v4 as uuidv4 } from 'uuid';
 import { useOutletContext } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs"
@@ -136,43 +145,43 @@ const GCS_TEMPLATE = {
 const PROVIDER_INFO = {
   r2: {
     name: 'Cloudflare R2',
-    icon: Cloud,
+    icon: CloudflareIcon,
     color: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
     description: 'Cloudflare 的对象存储服务，兼容 S3 API'
   },
   oss: {
     name: '阿里云 OSS',
-    icon: Database,
+    icon: AliyunIcon,
     color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
     description: '阿里云对象存储服务'
   },
   cos: {
     name: '腾讯云 COS',
-    icon: Server,
+    icon: TencentIcon,
     color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
     description: '腾讯云对象存储服务'
   },
   smms: {
     name: 'SM.MS 图床',
-    icon: Image,
+    icon: SmmsIcon,
     color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
     description: '免费图床服务，支持多种图片格式'
   },
   lsky: {
     name: '兰空图床',
-    icon: Image,
+    icon: LskyIcon,
     color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
     description: '标准的兰空图床，支持多种存储策略'
   },
   gitee: {
     name: 'Gitee 仓库',
-    icon: Database,
+    icon: GiteeIcon,
     color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
     description: '使用 Gitee 仓库作为文件存储，支持版本控制'
   },
   gcs: {
     name: 'Google Cloud',
-    icon: Cloud,
+    icon: GoogleCloudIcon,
     color: 'bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200',
     description: 'Google 云存储服务，企业级对象存储'
   }
@@ -232,7 +241,11 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
             />
             
             <div className="flex items-center gap-2">
-              <providerInfo.icon className="h-5 w-5 text-muted-foreground" />
+              {typeof providerInfo.icon === 'string' ? (
+                <img src={providerInfo.icon} alt={providerInfo.name} className="h-5 w-5" />
+              ) : (
+                <providerInfo.icon className="h-5 w-5 text-muted-foreground" />
+              )}
               <span className={`text-xs font-bold py-1 px-2.5 rounded-full ${providerInfo.color}`}>
                 {profile.type.toUpperCase()}
               </span>
@@ -1255,31 +1268,31 @@ export default function SettingsPage() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="w-56">
                     <DropdownMenuItem onClick={() => handleAddProfile('r2')}>
-                      <Cloud className="mr-2 h-4 w-4 text-orange-600" />
+                      <img src={CloudflareIcon} alt="Cloudflare R2" className="mr-2 h-4 w-4" />
                       <span>Cloudflare R2</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleAddProfile('oss')}>
-                      <Database className="mr-2 h-4 w-4 text-blue-600" />
+                      <img src={AliyunIcon} alt="阿里云 OSS" className="mr-2 h-4 w-4" />
                       <span>阿里云 OSS</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleAddProfile('cos')}>
-                      <Server className="mr-2 h-4 w-4 text-green-600" />
+                      <img src={TencentIcon} alt="腾讯云 COS" className="mr-2 h-4 w-4" />
                       <span>腾讯云 COS</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleAddProfile('smms')}>
-                      <Image className="mr-2 h-4 w-4 text-purple-600" />
+                      <img src={SmmsIcon} alt="SM.MS 图床" className="mr-2 h-4 w-4" />
                       <span>SM.MS 图床</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleAddProfile('lsky')}>
-                      <Image className="mr-2 h-4 w-4 text-blue-600" />
+                      <img src={LskyIcon} alt="兰空图床" className="mr-2 h-4 w-4" />
                       <span>兰空图床</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleAddProfile('gitee')}>
-                      <Database className="mr-2 h-4 w-4 text-red-600" />
+                      <img src={GiteeIcon} alt="Gitee 仓库" className="mr-2 h-4 w-4" />
                       <span>Gitee 仓库</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleAddProfile('gcs')}>
-                      <Cloud className="mr-2 h-4 w-4 text-sky-600" />
+                      <img src={GoogleCloudIcon} alt="Google Cloud" className="mr-2 h-4 w-4" />
                       <span>Google Cloud</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
