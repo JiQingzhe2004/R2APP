@@ -1,13 +1,23 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/Card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card"
 import WhiteLogo from '@/assets/WhiteLOGO.png'
 import BlackLogo from '@/assets/BlackLOGO.png'
 import WechatQR from '@/assets/wxzf.png'
 import AlipayQR from '@/assets/zfb.png'
-import { Github, GitCommit, UserCircle, Award, ArrowRight, BadgeCheck, Atom, ExternalLink, Cloud, Database, Image, Heart, Coffee, X, Calendar, GitBranch } from 'lucide-react'
+import { Github, GitCommit, UserCircle, Award, BadgeCheck, Atom, ExternalLink, Heart, Coffee, X, Calendar, Database } from 'lucide-react'
 import { Tiktok, MaillOne} from '@icon-park/react'
 import { useTheme } from '@/components/theme-provider';
 import versionData from '@/version.json';
+import CloudflareIcon from '@/assets/cloudico/Cloudflare.svg';
+import AliyunIcon from '@/assets/cloudico/阿里云.svg';
+import TencentIcon from '@/assets/cloudico/腾讯云.svg';
+import JDCloudIcon from '@/assets/cloudico/京东云.svg';
+import HuaweiIcon from '@/assets/cloudico/华为云.svg';
+import QiniuIcon from '@/assets/cloudico/七牛云.svg';
+import GiteeIcon from '@/assets/cloudico/GITEE.svg';
+import GoogleCloudIcon from '@/assets/cloudico/谷歌云.svg';
+import SmmsIcon from '@/assets/cloudico/smms.app.png';
+import LskyIcon from '@/assets/cloudico/lsky.ico';
 
 export default function AboutPage() {
   const { theme } = useTheme();
@@ -48,59 +58,73 @@ export default function AboutPage() {
   const storageServices = [
     {
       name: 'Cloudflare R2',
-      description: '免费10GB存储，全球CDN加速',
-      icon: Cloud,
+      description: '免费 10GB 存储，全球 CDN 加速',
+      icon: CloudflareIcon,
       url: 'https://www.cloudflare.com/zh-cn/developer-platform/r2/',
-      color: 'text-orange-500',
-      bgColor: 'bg-orange-50 dark:bg-orange-900/20'
+      bgColor: 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800/40'
+    },
+    {
+      name: '京东云对象存储',
+      description: '兼容 S3 的企业级对象存储服务',
+      icon: JDCloudIcon,
+      url: 'https://www.jdcloud.com/cn/products/object-storage',
+      bgColor: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/40'
     },
     {
       name: '阿里云 OSS',
-      description: '稳定可靠的对象存储服务',
-      icon: Database,
+      description: '稳定可靠的企业级对象存储',
+      icon: AliyunIcon,
       url: 'https://www.aliyun.com/product/oss',
-      color: 'text-blue-500',
-      bgColor: 'bg-blue-50 dark:bg-blue-900/20'
+      bgColor: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/40'
     },
     {
       name: '腾讯云 COS',
-      description: '高性价比云存储解决方案',
-      icon: Database,
+      description: '高性价比的云端对象存储方案',
+      icon: TencentIcon,
       url: 'https://cloud.tencent.com/product/cos',
-      color: 'text-green-500',
-      bgColor: 'bg-green-50 dark:bg-green-900/20'
+      bgColor: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800/40'
+    },
+    {
+      name: '华为云 OBS',
+      description: '多活架构的企业级云存储',
+      icon: HuaweiIcon,
+      url: 'https://www.huaweicloud.com/product/obs.html',
+      bgColor: 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800/40'
+    },
+    {
+      name: '七牛云 Kodo',
+      description: '支持海量数据存储与分发的对象存储',
+      icon: QiniuIcon,
+      url: 'https://www.qiniu.com/products/kodo',
+      bgColor: 'bg-cyan-50 dark:bg-cyan-900/20 border-cyan-200 dark:border-cyan-800/40'
+    },
+    {
+      name: 'Google Cloud Storage',
+      description: '谷歌全球分布式对象存储服务',
+      icon: GoogleCloudIcon,
+      url: 'https://cloud.google.com/storage',
+      bgColor: 'bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800/40'
+    },
+    {
+      name: 'Gitee 仓库存储',
+      description: '国内 Git 仓库，轻量对象管理与加速',
+      icon: GiteeIcon,
+      url: 'https://gitee.com/',
+      bgColor: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/40'
     },
     {
       name: 'SM.MS 图床',
-      description: '免费图片托管服务',
-      icon: Image,
+      description: '轻量级图片托管服务，支持直链访问',
+      icon: SmmsIcon,
       url: 'https://sm.ms/',
-      color: 'text-purple-500',
-      bgColor: 'bg-purple-50 dark:bg-purple-900/20'
+      bgColor: 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800/40'
     },
     {
       name: '兰空图床',
-      description: '标准的兰空图床，支持多种存储策略',
-      icon: Image,
+      description: '多策略支持的自建图床解决方案',
+      icon: LskyIcon,
       url: 'https://github.com/lsky-org/lsky-pro',
-      color: 'text-blue-500',
-      bgColor: 'bg-blue-50 dark:bg-blue-900/20'
-    },
-    {
-      name: 'Gitee-码云',
-      description: '基于Git的代码托管和文件存储国内服务',
-      icon: GitBranch,
-      url: 'https://gitee.com/',
-      color: 'text-red-500',
-      bgColor: 'bg-red-50 dark:bg-red-900/20'
-    },
-    {
-      name: 'Google Cloud',
-      description: '谷歌云存储，全球分布式高性能对象存储',
-      icon: Cloud,
-      url: 'https://cloud.google.com/storage',
-      color: 'text-blue-400',
-      bgColor: 'bg-blue-50 dark:bg-blue-900/20'
+      bgColor: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/40'
     }
   ];
 
@@ -298,12 +322,16 @@ export default function AboutPage() {
             {storageServices.map((service, index) => (
               <div
                 key={index}
-                className={`p-4 rounded-lg border transition-all hover:shadow-md cursor-pointer ${service.bgColor}`}
+                className={`p-4 rounded-lg border transition-all hover:shadow-md cursor-pointer ${service.bgColor || ''}`}
                 onClick={() => window.open(service.url, '_blank')}
               >
                 <div className="flex items-start gap-3">
-                  <div className={`p-2 rounded-lg bg-white dark:bg-gray-800 ${service.color}`}>
-                    <service.icon className="h-6 w-6" />
+                  <div className="p-2 rounded-lg bg-white dark:bg-gray-900/70 shadow-sm">
+                    {typeof service.icon === 'string' ? (
+                      <img src={service.icon} alt={service.name} className="h-6 w-6 object-contain" draggable="false" />
+                    ) : (
+                      <service.icon className="h-6 w-6" />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-sm mb-1">{service.name}</h3>

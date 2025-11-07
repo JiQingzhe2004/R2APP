@@ -2,6 +2,29 @@ import fs from 'fs';
 import https from 'https';
 import { URL } from 'url';
 
+function encodePathSegments(path) {
+  if (!path) return '';
+  return path
+    .split('/')
+    .map(segment => encodeURIComponent(segment))
+    .join('/');
+}
+
+const IMAGE_MIME_MAP = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  bmp: 'image/bmp',
+  svg: 'image/svg+xml',
+  ico: 'image/x-icon',
+  avif: 'image/avif',
+  jfif: 'image/jpeg'
+};
+
+const IMAGE_EXTENSIONS = new Set(Object.keys(IMAGE_MIME_MAP));
+
 /**
  * Gitee API模块
  * 基于Gitee API实现文件存储功能
@@ -145,9 +168,8 @@ class GiteeAPI {
    * 获取文件的公共访问URL
    */
   getPublicUrl(key) {
-    // 对文件名进行URL编码
-    const encodedKey = encodeURIComponent(key);
-    
+    const encodedKey = encodePathSegments(key);
+
     if (this.publicDomain) {
       let domain = this.publicDomain;
       if (domain.endsWith('/')) {
@@ -158,10 +180,14 @@ class GiteeAPI {
       }
       return `${domain}/${encodedKey}`;
     }
-    
-    // 尝试不同的Gitee URL格式
-    // 格式1: 不使用inline参数
-    return `https://gitee.com/${this.owner}/${this.repo}/raw/${this.branch}/${encodedKey}`;
+
+    const baseRawUrl = `https://gitee.com/api/v5/repos/${this.owner}/${this.repo}/raw/${encodedKey}`;
+    const params = new URLSearchParams();
+    params.set('ref', this.branch);
+    if (this.accessToken) {
+      params.set('access_token', this.accessToken);
+    }
+    return `${baseRawUrl}?${params.toString()}`;
   }
 
   /**
@@ -229,7 +255,7 @@ class GiteeAPI {
       console.log(`[Gitee API] Uploading file: ${filePath} to ${key}`);
       
       // 确保文件名正确编码
-      const encodedKey = encodeURIComponent(key);
+      const encodedKey = encodePathSegments(key);
       console.log(`[Gitee API] Original key: ${key}`);
       console.log(`[Gitee API] Encoded key: ${encodedKey}`);
       
@@ -313,7 +339,8 @@ class GiteeAPI {
     try {
       console.log(`[Gitee API] Downloading file: ${key} to ${filePath}`);
       
-      const result = await this.makeRequest('GET', `/repos/${this.owner}/${this.repo}/contents/${key}?ref=${this.branch}`);
+      const encodedKey = encodePathSegments(key);
+      const result = await this.makeRequest('GET', `/repos/${this.owner}/${this.repo}/contents/${encodedKey}?ref=${this.branch}`);
       
       if (!result.content) {
         throw new Error('文件内容为空');
@@ -350,7 +377,8 @@ class GiteeAPI {
       console.log(`[Gitee API] Deleting file: ${key}`);
       
       // 获取文件信息以获取sha
-      const fileInfo = await this.makeRequest('GET', `/repos/${this.owner}/${this.repo}/contents/${key}?ref=${this.branch}`);
+      const encodedKey = encodePathSegments(key);
+      const fileInfo = await this.makeRequest('GET', `/repos/${this.owner}/${this.repo}/contents/${encodedKey}?ref=${this.branch}`);
       
       const deleteData = {
         message: `Delete file: ${key}`,
@@ -358,7 +386,7 @@ class GiteeAPI {
         branch: this.branch
       };
 
-      await this.makeRequest('DELETE', `/repos/${this.owner}/${this.repo}/contents/${key}`, deleteData);
+      await this.makeRequest('DELETE', `/repos/${this.owner}/${this.repo}/contents/${encodePathSegments(key)}`, deleteData);
       
       console.log(`[Gitee API] Delete completed: ${key}`);
       return { success: true };
@@ -510,10 +538,35 @@ class GiteeAPI {
    * 获取预签名URL
    */
   async getPresignedUrl(key, expiresIn = 900) {
+    const encodedKey = encodePathSegments(key);
+
     try {
-      // Gitee使用公共URL，不需要预签名
-      const url = this.getPublicUrl(key);
-      return url;
+      if (this.publicDomain) {
+        return this.getPublicUrl(key);
+      }
+
+      const fileExt = key.split('.').pop()?.toLowerCase();
+
+      if (this.accessToken && fileExt && IMAGE_EXTENSIONS.has(fileExt)) {
+        try {
+          const response = await this.makeRequest('GET', `/repos/${this.owner}/${this.repo}/contents/${encodedKey}?ref=${this.branch}`);
+          if (response && response.content) {
+            const mimeType = IMAGE_MIME_MAP[fileExt] || 'image/jpeg';
+            return `data:${mimeType};base64,${response.content}`;
+          }
+        } catch (inlineError) {
+          console.warn(`[Gitee API] Inline image fetch failed for ${key}:`, inlineError.message);
+        }
+      }
+
+      const params = new URLSearchParams();
+      params.set('ref', this.branch);
+      if (this.accessToken) {
+        params.set('access_token', this.accessToken);
+        params.set('raw', '1');
+      }
+
+      return `https://gitee.com/${this.owner}/${this.repo}/raw/${this.branch}/${encodedKey}?${params.toString()}`;
     } catch (error) {
       console.error(`[Gitee API] Get presigned URL failed for ${key}:`, error);
       throw error;
@@ -559,7 +612,7 @@ class GiteeAPI {
   async fileExists(key) {
     try {
       console.log(`[Gitee API] Checking if file exists: ${key}`);
-      await this.makeRequest('GET', `/repos/${this.owner}/${this.repo}/contents/${key}?ref=${this.branch}`);
+      await this.makeRequest('GET', `/repos/${this.owner}/${this.repo}/contents/${encodePathSegments(key)}?ref=${this.branch}`);
       console.log(`[Gitee API] File exists: ${key}`);
       return true;
     } catch (error) {
@@ -578,7 +631,7 @@ class GiteeAPI {
   async getFileInfo(key) {
     try {
       console.log(`[Gitee API] Getting file info: ${key}`);
-      const result = await this.makeRequest('GET', `/repos/${this.owner}/${this.repo}/contents/${key}?ref=${this.branch}`);
+      const result = await this.makeRequest('GET', `/repos/${this.owner}/${this.repo}/contents/${encodePathSegments(key)}?ref=${this.branch}`);
       
       const fileInfo = {
         Key: key,

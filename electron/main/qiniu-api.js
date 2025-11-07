@@ -37,6 +37,7 @@ class QiniuAPI {
   setZoneConfig(zone) {
     const zoneMap = {
       'z0': qiniu.zone.Zone_z0, // 华东
+      'cn-east-2': qiniu.zone.Zone_cn_east_2, // 华东-浙江2
       'z1': qiniu.zone.Zone_z1, // 华北
       'z2': qiniu.zone.Zone_z2, // 华南
       'na0': qiniu.zone.Zone_na0, // 北美

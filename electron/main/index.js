@@ -23,6 +23,7 @@ import GiteeAPI from './gitee-api.js';
 import GCSAPI from './gcs-api.js';
 import ObsHuaweiAPI from './obs-huawei-api.js';
 import QiniuAPI from './qiniu-api.js';
+import JdCloudAPI from './jdcloud-api.js';
 import { testProxyConnection } from './proxy-config.js';
 import { showSplash, hideSplash, destroySplash } from './splash-screen.js';
 
@@ -159,6 +160,20 @@ function getAPIInstance(type) {
           zone: profile.zone || 'z0',
           publicDomain: profile.publicDomain,
           isPrivate: profile.isPrivate || false
+        });
+      }
+      break;
+    case 'jdcloud':
+      if (profile.accessKeyId && profile.secretAccessKey && profile.bucket) {
+        apiInstance = new JdCloudAPI({
+          accessKeyId: profile.accessKeyId,
+          secretAccessKey: profile.secretAccessKey,
+          region: profile.region || 'cn-north-1',
+          endpoint: profile.endpoint,
+          bucket: profile.bucket,
+          publicDomain: profile.publicDomain,
+          isPrivate: profile.isPrivate || false,
+          forcePathStyle: profile.forcePathStyle || false
         });
       }
       break;
@@ -637,6 +652,19 @@ async function startUpload(filePath, key, checkpoint) {
       activeUploads.set(key, { cancel: () => { /* OBS upload doesn't support direct cancel */ } });
 
       await obsAPI.uploadFile(filePath, key, onProgress);
+      mainWindow.webContents.send('upload-progress', { key, percentage: 100, filePath });
+      addRecentActivity('upload', `文件 ${key} 上传成功。`, 'success');
+    } else if (storage.type === 'jdcloud') {
+      const jdcloudAPI = getAPIInstance('jdcloud');
+      if (!jdcloudAPI) throw new Error('京东云 API实例创建失败');
+
+      const onProgress = (percentage) => {
+        mainWindow.webContents.send('upload-progress', { key, percentage, filePath });
+      };
+
+      activeUploads.set(key, { cancel: () => { /* S3 upload doesn't support direct cancel */ } });
+
+      await jdcloudAPI.uploadFile(filePath, key, onProgress);
       mainWindow.webContents.send('upload-progress', { key, percentage: 100, filePath });
       addRecentActivity('upload', `文件 ${key} 上传成功。`, 'success');
     } else if (storage.type === 'qiniu') {
@@ -1642,6 +1670,43 @@ ipcMain.handle('test-connection', async (event, profile) => {
       console.error('[Main] OBS connection test failed:', error);
       return { success: false, error: `华为云 OBS 连接失败: ${error.message}` };
     }
+  } else if (profile.type === 'jdcloud') {
+    console.log('[Main] Testing JDCloud connection with profile:', {
+      hasAccessKeyId: !!profile.accessKeyId,
+      hasSecretAccessKey: !!profile.secretAccessKey,
+      hasBucket: !!profile.bucket,
+      hasRegion: !!profile.region
+    });
+
+    if (!profile.accessKeyId || !profile.secretAccessKey || !profile.bucket || !profile.region) {
+      const missing = [];
+      if (!profile.accessKeyId) missing.push('Access Key ID');
+      if (!profile.secretAccessKey) missing.push('Secret Access Key');
+      if (!profile.bucket) missing.push('Bucket');
+      if (!profile.region) missing.push('Region');
+      return { success: false, error: `缺少京东云配置信息: ${missing.join(', ')}` };
+    }
+
+    try {
+      console.log('[Main] Creating JDCloud API instance for connection test...');
+      const jdcloudAPI = new JdCloudAPI({
+        accessKeyId: profile.accessKeyId,
+        secretAccessKey: profile.secretAccessKey,
+        region: profile.region,
+        endpoint: profile.endpoint,
+        bucket: profile.bucket,
+        publicDomain: profile.publicDomain,
+        isPrivate: profile.isPrivate || false,
+        forcePathStyle: profile.forcePathStyle || false
+      });
+      console.log('[Main] JDCloud API instance created, testing connection...');
+      const result = await jdcloudAPI.testConnection();
+      console.log('[Main] JDCloud connection test result:', result);
+      return result;
+    } catch (error) {
+      console.error('[Main] JDCloud connection test failed:', error);
+      return { success: false, error: `京东云连接失败: ${error.message}` };
+    }
   } else if (profile.type === 'qiniu') {
     console.log('[Main] Testing Qiniu connection with profile:', {
       hasAccessKey: !!profile.accessKey,
@@ -1750,6 +1815,15 @@ async function getStorageClient() {
             bucket: profile.bucket,
             region: profile.region,
         };
+    } else if (profile.type === 'jdcloud') {
+        if (!profile.accessKeyId || !profile.secretAccessKey || !profile.bucket) return null;
+        return {
+            client: null,
+            type: 'jdcloud',
+            bucket: profile.bucket,
+            region: profile.region,
+            endpoint: profile.endpoint,
+        };
     } else if (profile.type === 'qiniu') {
         if (!profile.accessKey || !profile.secretKey || !profile.bucket) return null;
         return {
@@ -1788,6 +1862,11 @@ ipcMain.handle('check-status', async () => {
       const obsAPI = getAPIInstance('obs');
       if (!obsAPI) throw new Error('OBS API实例创建失败');
       const result = await obsAPI.testConnection();
+      return result;
+    } else if (storage.type === 'jdcloud') {
+      const jdcloudAPI = getAPIInstance('jdcloud');
+      if (!jdcloudAPI) throw new Error('京东云 API实例创建失败');
+      const result = await jdcloudAPI.testConnection();
       return result;
     } else if (storage.type === 'qiniu') {
       const qiniuAPI = getAPIInstance('qiniu');
@@ -1900,6 +1979,18 @@ ipcMain.handle('get-bucket-stats', async () => {
         totalCount = response.data.totalCount;
         totalSize = response.data.totalSize;
         console.log(`[Main] OBS stats: ${totalCount} files, ${totalSize} bytes`);
+      }
+    } else if (storage.type === 'jdcloud') {
+      const jdcloudAPI = getAPIInstance('jdcloud');
+      if (!jdcloudAPI) throw new Error('京东云 API实例创建失败');
+      const response = await jdcloudAPI.getStorageStats();
+
+      console.log('[Main] JDCloud storage stats response:', response);
+
+      if (response.success) {
+        totalCount = response.data.totalCount;
+        totalSize = response.data.totalSize;
+        console.log(`[Main] JDCloud stats: ${totalCount} files, ${totalSize} bytes`);
       }
     } else if (storage.type === 'qiniu') {
       // 七牛云统计
@@ -2090,6 +2181,20 @@ ipcMain.handle('list-objects', async (event, options) => {
         continuationToken: continuationToken
       });
       
+      if (response.success) {
+        rawFiles = response.data.files || [];
+        folders = response.data.folders || [];
+        nextContinuationToken = response.data.nextContinuationToken;
+      }
+    } else if (storage.type === 'jdcloud') {
+      const jdcloudAPI = getAPIInstance('jdcloud');
+      if (!jdcloudAPI) throw new Error('京东云 API实例创建失败');
+      const response = await jdcloudAPI.listObjects({
+        prefix: apiPrefix,
+        delimiter: apiDelimiter,
+        continuationToken: continuationToken
+      });
+
       if (response.success) {
         rawFiles = response.data.files || [];
         folders = response.data.folders || [];
@@ -2291,6 +2396,15 @@ ipcMain.handle('delete-object', async (_, key) => {
         // 删除文件
         await obsAPI.deleteFile(key);
       }
+    } else if (storage.type === 'jdcloud') {
+      const jdcloudAPI = getAPIInstance('jdcloud');
+      if (!jdcloudAPI) throw new Error('京东云 API实例创建失败');
+
+      if (key.endsWith('/')) {
+        await jdcloudAPI.deleteFolder(key);
+      } else {
+        await jdcloudAPI.deleteFile(key);
+      }
     } else if (storage.type === 'qiniu') {
       // 七牛云删除
       const qiniuAPI = getAPIInstance('qiniu');
@@ -2389,6 +2503,26 @@ ipcMain.handle('delete-folder', async (event, prefix) => {
         const keys = allKeys.map(item => item.Key);
         await executeWithoutProxy(() => cosAPI.deleteFiles(keys));
       }
+    } else if (type === 'jdcloud') {
+      const jdcloudAPI = getAPIInstance('jdcloud');
+      if (!jdcloudAPI) throw new Error('京东云 API实例创建失败');
+
+      let continuationToken;
+      do {
+        const response = await jdcloudAPI.listObjects({
+          prefix: prefix,
+          continuationToken: continuationToken
+        });
+
+        if (response.success && response.data.files) {
+          allKeys.push(...response.data.files.map(item => item.Key));
+        }
+        continuationToken = response.data.nextContinuationToken;
+      } while (continuationToken);
+
+      if (allKeys.length > 0) {
+        await jdcloudAPI.deleteFiles(allKeys);
+      }
     }
 
     addRecentActivity('delete', `文件夹 "${prefix}" 已删除`, 'success');
@@ -2426,6 +2560,10 @@ ipcMain.handle('create-folder', async (event, folderName) => {
       const obsAPI = getAPIInstance('obs');
       if (!obsAPI) throw new Error('OBS API实例创建失败');
       await obsAPI.createFolder(folderName);
+    } else if (type === 'jdcloud') {
+      const jdcloudAPI = getAPIInstance('jdcloud');
+      if (!jdcloudAPI) throw new Error('京东云 API实例创建失败');
+      await jdcloudAPI.createFolder(folderName);
     } else if (type === 'qiniu') {
       const qiniuAPI = getAPIInstance('qiniu');
       if (!qiniuAPI) throw new Error('七牛云 API实例创建失败');
@@ -2536,6 +2674,20 @@ ipcMain.handle('get-object-content', async (event, bucket, key) => {
         }
       } else {
         throw new Error(response.error);
+      }
+    } else if (type === 'jdcloud') {
+      const jdcloudAPI = getAPIInstance('jdcloud');
+      if (!jdcloudAPI) throw new Error('京东云 API实例创建失败');
+
+      const response = await jdcloudAPI.getFileContent(key, PREVIEW_FILE_SIZE_LIMIT);
+      if (response.success) {
+        if (response.data.tooLarge) {
+          fileTooLarge = true;
+        } else {
+          content = response.data.content;
+        }
+      } else {
+        throw new Error(response.error || '获取文件内容失败');
       }
     } else if (type === 'qiniu') {
       const qiniuAPI = getAPIInstance('qiniu');
@@ -2772,6 +2924,30 @@ ipcMain.on('download-file', async (event, key) => {
         mainWindow.webContents.send('download-update', { 
           type: 'progress', 
           data: { id: taskId, progress: 100, status: 'completed' } 
+        });
+        addRecentActivity('download', `下载了 ${key}`);
+    } else if (storage.type === 'jdcloud') {
+        const jdcloudAPI = getAPIInstance('jdcloud');
+        if (!jdcloudAPI) throw new Error('京东云 API实例创建失败');
+
+        const onProgress = (percentage) => {
+          mainWindow.webContents.send('download-update', {
+            type: 'progress',
+            data: { id: taskId, progress: percentage }
+          });
+        };
+
+        await jdcloudAPI.downloadFile(key, filePath, onProgress);
+
+        const finalTasks = store.get('download-tasks', {});
+        if (finalTasks[taskId]) {
+          finalTasks[taskId].status = 'completed';
+          finalTasks[taskId].progress = 100;
+          store.set('download-tasks', finalTasks);
+        }
+        mainWindow.webContents.send('download-update', {
+          type: 'progress',
+          data: { id: taskId, progress: 100, status: 'completed' }
         });
         addRecentActivity('download', `下载了 ${key}`);
      } else if (storage.type === 'qiniu') {
@@ -3102,6 +3278,10 @@ ipcMain.handle('get-presigned-url', async (event, bucket, key) => {
       const obsAPI = getAPIInstance('obs');
       if (!obsAPI) throw new Error('OBS API实例创建失败');
       url = await obsAPI.getPresignedUrl(key, 900);
+    } else if (storage.type === 'jdcloud') {
+      const jdcloudAPI = getAPIInstance('jdcloud');
+      if (!jdcloudAPI) throw new Error('京东云 API实例创建失败');
+      url = await jdcloudAPI.getPresignedUrl(key, 900);
     } else if (storage.type === 'qiniu') {
       // 七牛云获取预签名URL
       const qiniuAPI = getAPIInstance('qiniu');
@@ -3177,6 +3357,14 @@ ipcMain.on('start-search', async (event, searchTerm) => {
         response = {
           Contents: searchResponse.data.files,
           NextContinuationToken: null // 搜索已经处理了分页
+        };
+      } else if (storage.type === 'jdcloud') {
+        const jdcloudAPI = getAPIInstance('jdcloud');
+        if (!jdcloudAPI) throw new Error('京东云 API实例创建失败');
+        const searchResponse = await jdcloudAPI.searchFiles(lowerCaseSearchTerm, { continuationToken });
+        response = {
+          Contents: searchResponse.data.files,
+          NextContinuationToken: null
         };
       } else if (storage.type === 'qiniu') {
         // 七牛云搜索

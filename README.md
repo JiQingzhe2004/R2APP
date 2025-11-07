@@ -6,7 +6,7 @@
 
 -   **现代化的用户界面**: 专业的设计，包含侧边栏，便于导航。
 -   **双主题支持**: 同时支持亮色和深色两种配色方案。
--   **多存储服务支持**: 支持 Cloudflare R2、阿里云 OSS、腾讯云 COS、SM.MS 图床、兰空图床等多种存储服务。
+-   **多存储服务支持**: 支持 Cloudflare R2、阿里云 OSS、腾讯云 COS、京东云对象存储、华为云 OBS、七牛云 Kodo、SM.MS 图床、兰空图床等多种存储服务。
 -   **文件管理**: 浏览、上传和删除您存储桶中的文件。
 -   **安全配置**: 您的所有凭据都安全地存储在本地计算机上，绝不会上传到云端。
 -   **跨平台**: 可在 Windows、macOS 和 Linux 上运行。
@@ -54,6 +54,14 @@ npm run dev
 -   **R2 Access Key ID**: 您创建的 R2 API 令牌的 ID。
 -   **R2 Secret Access Key**: R2 API 令牌的密钥。
 -   **Bucket Name**: 您想要管理的 R2 存储桶的名称。
+
+#### 京东云对象存储配置
+-   **Access Key ID / Secret Access Key**: 在京东云控制台创建的访问密钥对。
+-   **Region**: 存储桶所在区域，例如 `cn-north-1`、`cn-east-2`。
+-   **Bucket**: 需要管理的京东云 OSS 存储桶名称。
+-   **Endpoint (可选)**: 若需访问自定义网关，可设置完整的 S3 兼容 Endpoint，例如 `https://s3.cn-north-1.jdcloud-oss.com`。
+-   **自定义域名 (可选)**: 如果已绑定 CDN 或自定义域名，可在此填写以便生成公共访问链接。
+-   **私有存储桶**: 勾选后默认使用预签名链接访问对象。
 
 #### 兰空图床配置
 -   **兰空图床地址**: 您的兰空图床实例地址，例如 `https://your-lsky-domain.com`

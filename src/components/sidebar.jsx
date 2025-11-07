@@ -7,7 +7,6 @@ import {
   PanelLeftClose,
   PanelRightClose,
   LayoutDashboard,
-  ScrollText,
   UploadCloud,
   BadgeInfo,
   CloudDownload,
@@ -41,7 +40,6 @@ export function Sidebar({ isCollapsed, onToggle }) {
     { id: 'settings', href: '/settings', icon: Settings, label: '系统设置' },
 
     { id: 'update', href: '/update', icon: HardDriveDownload, label: '应用更新' },
-    { id: 'releasenotes', href: '/releasenotes', icon: ScrollText, label: '更新日志' },
     { id: 'about', href: '/about', icon: BadgeInfo, label: '关于应用' },
   ]
 

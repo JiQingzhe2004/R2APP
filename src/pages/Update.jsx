@@ -26,10 +26,71 @@ export default function UpdatePage() {
 
   const downloadPercent = typeof progressInfo?.percent === 'number' ? progressInfo.percent : 0;
 
-  const formatBytesToMB = (bytes) => {
-    if (!bytes || Number.isNaN(bytes)) return null;
-    return (bytes / 1024 / 1024).toFixed(2);
+  const formatBytes = (bytes, fractionDigits = 2) => {
+    if (typeof bytes !== 'number' || !isFinite(bytes) || bytes <= 0) return null;
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let value = bytes;
+    let unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value /= 1024;
+      unitIndex++;
+    }
+    const digits = unitIndex === 0 ? 0 : fractionDigits;
+    return `${value.toFixed(digits)} ${units[unitIndex]}`;
   };
+
+  const formatSpeed = (bytesPerSecond) => {
+    const formatted = formatBytes(bytesPerSecond, 1);
+    return formatted ? `${formatted}/s` : null;
+  };
+
+  const formatEta = (seconds) => {
+    if (typeof seconds !== 'number' || !isFinite(seconds) || seconds <= 0) return null;
+    if (seconds < 60) {
+      return `${Math.ceil(seconds)} 秒`;
+    }
+    const minutes = Math.ceil(seconds / 60);
+    return `${minutes} 分钟`;
+  };
+
+  const downloadMetrics = useMemo(() => {
+    const totalFromProgress = progressInfo?.total && progressInfo.total > 0 ? progressInfo.total : null;
+
+    let totalFromInfo = null;
+    if (Array.isArray(updateInfo?.files)) {
+      const fileWithSize = updateInfo.files.find(file => typeof file?.size === 'number' && file.size > 0);
+      if (fileWithSize?.size) {
+        totalFromInfo = fileWithSize.size;
+      }
+    }
+    if (!totalFromInfo && typeof updateInfo?.size === 'number' && updateInfo.size > 0) {
+      totalFromInfo = updateInfo.size;
+    }
+
+    const totalBytes = totalFromProgress || totalFromInfo || null;
+    const transferredBytes = progressInfo?.transferred && progressInfo.transferred > 0
+      ? progressInfo.transferred
+      : (status === 'downloaded' ? totalBytes : null);
+    const bytesPerSecond = progressInfo?.bytesPerSecond && progressInfo.bytesPerSecond > 0
+      ? progressInfo.bytesPerSecond
+      : null;
+    const remainingBytes = totalBytes && transferredBytes ? Math.max(totalBytes - transferredBytes, 0) : null;
+    const etaSeconds = remainingBytes && bytesPerSecond ? remainingBytes / bytesPerSecond : null;
+
+    return {
+      totalBytes,
+      transferredBytes,
+      bytesPerSecond,
+      etaSeconds,
+    };
+  }, [progressInfo, updateInfo, status]);
+
+  const formattedTotalSize = formatBytes(downloadMetrics.totalBytes);
+  const formattedTransferredSize = formatBytes(downloadMetrics.transferredBytes);
+  const formattedSpeed = formatSpeed(downloadMetrics.bytesPerSecond);
+  const formattedEta = formatEta(downloadMetrics.etaSeconds);
+
+  const showProgressPanel = status === 'downloading' || status === 'downloaded';
 
   const tonePalette = {
     info: {
@@ -74,19 +135,10 @@ export default function UpdatePage() {
           tone: 'info',
           icon: Download,
           title: '正在下载更新',
-          description: `更新包正在下载，当前进度 ${downloadPercent.toFixed(1)}%。`,
-          extra: (
-            <div className="space-y-2">
-              <Progress value={downloadPercent} className="h-2" />
-              <div className="text-xs text-muted-foreground">
-                {formatBytesToMB(progressInfo?.transferred) && formatBytesToMB(progressInfo?.total) && (
-                  <span>
-                    {formatBytesToMB(progressInfo?.transferred)} MB / {formatBytesToMB(progressInfo?.total)} MB
-                  </span>
-                )}
-              </div>
-            </div>
-          )
+          description: formattedTotalSize
+            ? `更新包正在下载（总大小 ${formattedTotalSize}），当前进度 ${downloadPercent.toFixed(1)}%。`
+            : `更新包正在下载，当前进度 ${downloadPercent.toFixed(1)}%。`,
+          extra: null
         };
       case 'available':
         return {
@@ -111,7 +163,7 @@ export default function UpdatePage() {
           tone: 'success',
           icon: CheckCircle,
           title: '更新就绪',
-          description: `新版本 v${updateInfo?.version || versionData.version} 已下载完成。`,
+          description: `新版本 v${updateInfo?.version || versionData.version} 已下载完成${formattedTotalSize ? `（${formattedTotalSize}）` : ''}。`,
           extra: (
             <div className="rounded-lg border border-emerald-200/40 bg-emerald-500/5 p-3 text-xs text-muted-foreground dark:border-emerald-900/40">
               点击“重启并安装”立刻完成升级。
@@ -251,6 +303,49 @@ export default function UpdatePage() {
             </CardContent>
           </Card>
 
+          {showProgressPanel && (
+            <Card className="shadow-sm overflow-hidden">
+              <CardContent className="space-y-4 pt-6">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    {status === 'downloading' ? (
+                      <>
+                        <Download className="h-4 w-4 text-primary" />
+                        <span>正在下载更新包</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-4 w-4 text-emerald-500" />
+                        <span>更新包已下载完成</span>
+                      </>
+                    )}
+                  </div>
+                  {(formattedTransferredSize || formattedTotalSize) && (
+                    <div className="text-xs text-muted-foreground">
+                      {status === 'downloading' && formattedTransferredSize && formattedTotalSize
+                        ? `${formattedTransferredSize} / ${formattedTotalSize}`
+                        : formattedTotalSize
+                          ? `安装包大小：${formattedTotalSize}`
+                          : null}
+                    </div>
+                  )}
+                </div>
+                <Progress
+                  value={status === 'downloaded' ? 100 : downloadPercent}
+                  className="h-3 w-full"
+                  indicatorClassName={status === 'downloaded' ? 'bg-emerald-500 animate-none' : 'bg-primary/80'}
+                />
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span>{status === 'downloaded' ? '已完成 100%' : `已完成 ${downloadPercent.toFixed(1)}%`}</span>
+                  <div className="flex flex-wrap items-center gap-3">
+                    {status === 'downloading' && formattedSpeed && <span>速度 {formattedSpeed}</span>}
+                    {status === 'downloading' && formattedEta && <span>预计剩余 {formattedEta}</span>}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <div className="grid gap-6 md:grid-cols-2">
             <Card className="shadow-sm">
               <CardHeader>
@@ -267,7 +362,7 @@ export default function UpdatePage() {
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="mt-1 h-2 w-2 rounded-full bg-primary"></span>
-                    <span>如需回顾历史版本变化，可点击菜单内“更新日志”查看。</span>
+                    <span>如需回顾历史版本变化，可前往“系统设置 &gt; 更新日志”查看。</span>
                   </li>
                 </ul>
               </CardContent>

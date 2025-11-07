@@ -9,9 +9,10 @@ import { useNotifications } from '@/contexts/NotificationContext';
 import { 
   User, KeyRound, Container, Globe, Plug, Save, PlusCircle, Trash2, 
   Cloud, Server, Settings as SettingsIcon, ChevronDown, ChevronRight,
-  Database, Shield, MapPin, Link2, HardDrive, Edit2, Check, X, FolderOpen, Image
+  Database, Shield, MapPin, Link2, HardDrive, Edit2, Check, X, FolderOpen, Image, ScrollText
 } from 'lucide-react'
 import AppSettings from './AppSettings';
+import { ReleaseNotesContent } from '@/components/ReleaseNotesContent';
 
 // 导入云服务图标
 import CloudflareIcon from '@/assets/cloudico/Cloudflare.svg';
@@ -23,6 +24,7 @@ import LskyIcon from '@/assets/cloudico/lsky.ico';
 import SmmsIcon from '@/assets/cloudico/smms.app.png';
 import HuaweiIcon from '@/assets/cloudico/华为云.svg';
 import QiniuIcon from '@/assets/cloudico/七牛云.svg';
+import JDCloudIcon from '@/assets/cloudico/京东云.svg';
 
 import { v4 as uuidv4 } from 'uuid';
 import { useOutletContext } from 'react-router-dom';
@@ -157,6 +159,22 @@ const OBS_TEMPLATE = {
   createdAt: new Date().toISOString(),
 };
 
+const JDCLOUD_TEMPLATE = {
+  type: 'jdcloud',
+  name: '新京东云配置',
+  accessKeyId: '',
+  secretAccessKey: '',
+  region: 'cn-north-1',
+  endpoint: '',
+  bucket: '',
+  publicDomain: '',
+  isPrivate: false,
+  forcePathStyle: false,
+  storageQuotaGB: 10,
+  storageQuotaUnit: 'GB',
+  createdAt: new Date().toISOString(),
+};
+
 const QINIU_TEMPLATE = {
   type: 'qiniu',
   name: '新七牛云配置',
@@ -219,6 +237,12 @@ const PROVIDER_INFO = {
     icon: HuaweiIcon,
     color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
     description: '华为云对象存储服务，企业级云存储'
+  },
+  jdcloud: {
+    name: '京东云对象存储',
+    icon: JDCloudIcon,
+    color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+    description: '京东云对象存储服务，兼容 S3 API'
   },
   qiniu: {
     name: '七牛云 Kodo',
@@ -1081,6 +1105,154 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
             </>
           )}
 
+          {profile.type === 'jdcloud' && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`accessKeyId-${profile.id}`} className="flex items-center gap-2">
+                    <KeyRound className="h-4 w-4" />
+                    Access Key ID
+                  </Label>
+                  <Input
+                    id={`accessKeyId-${profile.id}`}
+                    name="accessKeyId"
+                    value={profile.accessKeyId}
+                    onChange={(e) => onChange(profile.id, e)}
+                    placeholder="您的京东云 Access Key ID"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`secretAccessKey-${profile.id}`} className="flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    Secret Access Key
+                  </Label>
+                  <Input
+                    id={`secretAccessKey-${profile.id}`}
+                    name="secretAccessKey"
+                    type="password"
+                    value={profile.secretAccessKey}
+                    onChange={(e) => onChange(profile.id, e)}
+                    placeholder="您的京东云 Secret Access Key"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`bucket-${profile.id}`} className="flex items-center gap-2">
+                    <Container className="h-4 w-4" />
+                    存储桶名称
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id={`bucket-${profile.id}`}
+                      name="bucket"
+                      value={profile.bucket}
+                      onChange={(e) => onChange(profile.id, e)}
+                      placeholder="您的京东云存储桶"
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setShowBucketSelector(true)}
+                      title="选择存储桶"
+                    >
+                      <FolderOpen className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`region-${profile.id}`} className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    区域
+                  </Label>
+                  <Select
+                    value={profile.region}
+                    onValueChange={(value) => onChange(profile.id, { target: { name: 'region', value } })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="选择区域" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cn-north-1">华北-北京（cn-north-1）</SelectItem>
+                      <SelectItem value="cn-north-2">华北-承德（cn-north-2）</SelectItem>
+                      <SelectItem value="cn-east-1">华东-宿迁（cn-east-1）</SelectItem>
+                      <SelectItem value="cn-east-2">华东-上海（cn-east-2）</SelectItem>
+                      <SelectItem value="cn-south-1">华南-广州（cn-south-1）</SelectItem>
+                      <SelectItem value="ap-southeast-1">亚太-曼谷（ap-southeast-1）</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor={`endpoint-${profile.id}`} className="flex items-center gap-2">
+                  <Server className="h-4 w-4" />
+                  自定义 Endpoint
+                </Label>
+                <Input
+                  id={`endpoint-${profile.id}`}
+                  name="endpoint"
+                  value={profile.endpoint || ''}
+                  onChange={(e) => onChange(profile.id, e)}
+                  placeholder="例如: https://s3.cn-north-1.jdcloud-oss.com (可选)"
+                />
+                <p className="text-xs text-muted-foreground">
+                  默认将根据所选区域推导官方域名，可在需要自建网关或专线时自定义。
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor={`publicDomain-${profile.id}`} className="flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  自定义域名
+                </Label>
+                <Input
+                  id={`publicDomain-${profile.id}`}
+                  name="publicDomain"
+                  value={profile.publicDomain || ''}
+                  onChange={(e) => onChange(profile.id, e)}
+                  placeholder="例如: https://cdn.example.com (可选)"
+                />
+                <p className="text-xs text-muted-foreground">
+                  如果配置了 CDN 或自定义域名，公共访问与预签名链接将优先使用该域名。
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id={`isPrivate-${profile.id}`}
+                    name="isPrivate"
+                    checked={profile.isPrivate || false}
+                    onChange={(e) => onChange(profile.id, { target: { name: 'isPrivate', value: e.target.checked } })}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <Label htmlFor={`isPrivate-${profile.id}`} className="text-sm font-normal cursor-pointer">
+                    私有存储桶（访问需签名）
+                  </Label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id={`forcePathStyle-${profile.id}`}
+                    name="forcePathStyle"
+                    checked={profile.forcePathStyle || false}
+                    onChange={(e) => onChange(profile.id, { target: { name: 'forcePathStyle', value: e.target.checked } })}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <Label htmlFor={`forcePathStyle-${profile.id}`} className="text-sm font-normal cursor-pointer">
+                    使用 Path-Style URL（兼容自建网关）
+                  </Label>
+                </div>
+              </div>
+            </>
+          )}
+
           {profile.type === 'qiniu' && (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1126,11 +1298,12 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                       <SelectValue placeholder="选择存储区域" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="z0">华东（z0）</SelectItem>
+                      <SelectItem value="z0">华东-浙江1（z0）</SelectItem>
+                      <SelectItem value="cn-east-2">华东-浙江2（cn-east-2）</SelectItem>
                       <SelectItem value="z1">华北（z1）</SelectItem>
                       <SelectItem value="z2">华南（z2）</SelectItem>
                       <SelectItem value="na0">北美（na0）</SelectItem>
-                      <SelectItem value="as0">东南亚（as0）</SelectItem>
+                      <SelectItem value="as0">亚太-新加坡（as0）</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1400,6 +1573,7 @@ export default function SettingsPage() {
       'r2': R2_TEMPLATE,
       'oss': OSS_TEMPLATE,
       'cos': COS_TEMPLATE,
+      'jdcloud': JDCLOUD_TEMPLATE,
       'smms': SMMS_TEMPLATE,
       'lsky': LSKY_TEMPLATE,
       'gitee': GITEE_TEMPLATE,
@@ -1493,7 +1667,7 @@ export default function SettingsPage() {
   return (
     <div className="p-4 sm:p-6 space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsList className="grid w-full max-w-2xl grid-cols-3">
           <TabsTrigger value="profiles" className="flex items-center gap-2">
             <Cloud className="h-4 w-4" />
             存储配置
@@ -1502,6 +1676,11 @@ export default function SettingsPage() {
           <TabsTrigger value="app" className="flex items-center gap-2">
             <SettingsIcon className="h-4 w-4" />
             应用设置
+          </TabsTrigger>
+
+          <TabsTrigger value="release" className="flex items-center gap-2">
+            <ScrollText className="h-4 w-4" />
+            更新日志
           </TabsTrigger>
         </TabsList>
 
@@ -1556,6 +1735,10 @@ export default function SettingsPage() {
                       <img src={HuaweiIcon} alt="华为云 OBS" className="mr-2 h-4 w-4" />
                       <span>华为云 OBS</span>
                     </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleAddProfile('jdcloud')}>
+                      <img src={JDCloudIcon} alt="京东云对象存储" className="mr-2 h-4 w-4" />
+                      <span>京东云对象存储</span>
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleAddProfile('qiniu')}>
                       <img src={QiniuIcon} alt="七牛云 Kodo" className="mr-2 h-4 w-4" />
                       <span>七牛云 Kodo</span>
@@ -1605,6 +1788,10 @@ export default function SettingsPage() {
 
         <TabsContent value="app" className="mt-6">
           <AppSettings />
+        </TabsContent>
+
+        <TabsContent value="release" className="mt-6">
+          <ReleaseNotesContent variant="embedded" />
         </TabsContent>
       </Tabs>
     </div>
