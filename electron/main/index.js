@@ -22,6 +22,7 @@ import CosAPI from './cos-api.js';
 import GiteeAPI from './gitee-api.js';
 import GCSAPI from './gcs-api.js';
 import ObsHuaweiAPI from './obs-huawei-api.js';
+import QiniuAPI from './qiniu-api.js';
 import { testProxyConnection } from './proxy-config.js';
 import { showSplash, hideSplash, destroySplash } from './splash-screen.js';
 
@@ -149,6 +150,18 @@ function getAPIInstance(type) {
         });
       }
       break;
+    case 'qiniu':
+      if (profile.accessKey && profile.secretKey && profile.bucket) {
+        apiInstance = new QiniuAPI({
+          accessKey: profile.accessKey,
+          secretKey: profile.secretKey,
+          bucket: profile.bucket,
+          zone: profile.zone || 'z0',
+          publicDomain: profile.publicDomain,
+          isPrivate: profile.isPrivate || false
+        });
+      }
+      break;
   }
 
   if (apiInstance) {
@@ -245,6 +258,8 @@ const loadURL = serve({
 // This is the correct way to disable sandbox for the entire app.
 app.commandLine.appendSwitch('no-sandbox');
 // app.commandLine.appendSwitch('no-proxy-server'); // 注释掉，让AI请求可以使用代理
+// 忽略证书错误，允许加载自签名或证书有问题的 HTTPS 资源
+app.commandLine.appendSwitch('ignore-certificate-errors');
 
 try {
   require('electron-reloader')(module, {});
@@ -622,6 +637,20 @@ async function startUpload(filePath, key, checkpoint) {
       activeUploads.set(key, { cancel: () => { /* OBS upload doesn't support direct cancel */ } });
 
       await obsAPI.uploadFile(filePath, key, onProgress);
+      mainWindow.webContents.send('upload-progress', { key, percentage: 100, filePath });
+      addRecentActivity('upload', `文件 ${key} 上传成功。`, 'success');
+    } else if (storage.type === 'qiniu') {
+      // 七牛云上传
+      const qiniuAPI = getAPIInstance('qiniu');
+      if (!qiniuAPI) throw new Error('七牛云 API实例创建失败');
+
+      const onProgress = (percentage) => {
+        mainWindow.webContents.send('upload-progress', { key, percentage, filePath });
+      };
+
+      activeUploads.set(key, { cancel: () => { /* Qiniu upload doesn't support direct cancel */ } });
+
+      await qiniuAPI.uploadFile(filePath, key, onProgress);
       mainWindow.webContents.send('upload-progress', { key, percentage: 100, filePath });
       addRecentActivity('upload', `文件 ${key} 上传成功。`, 'success');
     }
@@ -1005,6 +1034,21 @@ app.whenReady().then(async () => {
   // 注释掉强制直连，让请求可以使用代理
   // await session.defaultSession.setProxy({ proxyRules: 'direct://' });
   
+  // 忽略证书错误，允许加载 HTTPS 资源
+  // 这对于某些云存储服务（如七牛云）的自定义域名很有用
+  app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
+    console.log('[Certificate Error] URL:', url, 'Error:', error);
+    // 忽略证书错误
+    event.preventDefault();
+    callback(true);
+  });
+
+  // 配置 session 以处理图片请求
+  session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+    // 修改请求头，添加必要的 headers
+    details.requestHeaders['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+    callback({ requestHeaders: details.requestHeaders });
+  });
 
   
   // 显示启动图（不传递主窗口，因为此时主窗口还未创建）
@@ -1598,6 +1642,40 @@ ipcMain.handle('test-connection', async (event, profile) => {
       console.error('[Main] OBS connection test failed:', error);
       return { success: false, error: `华为云 OBS 连接失败: ${error.message}` };
     }
+  } else if (profile.type === 'qiniu') {
+    console.log('[Main] Testing Qiniu connection with profile:', {
+      hasAccessKey: !!profile.accessKey,
+      hasSecretKey: !!profile.secretKey,
+      hasBucket: !!profile.bucket,
+      hasZone: !!profile.zone
+    });
+    
+    if (!profile.accessKey || !profile.secretKey || !profile.bucket) {
+      const missing = [];
+      if (!profile.accessKey) missing.push('Access Key');
+      if (!profile.secretKey) missing.push('Secret Key');
+      if (!profile.bucket) missing.push('Bucket');
+      return { success: false, error: `缺少七牛云配置信息: ${missing.join(', ')}` };
+    }
+    
+    try {
+      console.log('[Main] Creating Qiniu API instance for connection test...');
+      const qiniuAPI = new QiniuAPI({
+        accessKey: profile.accessKey,
+        secretKey: profile.secretKey,
+        bucket: profile.bucket,
+        zone: profile.zone || 'z0',
+        publicDomain: profile.publicDomain,
+        isPrivate: profile.isPrivate || false
+      });
+      console.log('[Main] Qiniu API instance created, testing connection...');
+      const result = await qiniuAPI.testConnection();
+      console.log('[Main] Qiniu connection test result:', result);
+      return result;
+    } catch (error) {
+      console.error('[Main] Qiniu connection test failed:', error);
+      return { success: false, error: `七牛云连接失败: ${error.message}` };
+    }
   } else {
     return { success: false, error: '未知的配置类型。' };
   }
@@ -1672,6 +1750,14 @@ async function getStorageClient() {
             bucket: profile.bucket,
             region: profile.region,
         };
+    } else if (profile.type === 'qiniu') {
+        if (!profile.accessKey || !profile.secretKey || !profile.bucket) return null;
+        return {
+            client: null, // Qiniu 使用 QiniuAPI 模块
+            type: 'qiniu',
+            bucket: profile.bucket,
+            zone: profile.zone || 'z0',
+        };
     }
     return null;
 }
@@ -1702,6 +1788,11 @@ ipcMain.handle('check-status', async () => {
       const obsAPI = getAPIInstance('obs');
       if (!obsAPI) throw new Error('OBS API实例创建失败');
       const result = await obsAPI.testConnection();
+      return result;
+    } else if (storage.type === 'qiniu') {
+      const qiniuAPI = getAPIInstance('qiniu');
+      if (!qiniuAPI) throw new Error('七牛云 API实例创建失败');
+      const result = await qiniuAPI.testConnection();
       return result;
     }
      return { success: true, message: '连接成功' };
@@ -1809,6 +1900,19 @@ ipcMain.handle('get-bucket-stats', async () => {
         totalCount = response.data.totalCount;
         totalSize = response.data.totalSize;
         console.log(`[Main] OBS stats: ${totalCount} files, ${totalSize} bytes`);
+      }
+    } else if (storage.type === 'qiniu') {
+      // 七牛云统计
+      const qiniuAPI = getAPIInstance('qiniu');
+      if (!qiniuAPI) throw new Error('七牛云 API实例创建失败');
+      const response = await qiniuAPI.getStorageStats();
+      
+      console.log('[Main] Qiniu storage stats response:', response);
+      
+      if (response.success) {
+        totalCount = response.data.totalCount;
+        totalSize = response.data.totalSize;
+        console.log(`[Main] Qiniu stats: ${totalCount} files, ${totalSize} bytes`);
       }
     }
     
@@ -1981,6 +2085,21 @@ ipcMain.handle('list-objects', async (event, options) => {
       const obsAPI = getAPIInstance('obs');
       if (!obsAPI) throw new Error('OBS API实例创建失败');
       const response = await obsAPI.listObjects({
+        prefix: apiPrefix,
+        delimiter: apiDelimiter,
+        continuationToken: continuationToken
+      });
+      
+      if (response.success) {
+        rawFiles = response.data.files || [];
+        folders = response.data.folders || [];
+        nextContinuationToken = response.data.nextContinuationToken;
+      }
+    } else if (storage.type === 'qiniu') {
+      // 七牛云: 列出对象
+      const qiniuAPI = getAPIInstance('qiniu');
+      if (!qiniuAPI) throw new Error('七牛云 API实例创建失败');
+      const response = await qiniuAPI.listObjects({
         prefix: apiPrefix,
         delimiter: apiDelimiter,
         continuationToken: continuationToken
@@ -2170,7 +2289,19 @@ ipcMain.handle('delete-object', async (_, key) => {
         await obsAPI.deleteFolder(key);
       } else {
         // 删除文件
-        await obsAPI.deleteObject(key);
+        await obsAPI.deleteFile(key);
+      }
+    } else if (storage.type === 'qiniu') {
+      // 七牛云删除
+      const qiniuAPI = getAPIInstance('qiniu');
+      if (!qiniuAPI) throw new Error('七牛云 API实例创建失败');
+      
+      if (key.endsWith('/')) {
+        // 删除文件夹
+        await qiniuAPI.deleteFolder(key);
+      } else {
+        // 删除文件
+        await qiniuAPI.deleteFile(key);
       }
     }
     addRecentActivity('delete', `删除了 ${key}`, 'success');
@@ -2295,6 +2426,10 @@ ipcMain.handle('create-folder', async (event, folderName) => {
       const obsAPI = getAPIInstance('obs');
       if (!obsAPI) throw new Error('OBS API实例创建失败');
       await obsAPI.createFolder(folderName);
+    } else if (type === 'qiniu') {
+      const qiniuAPI = getAPIInstance('qiniu');
+      if (!qiniuAPI) throw new Error('七牛云 API实例创建失败');
+      await qiniuAPI.createFolder(folderName);
     } else {
       return { success: false, error: '不支持的存储类型' };
     }
@@ -2393,6 +2528,20 @@ ipcMain.handle('get-object-content', async (event, bucket, key) => {
       if (!obsAPI) throw new Error('OBS API实例创建失败');
       
       const response = await obsAPI.getFileContent(key, PREVIEW_FILE_SIZE_LIMIT);
+      if (response.success) {
+        if (response.data.tooLarge) {
+          fileTooLarge = true;
+        } else {
+          content = response.data.content;
+        }
+      } else {
+        throw new Error(response.error);
+      }
+    } else if (type === 'qiniu') {
+      const qiniuAPI = getAPIInstance('qiniu');
+      if (!qiniuAPI) throw new Error('七牛云 API实例创建失败');
+      
+      const response = await qiniuAPI.getFileContent(key, PREVIEW_FILE_SIZE_LIMIT);
       if (response.success) {
         if (response.data.tooLarge) {
           fileTooLarge = true;
@@ -2613,6 +2762,28 @@ ipcMain.on('download-file', async (event, key) => {
         if (!obsAPI) throw new Error('OBS API实例创建失败');
         
         await obsAPI.downloadFile(key, filePath);
+        
+        const finalTasks = store.get('download-tasks', {});
+        if (finalTasks[taskId]) {
+          finalTasks[taskId].status = 'completed';
+          finalTasks[taskId].progress = 100;
+          store.set('download-tasks', finalTasks);
+        }
+        mainWindow.webContents.send('download-update', { 
+          type: 'progress', 
+          data: { id: taskId, progress: 100, status: 'completed' } 
+        });
+        addRecentActivity('download', `下载了 ${key}`);
+     } else if (storage.type === 'qiniu') {
+        // 七牛云下载
+        const qiniuAPI = getAPIInstance('qiniu');
+        if (!qiniuAPI) throw new Error('七牛云 API实例创建失败');
+        
+        const onProgress = (progress, downloadedBytes, totalBytes) => {
+          mainWindow.webContents.send('download-update', { type: 'progress', data: { id: taskId, progress } });
+        };
+        
+        await qiniuAPI.downloadFile(key, filePath, onProgress);
         
         const finalTasks = store.get('download-tasks', {});
         if (finalTasks[taskId]) {
@@ -2931,11 +3102,17 @@ ipcMain.handle('get-presigned-url', async (event, bucket, key) => {
       const obsAPI = getAPIInstance('obs');
       if (!obsAPI) throw new Error('OBS API实例创建失败');
       url = await obsAPI.getPresignedUrl(key, 900);
+    } else if (storage.type === 'qiniu') {
+      // 七牛云获取预签名URL
+      const qiniuAPI = getAPIInstance('qiniu');
+      if (!qiniuAPI) throw new Error('七牛云 API实例创建失败');
+      url = await qiniuAPI.getPresignedUrl(key, 900);
     }
     return url;
   } catch (error) {
     console.error(`Failed to get presigned URL for ${key}:`, error);
-    return null;
+    // 返回错误信息而不是 null，这样前端可以显示更友好的错误提示
+    throw error;
   }
 });
 
@@ -2997,6 +3174,15 @@ ipcMain.on('start-search', async (event, searchTerm) => {
         const obsAPI = getAPIInstance('obs');
         if (!obsAPI) throw new Error('OBS API实例创建失败');
         const searchResponse = await obsAPI.searchFiles(lowerCaseSearchTerm, { continuationToken });
+        response = {
+          Contents: searchResponse.data.files,
+          NextContinuationToken: null // 搜索已经处理了分页
+        };
+      } else if (storage.type === 'qiniu') {
+        // 七牛云搜索
+        const qiniuAPI = getAPIInstance('qiniu');
+        if (!qiniuAPI) throw new Error('七牛云 API实例创建失败');
+        const searchResponse = await qiniuAPI.searchFiles(lowerCaseSearchTerm, { continuationToken });
         response = {
           Contents: searchResponse.data.files,
           NextContinuationToken: null // 搜索已经处理了分页
@@ -3097,6 +3283,23 @@ ipcMain.handle('list-buckets', async (event, profile) => {
         buckets = result.data || [];
       } else {
         throw new Error('获取华为云 OBS 存储桶列表失败');
+      }
+    } else if (profile.type === 'qiniu') {
+      // 七牛云获取存储空间列表
+      const api = new QiniuAPI({
+        accessKey: profile.accessKey,
+        secretKey: profile.secretKey,
+        bucket: profile.bucket,
+        zone: profile.zone || 'z0',
+        publicDomain: profile.publicDomain,
+        isPrivate: profile.isPrivate || false
+      });
+      
+      const result = await api.listBuckets();
+      if (result.success) {
+        buckets = result.data || [];
+      } else {
+        throw new Error('获取七牛云存储空间列表失败');
       }
     }
     

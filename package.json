@@ -59,6 +59,7 @@
     "https-proxy-agent": "^7.0.6",
     "lucide-react": "^0.525.0",
     "proxy-agent": "^5.0.0",
+    "qiniu": "^7.14.0",
     "qrcode": "^1.5.3",
     "react-router-dom": "^7.6.3",
     "react-syntax-highlighter": "^15.6.6",

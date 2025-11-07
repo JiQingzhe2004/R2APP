@@ -22,6 +22,7 @@ import GoogleCloudIcon from '@/assets/cloudico/谷歌云.svg';
 import LskyIcon from '@/assets/cloudico/lsky.ico';
 import SmmsIcon from '@/assets/cloudico/smms.app.png';
 import HuaweiIcon from '@/assets/cloudico/华为云.svg';
+import QiniuIcon from '@/assets/cloudico/七牛云.svg';
 
 import { v4 as uuidv4 } from 'uuid';
 import { useOutletContext } from 'react-router-dom';
@@ -156,6 +157,20 @@ const OBS_TEMPLATE = {
   createdAt: new Date().toISOString(),
 };
 
+const QINIU_TEMPLATE = {
+  type: 'qiniu',
+  name: '新七牛云配置',
+  accessKey: '',
+  secretKey: '',
+  bucket: '',
+  zone: 'z0',
+  publicDomain: '',
+  isPrivate: false, // 是否为私有空间
+  storageQuotaGB: 10,
+  storageQuotaUnit: 'GB',
+  createdAt: new Date().toISOString(),
+};
+
 const PROVIDER_INFO = {
   r2: {
     name: 'Cloudflare R2',
@@ -204,6 +219,12 @@ const PROVIDER_INFO = {
     icon: HuaweiIcon,
     color: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
     description: '华为云对象存储服务，企业级云存储'
+  },
+  qiniu: {
+    name: '七牛云 Kodo',
+    icon: QiniuIcon,
+    color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200',
+    description: '七牛云对象存储服务'
   }
 };
 
@@ -1060,6 +1081,119 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
             </>
           )}
 
+          {profile.type === 'qiniu' && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`accessKey-${profile.id}`} className="flex items-center gap-2">
+                    <KeyRound className="h-4 w-4" />
+                    Access Key
+                  </Label>
+                  <Input 
+                    id={`accessKey-${profile.id}`} 
+                    name="accessKey" 
+                    value={profile.accessKey} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="您的七牛云 Access Key" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`secretKey-${profile.id}`} className="flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    Secret Key
+                  </Label>
+                  <Input 
+                    id={`secretKey-${profile.id}`} 
+                    name="secretKey" 
+                    type="password" 
+                    value={profile.secretKey} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="您的七牛云 Secret Key" 
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`zone-${profile.id}`} className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    存储区域
+                  </Label>
+                  <Select 
+                    value={profile.zone} 
+                    onValueChange={(value) => onChange(profile.id, { target: { name: 'zone', value } })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="选择存储区域" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="z0">华东（z0）</SelectItem>
+                      <SelectItem value="z1">华北（z1）</SelectItem>
+                      <SelectItem value="z2">华南（z2）</SelectItem>
+                      <SelectItem value="na0">北美（na0）</SelectItem>
+                      <SelectItem value="as0">东南亚（as0）</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`bucket-${profile.id}`} className="flex items-center gap-2">
+                    <Container className="h-4 w-4" />
+                    存储空间名称
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      id={`bucket-${profile.id}`} 
+                      name="bucket" 
+                      value={profile.bucket} 
+                      onChange={(e) => onChange(profile.id, e)} 
+                      placeholder="您的七牛云存储空间名称" 
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setShowBucketSelector(true)}
+                      title="选择存储空间"
+                    >
+                      <FolderOpen className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor={`publicDomain-${profile.id}`} className="flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  自定义域名（必填）
+                </Label>
+                <Input 
+                  id={`publicDomain-${profile.id}`} 
+                  name="publicDomain" 
+                  value={profile.publicDomain || ''} 
+                  onChange={(e) => onChange(profile.id, e)} 
+                  placeholder="例如: https://cdn.yourdomain.com" 
+                />
+                <p className="text-xs text-muted-foreground">
+                  七牛云需要配置自定义域名才能访问文件。请在七牛云控制台绑定域名后填写此处。
+                </p>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id={`isPrivate-${profile.id}`}
+                  name="isPrivate"
+                  checked={profile.isPrivate || false}
+                  onChange={(e) => onChange(profile.id, { target: { name: 'isPrivate', value: e.target.checked } })}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                <Label htmlFor={`isPrivate-${profile.id}`} className="text-sm font-normal cursor-pointer">
+                  私有空间（需要签名访问）
+                </Label>
+              </div>
+            </>
+          )}
+
           {profile.type === 'smms' && (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1270,7 +1404,8 @@ export default function SettingsPage() {
       'lsky': LSKY_TEMPLATE,
       'gitee': GITEE_TEMPLATE,
       'gcs': GCS_TEMPLATE,
-      'obs': OBS_TEMPLATE
+      'obs': OBS_TEMPLATE,
+      'qiniu': QINIU_TEMPLATE
     };
     const template = templates[type] || R2_TEMPLATE;
     const newProfile = {
@@ -1420,6 +1555,10 @@ export default function SettingsPage() {
                     <DropdownMenuItem onClick={() => handleAddProfile('obs')}>
                       <img src={HuaweiIcon} alt="华为云 OBS" className="mr-2 h-4 w-4" />
                       <span>华为云 OBS</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleAddProfile('qiniu')}>
+                      <img src={QiniuIcon} alt="七牛云 Kodo" className="mr-2 h-4 w-4" />
+                      <span>七牛云 Kodo</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
