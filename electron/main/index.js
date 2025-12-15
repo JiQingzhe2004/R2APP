@@ -1293,6 +1293,9 @@ function cleanReleaseNotes(notes, defaultMessage = '新版本可用，包含功�
 function setupAutoUpdater() {
   console.log('Updater: Initializing event listeners...');
 
+  // 禁用增量更新，防止出现先下载增量包失败后再下载全量包的情况
+  autoUpdater.disableDifferentialDownload = true;
+
   autoUpdater.on('checking-for-update', () => {
     console.log('Updater: Checking for update...');
   })
