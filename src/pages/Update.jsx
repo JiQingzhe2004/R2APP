@@ -147,7 +147,7 @@ export default function UpdatePage() {
           title: `发现新版本 v${updateInfo?.version || ''}`,
           description: '立即下载体验最新功能和优化。',
           extra: updateInfo?.releaseNotes && (
-            <div className="rounded-lg border border-amber-200/40 bg-amber-500/5 p-3 text-xs leading-relaxed text-muted-foreground dark:border-amber-900/40">
+            <div className="rounded-2xl border border-amber-200/40 bg-amber-500/5 p-3 text-xs leading-relaxed text-muted-foreground dark:border-amber-900/40">
               <div className="flex items-start gap-2">
                 <Info className="h-4 w-4 text-amber-500" />
                 <div>
@@ -165,7 +165,7 @@ export default function UpdatePage() {
           title: '更新就绪',
           description: `新版本 v${updateInfo?.version || versionData.version} 已下载完成${formattedTotalSize ? `（${formattedTotalSize}）` : ''}。`,
           extra: (
-            <div className="rounded-lg border border-emerald-200/40 bg-emerald-500/5 p-3 text-xs text-muted-foreground dark:border-emerald-900/40">
+            <div className="rounded-2xl border border-emerald-200/40 bg-emerald-500/5 p-3 text-xs text-muted-foreground dark:border-emerald-900/40">
               点击“重启并安装”立刻完成升级。
             </div>
           )
@@ -184,7 +184,7 @@ export default function UpdatePage() {
           title: '更新检查失败',
           description: '更新服务暂时不可用或网络异常。',
           extra: (
-            <div className="rounded-lg border border-red-200/40 bg-red-500/5 p-3 text-xs text-muted-foreground dark:border-red-900/40">
+            <div className="rounded-2xl border border-red-200/40 bg-red-500/5 p-3 text-xs text-muted-foreground dark:border-red-900/40">
               错误信息：{errorInfo?.message || '未知错误'}
             </div>
           )
@@ -205,11 +205,11 @@ export default function UpdatePage() {
       case 'available':
         return (
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Button onClick={downloadUpdate} className="w-full sm:flex-1">
+            <Button onClick={downloadUpdate} className="w-full sm:flex-1 rounded-full">
               <Download className="mr-2 h-4 w-4" />
               下载更新
             </Button>
-            <Button onClick={checkForUpdates} variant="outline" className="w-full sm:w-auto">
+            <Button onClick={checkForUpdates} variant="outline" className="w-full sm:w-auto rounded-full">
               <RefreshCw className="mr-2 h-4 w-4" />
               重新检查
             </Button>
@@ -217,7 +217,7 @@ export default function UpdatePage() {
         );
       case 'downloading':
         return (
-          <Button disabled variant="secondary" className="w-full justify-center">
+          <Button disabled variant="secondary" className="w-full justify-center rounded-full">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             下载中... ({downloadPercent.toFixed(1)}%)
           </Button>
@@ -225,11 +225,11 @@ export default function UpdatePage() {
       case 'downloaded':
         return (
           <div className="flex flex-col gap-2 sm:flex-row">
-            <Button onClick={quitAndInstallUpdate} className="w-full sm:flex-1" variant="success">
+            <Button onClick={quitAndInstallUpdate} className="w-full sm:flex-1 rounded-full" variant="success">
               <Download className="mr-2 h-4 w-4" />
               重启并安装
             </Button>
-            <Button onClick={checkForUpdates} variant="outline" className="w-full sm:w-auto">
+            <Button onClick={checkForUpdates} variant="outline" className="w-full sm:w-auto rounded-full">
               <RefreshCw className="mr-2 h-4 w-4" />
               再次检查
             </Button>
@@ -240,7 +240,7 @@ export default function UpdatePage() {
           <Button
             onClick={checkForUpdates}
             disabled={status === 'checking'}
-            className="w-full justify-center"
+            className="w-full justify-center rounded-full"
           >
             <RefreshCw className={`mr-2 h-4 w-4 ${status === 'checking' ? 'animate-spin' : ''}`} />
             {status === 'checking' ? '检查中…' : '检查更新'}
@@ -259,7 +259,7 @@ export default function UpdatePage() {
         <section className="rounded-3xl border bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-6 sm:p-8 shadow-sm">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div className="flex items-start gap-4">
-              <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-background/80 shadow-lg ring-1 ring-border">
+              <div className="relative flex h-16 w-16 items-center justify-center rounded-3xl bg-background/80 shadow-lg ring-1 ring-border">
                 <img src={logoSrc} alt="App Logo" className="h-12 w-12" draggable="false" />
               </div>
               <div>
@@ -282,9 +282,9 @@ export default function UpdatePage() {
         </section>
 
         <div className="space-y-6">
-          <Card className="shadow-sm">
+          <Card className="shadow-sm rounded-3xl">
             <CardContent className="space-y-6 pt-6">
-              <div className={`flex flex-col gap-4 rounded-xl border p-5 transition-colors sm:flex-row sm:items-start ${tone.container}`}>
+              <div className={`flex flex-col gap-4 rounded-3xl border p-5 transition-colors sm:flex-row sm:items-start ${tone.container}`}>
                 <div className={`flex h-12 w-12 items-center justify-center rounded-full ${tone.iconWrapper}`}>
                   <StatusIcon className={`h-6 w-6 ${statusDisplay.iconAnimation || ''}`} />
                 </div>
@@ -304,7 +304,7 @@ export default function UpdatePage() {
           </Card>
 
           {showProgressPanel && (
-            <Card className="shadow-sm overflow-hidden">
+            <Card className="shadow-sm overflow-hidden rounded-3xl">
               <CardContent className="space-y-4 pt-6">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -347,7 +347,7 @@ export default function UpdatePage() {
           )}
 
           <div className="grid gap-6 md:grid-cols-2">
-            <Card className="shadow-sm">
+            <Card className="shadow-sm rounded-3xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Sparkles className="h-5 w-5 text-primary" />
@@ -368,7 +368,7 @@ export default function UpdatePage() {
               </CardContent>
             </Card>
 
-            <Card className="shadow-sm">
+            <Card className="shadow-sm rounded-3xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <ShieldCheck className="h-5 w-5 text-primary" />

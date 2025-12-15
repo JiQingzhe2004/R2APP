@@ -50,12 +50,15 @@ export function Sidebar({ isCollapsed, onToggle }) {
       isCollapsed ? "w-20" : "w-64"
     )}>
       <div className={cn(
-        "h-14 flex items-center border-b px-4 gap-2",
-        isCollapsed && "px-0 justify-center"
+        "h-14 flex items-center border-b transition-all duration-300 ease-in-out gap-2 overflow-hidden",
+        isCollapsed ? "pl-7" : "pl-4"
       )}>
           <img src={BlackLogo} alt="Logo" className="h-6 w-6 hidden dark:block" draggable="false" />
           <img src={WhiteLogo} alt="Logo" className="h-6 w-6 dark:hidden" draggable="false" />
-          <h1 className={cn("text-lg font-bold select-none", isCollapsed && "hidden")}>CS-Explorer</h1>
+          <h1 className={cn(
+            "text-lg font-bold select-none whitespace-nowrap overflow-hidden transition-all duration-300",
+            isCollapsed ? "max-w-0 opacity-0" : "max-w-[200px] opacity-100"
+          )}>CS-Explorer</h1>
       </div>
       <nav className="flex-1 py-4 px-4">
         <ul className="space-y-1 h-full flex flex-col">
@@ -70,8 +73,11 @@ export function Sidebar({ isCollapsed, onToggle }) {
 
             const linkContent = (
               <>
-                <Icon className={cn("h-5 w-5", isCollapsed && "h-6 w-6")} />
-                <span className={cn(isCollapsed && "hidden")}>
+                <Icon className={cn("h-5 w-5 flex-shrink-0 transition-all duration-300 ease-in-out", isCollapsed ? "mr-0" : "mr-3")} />
+                <span className={cn(
+                  "whitespace-nowrap overflow-hidden transition-all duration-300 ease-in-out",
+                  isCollapsed ? "max-w-0 opacity-0 translate-x-[-10px]" : "max-w-[200px] opacity-100 translate-x-0"
+                )}>
                   {label}
                   {disabled && ' (待开发)'}
                   {isWindowOpen && (
@@ -81,26 +87,24 @@ export function Sidebar({ isCollapsed, onToggle }) {
               </>
             );
 
+            const commonClasses = cn(
+              "flex items-center rounded-full transition-all duration-300 ease-in-out select-none h-12 w-full justify-start pl-3.5",
+              !isActive && "text-muted-foreground hover:text-primary",
+              isActive && 'bg-primary text-primary-foreground hover:text-primary-foreground',
+            );
+
             const linkElement = disabled ? (
                 <span
                 draggable="false"
-                  className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground opacity-50 cursor-not-allowed select-none",
-                    isCollapsed && "justify-center"
-                  )}
+                  className={cn(commonClasses, "opacity-50 cursor-not-allowed text-muted-foreground")}
                 >
                   {linkContent}
                 </span>
               ) : onClick ? (
-                // 对于有onClick的项，使用button而不是Link
                 <button
                   draggable="false"
                   onClick={onClick}
-                  className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary select-none w-full text-left",
-                    isActive && 'bg-primary text-primary-foreground hover:text-primary-foreground',
-                    isCollapsed && "justify-center"
-                  )}
+                  className={commonClasses}
                 >
                   {linkContent}
                 </button>
@@ -108,11 +112,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
                 <Link
                   to={href}
                 draggable="false"
-                  className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary select-none",
-                    isActive && 'bg-primary text-primary-foreground hover:text-primary-foreground',
-                    isCollapsed && "justify-center"
-                  )}
+                  className={commonClasses}
                 >
                   {linkContent}
                 </Link>
@@ -120,18 +120,18 @@ export function Sidebar({ isCollapsed, onToggle }) {
 
               return (
                 <li key={id} className={liClass}>
-                  {isCollapsed ? (
-                    <Tooltip>
-                      <TooltipTrigger asChild>{linkElement}</TooltipTrigger>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      {linkElement}
+                    </TooltipTrigger>
+                    {isCollapsed && (
                       <TooltipContent side="right">
                         <p>{label}</p>
                       </TooltipContent>
-                    </Tooltip>
-                  ) : (
-                    linkElement
-                )}
-              </li>
-            );
+                    )}
+                  </Tooltip>
+                </li>
+              );
           })}
         </ul>
       </nav>
@@ -141,13 +141,18 @@ export function Sidebar({ isCollapsed, onToggle }) {
         <div
                   draggable="false"
             className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground cursor-pointer hover:text-primary transition-all select-none",
-              isCollapsed && "justify-center"
+              "flex items-center rounded-full transition-all duration-300 ease-in-out select-none h-12 w-full text-muted-foreground cursor-pointer hover:text-primary justify-start pl-3.5"
             )}
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
         >
-            {theme === 'dark' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-            <span className={cn(isCollapsed && "hidden")}>{theme === 'dark' ? '深色模式' : '浅色模式'}</span>
+            {theme === 'dark' ? 
+              <Moon className={cn("h-5 w-5 flex-shrink-0 transition-all duration-300 ease-in-out", isCollapsed ? "mr-0" : "mr-3")} /> : 
+              <Sun className={cn("h-5 w-5 flex-shrink-0 transition-all duration-300 ease-in-out", isCollapsed ? "mr-0" : "mr-3")} />
+            }
+            <span className={cn(
+              "whitespace-nowrap overflow-hidden transition-all duration-300 ease-in-out",
+              isCollapsed ? "max-w-0 opacity-0 translate-x-[-10px]" : "max-w-[200px] opacity-100 translate-x-0"
+            )}>{theme === 'dark' ? '深色模式' : '浅色模式'}</span>
         </div>
             </TooltipTrigger>
             {isCollapsed && (
@@ -161,13 +166,18 @@ export function Sidebar({ isCollapsed, onToggle }) {
          <div
                   draggable="false"
             className={cn(
-                    "mt-2 flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground cursor-pointer hover:text-primary transition-all select-none",
-               isCollapsed && "justify-center"
+              "mt-2 flex items-center rounded-full transition-all duration-300 ease-in-out select-none h-12 w-full text-muted-foreground cursor-pointer hover:text-primary justify-start pl-3.5"
             )}
             onClick={onToggle}
         >
-            {isCollapsed ? <PanelRightClose className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-            <span className={cn(isCollapsed && "hidden")}>{isCollapsed ? '展开' : '收起'}</span>
+            {isCollapsed ? 
+              <PanelRightClose className={cn("h-5 w-5 flex-shrink-0 transition-all duration-300 ease-in-out", isCollapsed ? "mr-0" : "mr-3")} /> : 
+              <PanelLeftClose className={cn("h-5 w-5 flex-shrink-0 transition-all duration-300 ease-in-out", isCollapsed ? "mr-0" : "mr-3")} />
+            }
+            <span className={cn(
+              "whitespace-nowrap overflow-hidden transition-all duration-300 ease-in-out",
+              isCollapsed ? "max-w-0 opacity-0 translate-x-[-10px]" : "max-w-[200px] opacity-100 translate-x-0"
+            )}>{isCollapsed ? '展开' : '收起'}</span>
         </div>
             </TooltipTrigger>
             {isCollapsed && (

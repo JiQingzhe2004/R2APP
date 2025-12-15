@@ -47,8 +47,10 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu"
+import { MorphingMenu } from "@/components/ui/morphing-menu"
+import { cn } from '@/lib/utils';
 import { 
-  RefreshCw, Trash2, Download, Copy, List, LayoutGrid, TextSearch, XCircle, FolderPlus, UploadCloud, FolderClosed, EllipsisVertical, Search, ArrowUpDown, Cloud, Settings, Plus
+  RefreshCw, Trash2, Download, Copy, List, LayoutGrid, TextSearch, XCircle, FolderPlus, UploadCloud, FolderClosed, EllipsisVertical, Search, ArrowUpDown, Cloud, Settings, Plus, ChevronsUpDown, Check, QrCode
 } from 'lucide-react';
 import { formatBytes, getFileIcon, getFileTypeDescription } from '@/lib/file-utils.jsx';
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -63,6 +65,71 @@ import { useUploads } from '@/contexts/UploadsContext';
 import { useOutletContext } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DeleteOverlay, useDeleteState } from '@/components/ui/delete-overlay';
+import QRCode from 'qrcode';
+
+function FileQrMenu({ publicUrl }) {
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
+
+  useEffect(() => {
+    if (!publicUrl) {
+      setQrCodeUrl('');
+      return;
+    }
+    QRCode.toDataURL(publicUrl, { width: 200, margin: 1 })
+      .then((url) => setQrCodeUrl(url))
+      .catch(() => setQrCodeUrl(''));
+  }, [publicUrl]);
+
+  if (!publicUrl) return null;
+
+  return (
+    <MorphingMenu
+      className="h-9 w-9 z-50"
+      triggerClassName="w-9 h-9 rounded-full border bg-background hover:bg-accent hover:text-accent-foreground flex items-center justify-center"
+      direction="top-right"
+      collapsedRadius="18px"
+      expandedRadius="24px"
+      expandedWidth={260}
+      trigger={
+        <div className="flex w-full h-full items-center justify-center">
+          <QrCode className="h-4 w-4" />
+        </div>
+      }
+    >
+      <div className="flex flex-col items-center gap-4 p-4">
+        <div className="text-sm font-medium w-full text-center border-b pb-2">
+          扫码打开文件链接
+        </div>
+        <div className="bg-white p-2 rounded-lg">
+          {qrCodeUrl ? (
+            <img src={qrCodeUrl} alt="文件链接二维码" className="w-40 h-40" />
+          ) : (
+            <div className="w-40 h-40 flex items-center justify-center text-muted-foreground text-xs">
+              生成中...
+            </div>
+          )}
+        </div>
+        <div className="text-xs text-muted-foreground text-center px-2">
+          使用微信或浏览器扫描二维码即可访问该文件链接
+        </div>
+        <Button
+          size="sm"
+          variant="secondary"
+          className="w-full rounded-full"
+          onClick={() => {
+            navigator.clipboard
+              .writeText(publicUrl)
+              .then(() => toast.success('链接已复制'))
+              .catch(() => toast.error('复制失败'));
+          }}
+        >
+          <Copy className="w-3 h-3 mr-2" />
+          复制链接
+        </Button>
+      </div>
+    </MorphingMenu>
+  );
+}
 
 // 空状态插画组件
 function EmptyStateIllustration({ hasSettings, onGoToSettings }) {
@@ -230,7 +297,7 @@ function FilesSkeletonLoader({ viewMode }) {
 }
 
 export default function FilesPage() {
-  const { activeProfileId, isSearchDialogOpen, setIsSearchDialogOpen, bucket } = useOutletContext();
+  const { activeProfileId, bucket, searchTerm, setSearchTerm } = useOutletContext();
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -239,12 +306,11 @@ export default function FilesPage() {
   const [downloading, setDownloading] = useState({});
   const [fileToDelete, setFileToDelete] = useState(null);
   const [viewMode, setViewMode] = useState('card');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [inputSearchTerm, setInputSearchTerm] = useState('');
   const [currentPrefix, setCurrentPrefix] = useState('');
   const [isCreateFolderDialogOpen, setIsCreateFolderDialogOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [selectedFiles, setSelectedFiles] = useState(new Set());
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [sortField, setSortField] = useState('date'); // 'date' | 'size' | 'name'
   const [sortOrder, setSortOrder] = useState('desc'); // 'asc' | 'desc'
@@ -346,7 +412,6 @@ export default function FilesPage() {
       await getActiveSettings();
       setCurrentPrefix('');
       setSearchTerm('');
-      setInputSearchTerm('');
       setFiles([]);
       setNextToken(null);
       fetchFiles('', { isSearch: false });
@@ -354,6 +419,23 @@ export default function FilesPage() {
 
     initialize();
   }, [activeProfileId]);
+
+  useEffect(() => {
+    if (searchTerm) {
+       setFiles([]);
+       setNextToken(null);
+       setCurrentPrefix('');
+       setIsSearching(true);
+       setError(null);
+       setLoading(true);
+       window.api.startSearch(searchTerm);
+    } else if (isSearching) {
+       setIsSearching(false);
+       setFiles([]);
+       setNextToken(null);
+       fetchFiles('', { isSearch: false });
+    }
+   }, [searchTerm]);
 
   useEffect(() => {
     if (!isSearching) return;
@@ -364,6 +446,9 @@ export default function FilesPage() {
     };
     const handleEnd = () => {
       setLoading(false);
+      // Don't set isSearching(false) here if we want to stay in "search result view" mode?
+      // But previous code did. Let's stick to previous behavior for now, or improve it.
+      // If I set it to false, the "Loading..." indicator stops.
       setIsSearching(false);
     };
     const handleError = (error) => {
@@ -383,31 +468,8 @@ export default function FilesPage() {
     };
   }, [isSearching]);
 
-  const handleSearch = () => {
-    setIsSearchDialogOpen(false);
-    setFiles([]);
-    setNextToken(null);
-    setCurrentPrefix('');
-    const newSearchTerm = inputSearchTerm;
-    setSearchTerm(newSearchTerm);
-    
-    if (newSearchTerm) {
-      setIsSearching(true);
-      setError(null);
-      setLoading(true);
-      window.api.startSearch(newSearchTerm);
-    } else {
-      fetchFiles('', { isSearch: false });
-    }
-  };
-
-  const clearSearch = () => {
+   const clearSearch = () => {
     setSearchTerm('');
-    setInputSearchTerm('');
-    setFiles([]);
-    setNextToken(null);
-    setCurrentPrefix('');
-    fetchFiles('', { isSearch: false });
   };
 
   const handleCreateFolder = async () => {
@@ -481,7 +543,13 @@ export default function FilesPage() {
     }
   };
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
+    if (selectedFiles.size === 0) return;
+    setShowBulkDeleteDialog(true);
+  };
+
+  const confirmBulkDelete = async () => {
+    setShowBulkDeleteDialog(false);
     if (selectedFiles.size === 0) return;
 
     const filesToDelete = Array.from(selectedFiles);
@@ -680,7 +748,7 @@ export default function FilesPage() {
 
     const parts = currentPrefix.split('/').filter(p => p);
     return (
-      <div className="flex justify-between items-center mb-4 px-1">
+      <div className="flex justify-between items-center px-1">
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
         <span
           className="cursor-pointer hover:text-primary"
@@ -703,19 +771,6 @@ export default function FilesPage() {
           );
         })}
         </div>
-        {viewMode === 'card' && (
-          <div className="flex items-center">
-            <Checkbox
-              id="card-select-all-breadcrumb"
-              checked={files.length > 0 && files.filter(f => !f.isFolder).length > 0 && selectedFiles.size === files.filter(f => !f.isFolder).length}
-              onCheckedChange={handleSelectAll}
-              aria-label="Select all"
-            />
-            <Label htmlFor="card-select-all-breadcrumb" className="ml-2 font-medium text-sm">
-              全选
-            </Label>
-          </div>
-        )}
       </div>
     );
   };
@@ -760,7 +815,7 @@ export default function FilesPage() {
         };
 
         return (
-          <Card key={key} ref={isLastElement ? lastFileElementRef : null} className={`p-4 ${selectedFiles.has(key) ? 'border-primary' : ''}`} onClick={handleCardClick} style={{ cursor: isDir ? 'pointer' : 'default' }}>
+          <Card key={key} ref={isLastElement ? lastFileElementRef : null} className={`p-4 rounded-[24px] ${selectedFiles.has(key) ? 'border-primary' : ''}`} onClick={handleCardClick} style={{ cursor: isDir ? 'pointer' : 'default' }}>
             <div className="flex items-start gap-4">
               {isDir ? <FolderClosed /> : getFileIcon(file)}
               <div className="flex-1 min-w-0">
@@ -788,14 +843,23 @@ export default function FilesPage() {
                   <Input 
                     readOnly 
                     value={publicUrl || '暂无公开链接（请配置自定义域名）'} 
-                    className={`flex-1 ${publicUrl ? 'bg-muted' : 'bg-muted text-muted-foreground italic'}`}
+                    className={`flex-1 rounded-full ${publicUrl ? 'bg-muted' : 'bg-muted text-muted-foreground italic'}`}
                   />
                   <TooltipProvider delayDuration={0}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <FileQrMenu publicUrl={publicUrl} />
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{publicUrl ? '二维码' : '无可用链接'}</p>
+                      </TooltipContent>
+                    </Tooltip>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button 
                           variant="outline" 
                           size="icon" 
+                          className="rounded-full"
                           onClick={() => handleCopyUrl(publicUrl)}
                           disabled={!publicUrl}
                         >
@@ -808,7 +872,7 @@ export default function FilesPage() {
                     </Tooltip>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="outline" size="icon" onClick={() => handleDownload(key)} disabled={downloading[key]}>
+                        <Button variant="outline" size="icon" className="rounded-full" onClick={() => handleDownload(key)} disabled={downloading[key]}>
                           <Download className="h-4 w-4"/>
                         </Button>
                       </TooltipTrigger>
@@ -818,7 +882,7 @@ export default function FilesPage() {
                     </Tooltip>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(key)} disabled={downloading[key]}><Trash2 className="h-4 w-4"/></Button>
+                        <Button variant="destructive" size="icon" className="rounded-full" onClick={() => handleDeleteClick(key)} disabled={downloading[key]}><Trash2 className="h-4 w-4"/></Button>
                       </TooltipTrigger>
                       <TooltipContent>
                         <p>删除</p>
@@ -832,7 +896,7 @@ export default function FilesPage() {
                   <TooltipProvider delayDuration={0}>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="destructive" size="icon" onClick={() => handleDeleteClick(key)}><Trash2 className="h-4 w-4"/></Button>
+                        <Button variant="destructive" size="icon" className="rounded-full" onClick={() => handleDeleteClick(key)}><Trash2 className="h-4 w-4"/></Button>
                       </TooltipTrigger>
                       <TooltipContent>
                         <p>删除文件夹</p>
@@ -848,7 +912,7 @@ export default function FilesPage() {
   );
 
   const renderFileList = () => (
-    <Card>
+    <Card className="rounded-[24px]">
         <Table>
             <TableHeader>
                 <TableRow>
@@ -925,7 +989,24 @@ export default function FilesPage() {
                                   <TooltipProvider delayDuration={0}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleCopyUrl(publicUrl); }}><Copy className="h-4 w-4"/></Button>
+                                        <div onClick={(e) => e.stopPropagation()}>
+                                          <FileQrMenu publicUrl={publicUrl} />
+                                        </div>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>{publicUrl ? '二维码' : '无可用链接'}</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="rounded-full"
+                                          onClick={(e) => { e.stopPropagation(); handleCopyUrl(publicUrl); }}
+                                        >
+                                          <Copy className="h-4 w-4"/>
+                                        </Button>
                                       </TooltipTrigger>
                                       <TooltipContent>
                                         <p>复制链接</p>
@@ -933,7 +1014,7 @@ export default function FilesPage() {
                                     </Tooltip>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDownload(key);}} disabled={downloading[key]}><Download className="h-4 w-4"/></Button>
+                                        <Button variant="ghost" size="icon" className="rounded-full" onClick={(e) => { e.stopPropagation(); handleDownload(key);}} disabled={downloading[key]}><Download className="h-4 w-4"/></Button>
                                       </TooltipTrigger>
                                       <TooltipContent>
                                         <p>下载</p>
@@ -941,7 +1022,7 @@ export default function FilesPage() {
                                     </Tooltip>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDeleteClick(key);}} disabled={downloading[key]}><Trash2 className="h-4 w-4" color="hsl(var(--destructive))"/></Button>
+                                        <Button variant="ghost" size="icon" className="rounded-full" onClick={(e) => { e.stopPropagation(); handleDeleteClick(key);}} disabled={downloading[key]}><Trash2 className="h-4 w-4" color="hsl(var(--destructive))"/></Button>
                                       </TooltipTrigger>
                                       <TooltipContent>
                                         <p>删除</p>
@@ -953,7 +1034,7 @@ export default function FilesPage() {
                                   <TooltipProvider delayDuration={0}>
                                     <Tooltip>
                                       <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDeleteClick(key); }}><Trash2 className="h-4 w-4" color="hsl(var(--destructive))"/></Button>
+                                        <Button variant="ghost" size="icon" className="rounded-full" onClick={(e) => { e.stopPropagation(); handleDeleteClick(key); }}><Trash2 className="h-4 w-4" color="hsl(var(--destructive))"/></Button>
                                       </TooltipTrigger>
                                       <TooltipContent>
                                         <p>删除文件夹</p>
@@ -992,7 +1073,7 @@ export default function FilesPage() {
                           <ToggleGroupItem
                             value="card"
                             aria-label="Card view"
-                            className={`rounded-lg px-3 h-10 ${viewMode === 'card' ? 'bg-primary text-primary-foreground' : 'bg-transparent'}`}
+                            className={`rounded-full w-10 h-10 p-0 ${viewMode === 'card' ? 'bg-primary text-primary-foreground' : 'bg-transparent'}`}
                           >
                             <LayoutGrid className="h-4 w-4" />
                           </ToggleGroupItem>
@@ -1006,7 +1087,7 @@ export default function FilesPage() {
                           <ToggleGroupItem
                             value="list"
                             aria-label="List view"
-                            className={`rounded-lg px-3 h-10 ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'bg-transparent'}`}
+                            className={`rounded-full w-10 h-10 p-0 ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'bg-transparent'}`}
                           >
                             <List className="h-4 w-4" />
                           </ToggleGroupItem>
@@ -1019,37 +1100,75 @@ export default function FilesPage() {
                   </TooltipProvider>
 
                   <TooltipProvider delayDuration={0}>
-                    <DropdownMenu>
-                      <Tooltip>
-                        <DropdownMenuTrigger asChild>
-                          <TooltipTrigger asChild>
-                            <Button variant="outline" size="icon" aria-label="排序">
-                              <ArrowUpDown className="h-4 w-4" />
-                            </Button>
-                          </TooltipTrigger>
-                        </DropdownMenuTrigger>
-                        <TooltipContent>
-                          <p>排序</p>
-                        </TooltipContent>
-                      </Tooltip>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>排序方式</DropdownMenuLabel>
-                        <DropdownMenuRadioGroup value={sortField} onValueChange={setSortField}>
-                          <DropdownMenuRadioItem value="date">按日期</DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="size">按大小</DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="name">按名称</DropdownMenuRadioItem>
-                        </DropdownMenuRadioGroup>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel>顺序</DropdownMenuLabel>
-                        <DropdownMenuRadioGroup value={sortOrder} onValueChange={setSortOrder}>
-                          <DropdownMenuRadioItem value="desc">降序</DropdownMenuRadioItem>
-                          <DropdownMenuRadioItem value="asc">升序</DropdownMenuRadioItem>
-                        </DropdownMenuRadioGroup>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <MorphingMenu
+                        className="w-10 h-10 z-40"
+                        triggerClassName="rounded-full border bg-background hover:bg-accent hover:text-accent-foreground"
+                        direction="top-right"
+                        collapsedRadius="20px"
+                        expandedRadius="24px"
+                        expandedWidth={240}
+                        trigger={
+                            <div className="flex w-full h-full items-center justify-center">
+                                <ArrowUpDown className="h-4 w-4" />
+                            </div>
+                        }
+                    >
+                        <div className="flex flex-col p-2 gap-1">
+                            <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                                排序方式
+                            </div>
+                            <div className="h-px bg-border mx-2 my-1" />
+                            {[
+                                { value: 'date', label: '按日期' },
+                                { value: 'size', label: '按大小' },
+                                { value: 'name', label: '按名称' }
+                            ].map(option => (
+                                <div
+                                    key={option.value}
+                                    onClick={() => setSortField(option.value)}
+                                    className={cn(
+                                        "relative flex cursor-pointer select-none items-center rounded-full px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground",
+                                        sortField === option.value && "bg-accent"
+                                    )}
+                                >
+                                    {sortField === option.value && (
+                                        <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                                            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                                        </span>
+                                    )}
+                                    <span className="ml-6">{option.label}</span>
+                                </div>
+                            ))}
+                            <div className="h-px bg-border mx-2 my-1" />
+                             <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                                顺序
+                            </div>
+                            {[
+                                { value: 'desc', label: '降序' },
+                                { value: 'asc', label: '升序' }
+                            ].map(option => (
+                                <div
+                                    key={option.value}
+                                    onClick={() => setSortOrder(option.value)}
+                                    className={cn(
+                                        "relative flex cursor-pointer select-none items-center rounded-full px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground",
+                                        sortOrder === option.value && "bg-accent"
+                                    )}
+                                >
+                                    {sortOrder === option.value && (
+                                        <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                                            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                                        </span>
+                                    )}
+                                    <span className="ml-6">{option.label}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </MorphingMenu>
+
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="outline" size="icon" onClick={() => fetchFiles(currentPrefix, { isSearch: false })} disabled={loading}>
+                        <Button variant="outline" size="icon" className="rounded-full w-10 h-10" onClick={() => fetchFiles(currentPrefix, { isSearch: false })} disabled={loading}>
                   <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                 </Button>
                       </TooltipTrigger>
@@ -1059,7 +1178,7 @@ export default function FilesPage() {
                     </Tooltip>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={() => setIsCreateFolderDialogOpen(true)}>
+                <Button variant="outline" size="icon" className="rounded-full w-10 h-10" onClick={() => setIsCreateFolderDialogOpen(true)}>
                   <FolderPlus className="h-4 w-4" />
                 </Button>
                       </TooltipTrigger>
@@ -1069,7 +1188,7 @@ export default function FilesPage() {
                     </Tooltip>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                <Button variant="outline" size="icon" onClick={handleFileSelectAndUpload}>
+                <Button variant="outline" size="icon" className="rounded-full w-10 h-10" onClick={handleFileSelectAndUpload}>
                   <UploadCloud className="h-4 w-4" />
                 </Button>
                       </TooltipTrigger>
@@ -1107,7 +1226,7 @@ export default function FilesPage() {
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mb-4">
               <div className="flex-1">
                 {renderBreadcrumbs()}
               </div>
@@ -1115,15 +1234,25 @@ export default function FilesPage() {
                 {selectedFiles.size > 0 && (
                   <>
                     <span className="text-sm text-muted-foreground">已选择 {selectedFiles.size} 个项目</span>
-                    <Button variant="outline" size="sm" onClick={handleBulkDownload}>
+                    <Button variant="outline" size="sm" onClick={handleBulkDownload} className="rounded-full">
                       <Download className="mr-2 h-4 w-4" />
                       下载所选
                     </Button>
-                    <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+                    <Button variant="destructive" size="sm" onClick={handleBulkDelete} className="rounded-full">
                       <Trash2 className="mr-2 h-4 w-4" />
                       删除所选
                     </Button>
                   </>
+                )}
+                {viewMode === 'card' && (
+                  <div className="flex items-center gap-2 ml-2 pl-2 border-l">
+                    <Label htmlFor="select-all-card" className="text-sm text-muted-foreground cursor-pointer">全选</Label>
+                    <Checkbox
+                      id="select-all-card"
+                      checked={files.length > 0 && files.filter(f => !f.isFolder).length > 0 && selectedFiles.size === files.filter(f => !f.isFolder).length}
+                      onCheckedChange={handleSelectAll}
+                    />
+                  </div>
                 )}
               </div>
             </div>
@@ -1164,35 +1293,8 @@ export default function FilesPage() {
         )}
       </div>
       
-      <Dialog open={isSearchDialogOpen} onOpenChange={setIsSearchDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>搜索文件</DialogTitle>
-            <DialogDescription>
-              搜索当前存储桶文件
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <div className="relative flex w-full max-w-3xl mx-auto items-center">
-              <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-              <Input
-                id="search"
-                value={inputSearchTerm}
-                onChange={(e) => setInputSearchTerm(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                placeholder="输入文件名或前缀进行搜索..."
-                className="pl-12 h-12 rounded-l-full rounded-r-none border-r-0"
-              />
-              <Button onClick={handleSearch} className="h-12 px-6 rounded-l-none rounded-r-full" aria-label="执行搜索">
-                <Search className="h-5 w-5" />
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-      
       <AlertDialog open={!!fileToDelete} onOpenChange={(open) => !open && setFileToDelete(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="rounded-3xl">
           <AlertDialogHeader>
             <AlertDialogTitle>确定要删除吗?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1200,8 +1302,23 @@ export default function FilesPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setFileToDelete(null)}>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDelete}>确定</AlertDialogAction>
+            <AlertDialogCancel onClick={() => setFileToDelete(null)} className="rounded-full">取消</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} className="rounded-full">确定</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+        <AlertDialogContent className="rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>确定要删除这些项目吗?</AlertDialogTitle>
+            <AlertDialogDescription>
+              您即将删除 {selectedFiles.size} 个项目。此操作无法撤销，被删除的项目将无法恢复。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowBulkDeleteDialog(false)} className="rounded-full">取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmBulkDelete} className="rounded-full">确定</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

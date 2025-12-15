@@ -169,7 +169,7 @@ export default function AnnouncementsPage() {
         
         <div className="grid gap-4">
           {[...Array(3)].map((_, i) => (
-            <Card key={i}>
+            <Card key={i} className="rounded-3xl">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Skeleton className="h-4 w-4" />
@@ -196,11 +196,11 @@ export default function AnnouncementsPage() {
           <p className="text-muted-foreground">查看最新的应用公告和重要信息</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={clearCache}>
+          <Button variant="outline" onClick={clearCache} className="rounded-full">
             <RefreshCw className="h-4 w-4 mr-2" />
             清除缓存
           </Button>
-          <Button onClick={() => fetchAnnouncements()}>
+          <Button onClick={() => fetchAnnouncements()} className="rounded-full">
             <RefreshCw className="h-4 w-4 mr-2" />
             刷新
           </Button>
@@ -208,9 +208,9 @@ export default function AnnouncementsPage() {
       </div>
 
       {/* 过滤和搜索 */}
-      <Card>
+      <Card className="rounded-3xl">
         <CardContent className="pt-6">
-          <div className="flex flex-col xl:flex-row gap-4">
+          <div className="flex flex-col lg:flex-row gap-4 lg:items-center justify-between">
             {/* 筛选器 */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
               <div className="flex items-center gap-2">
@@ -222,7 +222,7 @@ export default function AnnouncementsPage() {
                   variant={filter === 'all' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setFilter('all')}
-                  className="h-8 px-3"
+                  className="h-8 px-3 rounded-full"
                 >
                   全部
                 </Button>
@@ -230,7 +230,7 @@ export default function AnnouncementsPage() {
                   variant={filter === 'active' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setFilter('active')}
-                  className="h-8 px-3"
+                  className="h-8 px-3 rounded-full"
                 >
                   活跃
                 </Button>
@@ -238,7 +238,7 @@ export default function AnnouncementsPage() {
                   variant={filter === 'archived' ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setFilter('archived')}
-                  className="h-8 px-3"
+                  className="h-8 px-3 rounded-full"
                 >
                   已归档
                 </Button>
@@ -254,7 +254,7 @@ export default function AnnouncementsPage() {
                   placeholder="搜索公告标题或内容..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border rounded-md text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-2 border rounded-full text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
                 />
                 {searchTerm && (
                   <button
@@ -283,7 +283,7 @@ export default function AnnouncementsPage() {
                     setSearchTerm('');
                     setFilter('all');
                   }}
-                  className="h-6 px-2 text-xs"
+                  className="h-6 px-2 text-xs rounded-full"
                 >
                   清除筛选
                 </Button>
@@ -294,7 +294,7 @@ export default function AnnouncementsPage() {
       </Card>
 
       {error && (
-        <Card className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/50">
+        <Card className="rounded-3xl border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/50">
           <CardContent className="pt-6">
             <div className="flex items-center gap-2 text-red-800 dark:text-red-200">
               <AlertCircle className="h-5 w-5" />
@@ -305,7 +305,7 @@ export default function AnnouncementsPage() {
       )}
 
       {filteredAnnouncements.length === 0 ? (
-        <Card>
+        <Card className="rounded-3xl">
           <CardContent className="pt-6">
             <div className="text-center py-12">
               {searchTerm ? (
@@ -322,6 +322,7 @@ export default function AnnouncementsPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => setSearchTerm('')}
+                      className="rounded-full"
                     >
                       清除搜索
                     </Button>
@@ -329,6 +330,7 @@ export default function AnnouncementsPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => setFilter('all')}
+                      className="rounded-full"
                     >
                       显示全部
                     </Button>
@@ -347,6 +349,7 @@ export default function AnnouncementsPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => setFilter('all')}
+                    className="rounded-full"
                   >
                     查看全部公告
                   </Button>
@@ -364,6 +367,7 @@ export default function AnnouncementsPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => fetchAnnouncements()}
+                    className="rounded-full"
                   >
                     刷新公告
                   </Button>
@@ -382,7 +386,7 @@ export default function AnnouncementsPage() {
               <Card
                 key={announcement.id}
                 className={cn(
-                  'transition-all duration-200 hover:shadow-md',
+                  'rounded-3xl transition-all duration-200 hover:shadow-md',
                   !isActive && 'opacity-75'
                 )}
               >
@@ -436,6 +440,7 @@ export default function AnnouncementsPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => window.open(announcement.link, '_blank')}
+                      className="rounded-full"
                     >
                       <ExternalLink className="h-4 w-4 mr-2" />
                       查看详情

@@ -115,28 +115,24 @@ export function ReleaseNotesContent({ variant = 'standalone' }) {
         </div>
       )}
 
-      <Card className={cn('overflow-hidden', variant === 'embedded' && 'border-dashed')}>
+      <Card className={cn('overflow-hidden rounded-3xl', variant === 'embedded' && 'border-dashed')}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <ScrollText className="h-5 w-5 text-primary" />
             查看版本更新记录
           </CardTitle>
           <CardDescription>
-            随时了解每次发布的功能更新、体验优化以及修复说明。
+            通过下方的筛选器快速定位特定类型的更新，或直接浏览完整的版本历史。
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
-            <p>
-              更新日志会按照版本时间线展示全部变更内容，并提供快捷定位到最新版本的功能，方便您回顾历史更新。
-            </p>
-          </div>
-          <div className="space-y-3">
-            <div className="flex flex-wrap gap-2 items-center">
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+            <div className="flex flex-wrap gap-2 items-center flex-1">
               <Button
                 variant={selectedType === 'all' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setSelectedType('all')}
+                className="rounded-full transition-all px-4"
               >
                 全部版本
               </Button>
@@ -146,28 +142,28 @@ export function ReleaseNotesContent({ variant = 'standalone' }) {
                   variant={selectedType === type ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setSelectedType(type)}
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 rounded-full transition-all px-3"
                 >
                   {getTypeIcon(type)}
                   {label}
                 </Button>
               ))}
+            </div>
+            
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+               <div className="text-xs text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full whitespace-nowrap">
+                <span className="font-medium text-foreground">{filteredVersions.length}</span> 个版本
+              </div>
               {selectedType !== 'all' && (
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={clearFilter}
-                  className="flex items-center gap-2 text-muted-foreground"
+                  className="flex items-center gap-2 text-muted-foreground rounded-full hover:bg-destructive/10 hover:text-destructive transition-colors h-8 px-3"
                 >
                   <X className="h-4 w-4" />
                   清除筛选
                 </Button>
-              )}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              当前筛选：<span className="font-medium">{selectedType === 'all' ? '全部版本' : changelogData.categories[selectedType]}</span>
-              {selectedType !== 'all' && (
-                <span className="ml-2">(共 {filteredVersions.length} 个版本)</span>
               )}
             </div>
           </div>
@@ -176,56 +172,68 @@ export function ReleaseNotesContent({ variant = 'standalone' }) {
 
       <div className="space-y-4">
         {filteredVersions.map((version) => (
-          <Card key={version.version} className="overflow-hidden">
+          <Card key={version.version} className="overflow-hidden rounded-3xl border transition-all duration-200 hover:shadow-lg hover:border-primary/20 group">
             <CardHeader
-              className="cursor-pointer hover:bg-muted/50 transition-colors"
+              className="cursor-pointer hover:bg-muted/30 transition-colors py-4"
               onClick={() => toggleVersion(version.version)}
             >
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <Badge variant={getTypeBadgeVariant(version.type)} className="flex items-center gap-1">
-                      {getTypeIcon(version.type)}
-                      {getTypeLabel(version.type)}
-                    </Badge>
-                    {version.breaking && (
-                      <Badge variant="destructive" className="flex items-center gap-1">
-                        <AlertTriangle className="h-3 w-3" />
-                        破坏性更新
-                      </Badge>
-                    )}
+                <div className="flex items-center gap-4">
+                  <div className={cn(
+                    "flex h-10 w-10 items-center justify-center rounded-full bg-muted transition-colors group-hover:bg-primary/10",
+                    expandedVersions.has(version.version) && "bg-primary/10 text-primary"
+                  )}>
+                     {getTypeIcon(version.type)}
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold">v{version.version}</h3>
-                    <p className="text-sm text-muted-foreground">{version.title}</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="text-lg font-bold">v{version.version}</h3>
+                      <Badge variant={getTypeBadgeVariant(version.type)} className="flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-normal">
+                        {getTypeLabel(version.type)}
+                      </Badge>
+                      {version.breaking && (
+                        <Badge variant="destructive" className="flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-normal">
+                          <AlertTriangle className="h-3 w-3" />
+                          破坏性更新
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground line-clamp-1">{version.title}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                    <Calendar className="h-4 w-4" />
+                <div className="flex items-center gap-3">
+                  <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded-full">
+                    <Calendar className="h-3.5 w-3.5" />
                     {version.date}
                   </div>
-                  {expandedVersions.has(version.version) ? (
-                    <ChevronUp className="h-5 w-5 text-muted-foreground" />
-                  ) : (
+                  <div className={cn(
+                    "rounded-full p-1 transition-transform duration-200",
+                    expandedVersions.has(version.version) ? "rotate-180 bg-muted" : ""
+                  )}>
                     <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                  )}
+                  </div>
                 </div>
               </div>
             </CardHeader>
 
             {expandedVersions.has(version.version) && (
-              <CardContent className="pt-0">
-                <div className="space-y-3">
-                  <div className="text-sm text-muted-foreground">更新内容：</div>
-                  <ul className="space-y-2">
-                    {version.changes.map((change, index) => (
-                      <li key={index} className="flex items-start gap-2 text-sm">
-                        <div className="w-1.5 h-1.5 bg-primary rounded-full mt-2 flex-shrink-0"></div>
-                        <span>{change}</span>
-                      </li>
-                    ))}
-                  </ul>
+              <CardContent className="pt-0 pb-6 animate-in slide-in-from-top-2 fade-in duration-200">
+                <div className="px-14">
+                  <div className="h-px w-full bg-border/50 mb-4" />
+                  <div className="space-y-3">
+                    <div className="text-sm font-medium text-foreground flex items-center gap-2">
+                      <ScrollText className="h-4 w-4 text-primary" />
+                      更新详情
+                    </div>
+                    <ul className="space-y-2.5">
+                      {version.changes.map((change, index) => (
+                        <li key={index} className="flex items-start gap-3 text-sm text-muted-foreground group/item hover:text-foreground transition-colors">
+                          <div className="w-1.5 h-1.5 bg-primary/40 rounded-full mt-2 flex-shrink-0 group-hover/item:bg-primary transition-colors"></div>
+                          <span className="leading-relaxed">{change}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
               </CardContent>
             )}

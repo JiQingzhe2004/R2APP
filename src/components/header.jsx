@@ -3,28 +3,16 @@ import { Bell, TextSearch, ShieldEllipsis, ShieldCheck, ShieldX, ChevronsUpDown,
 import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Card } from "@/components/ui/Card"
+import { Input } from "@/components/ui/Input"
 import { Progress } from "@/components/ui/Progress"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card"
+import { MorphingMenu } from "@/components/ui/morphing-menu"
+import { cn } from '@/lib/utils';
 
 function timeAgo(date) {
   const seconds = Math.floor((new Date() - date) / 1000);
@@ -53,7 +41,10 @@ const NotificationIcon = ({ type }) => {
 };
 
 export function Header({
-  onSearchClick,
+  isSearchOpen,
+  onSearchOpenChange,
+  searchTerm,
+  onSearch,
   r2Status,
   profiles,
   activeProfileId,
@@ -66,6 +57,28 @@ export function Header({
 }) {
   const location = useLocation();
   const showSearch = location.pathname === '/files';
+  const [inputValue, setInputValue] = useState(searchTerm || '');
+  const searchInputRef = useRef(null);
+
+  useEffect(() => {
+    if (isSearchOpen) {
+      setInputValue(searchTerm || '');
+    }
+  }, [isSearchOpen, searchTerm]);
+
+  useEffect(() => {
+    if (isSearchOpen && showSearch && searchInputRef.current) {
+      searchInputRef.current.focus();
+      if (searchInputRef.current.select) {
+        searchInputRef.current.select();
+      }
+    }
+  }, [isSearchOpen, showSearch]);
+
+  const handleSearchSubmit = () => {
+    onSearch(inputValue);
+    // onSearchOpenChange(false); // 不需要收回搜索框
+  };
 
   // 定义需要显示存储桶选择的页面
   const showProfileSelector = ['/dashboard', '/files', '/uploads', '/downloads'].includes(location.pathname);
@@ -139,38 +152,85 @@ export function Header({
 
   return (
     <header
-      className="h-14 flex items-center justify-between border-b bg-muted/40 px-2"
+      className="h-14 flex items-center justify-between border-b bg-muted/40 backdrop-blur-sm px-2 sticky top-0 z-50"
       style={{ WebkitAppRegion: 'drag' }}
     >
       <div className="flex items-center gap-4" style={{ WebkitAppRegion: 'no-drag' }}>
         {/* 只在指定页面显示存储配置选择器 */}
         {showProfileSelector && profiles && profiles.length > 0 && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="w-[180px] justify-between">
+          <MorphingMenu
+            className="w-[180px] h-9 z-50"
+            triggerClassName="rounded-full border bg-background hover:bg-accent hover:text-accent-foreground"
+            direction="top-left"
+            collapsedRadius="18px"
+            expandedRadius="24px"
+            expandedWidth={240}
+            trigger={
+              <div className="flex w-full items-center justify-between px-3 text-sm font-medium">
                 <span className="truncate">{activeProfile?.name || '选择配置'}</span>
-                <ChevronsUpDown className="h-4 w-4 opacity-50" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-[180px]">
-              <DropdownMenuLabel>选择配置</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuRadioGroup value={activeProfileId} onValueChange={onProfileSwitch}>
-                {profiles.map(profile => (
-                  <DropdownMenuRadioItem key={profile.id} value={profile.id}>
+                <ChevronsUpDown className="h-4 w-4 opacity-50 ml-2" />
+              </div>
+            }
+          >
+            <div className="flex flex-col p-2 gap-1">
+              <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                选择配置
+              </div>
+              <div className="h-px bg-border mx-2 my-1" />
+              {profiles.map(profile => (
+                <div
+                  key={profile.id}
+                  onClick={() => onProfileSwitch(profile.id)}
+                  className={cn(
+                    "relative flex cursor-pointer select-none items-center rounded-full px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground",
+                    activeProfileId === profile.id && "bg-accent"
+                  )}
+                >
+                  {activeProfileId === profile.id && (
+                    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                      <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                    </span>
+                  )}
+                  <span className={cn("ml-6", activeProfileId !== profile.id && "ml-6")}>
                     {profile.name}
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </MorphingMenu>
         )}
 
         {showSearch && (
-          <Button variant="outline" onClick={onSearchClick}>
-            <TextSearch className="h-4 w-4 mr-2" />
-            搜索
-          </Button>
+          <MorphingMenu
+            className="w-[100px] h-9 z-40"
+            triggerClassName="rounded-full border bg-background hover:bg-accent hover:text-accent-foreground"
+            direction="top-left"
+            collapsedRadius="18px"
+            expandedRadius="24px"
+            expandedWidth={320}
+            isOpen={isSearchOpen}
+            onOpenChange={onSearchOpenChange}
+            trigger={
+              <div className="flex w-full items-center justify-center px-3 text-sm font-medium">
+                <TextSearch className="h-4 w-4 mr-2" />
+                <span>搜索</span>
+              </div>
+            }
+          >
+            <div className="flex items-center p-0.5 h-full w-full gap-1">
+              <Input 
+                 ref={searchInputRef}
+                 value={inputValue}
+                 onChange={(e) => setInputValue(e.target.value)}
+                 onKeyDown={(e) => e.key === 'Enter' && handleSearchSubmit()}
+                 className="border-none shadow-none focus-visible:ring-0 flex-1 h-full bg-transparent"
+                 placeholder="输入文件名或前缀..."
+              />
+              <Button size="icon" variant="ghost" onClick={handleSearchSubmit} className="rounded-full h-8 w-8 shrink-0">
+                <TextSearch className="h-4 w-4" />
+              </Button>
+            </div>
+          </MorphingMenu>
         )}
       </div>
 
@@ -188,15 +248,18 @@ export function Header({
         </TooltipProvider>
 
         {/* 通知按钮 */}
-        <HoverCard openDelay={200} closeDelay={300}>
-          <HoverCardTrigger asChild>
-            <button
-              className="relative rounded-full h-8 w-8 flex items-center justify-center border hover:bg-accent transition-colors"
-              onMouseEnter={() => {
-                onMarkAllRead();
-                dismissPopup();
-              }}
-            >
+        <MorphingMenu
+          className="h-8 w-8 z-50"
+          triggerClassName="rounded-full border hover:bg-accent bg-background"
+          direction="top-right"
+          onOpenChange={(open) => {
+            if (open) {
+              onMarkAllRead();
+              dismissPopup();
+            }
+          }}
+          trigger={
+            <>
               <Bell className="h-4 w-4" />
               {unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
@@ -204,34 +267,35 @@ export function Header({
                   <span className="relative inline-flex h-full w-full items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">{unreadCount}</span>
                 </span>
               )}
-            </button>
-          </HoverCardTrigger>
-          <HoverCardContent className="w-80 p-0 shadow-lg dark:shadow-[0_10px_25px_-5px_rgba(255,255,255,0.15)] border-0" align="end" side="bottom" sideOffset={8}>
-            <div className="p-4">
-              <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center gap-2">
-                  <Bell className="h-4 w-4" />
-                  <span className="font-medium">通知</span>
-                  {unreadCount > 0 && (
-                    <span className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded-full">
-                      {unreadCount}
-                    </span>
-                  )}
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onClearNotifications();
-                  }}
-                  disabled={notifications.length === 0}
-                  className="h-7 px-2 text-xs"
-                >
-                  全部清除
-                </Button>
+            </>
+          }
+        >
+          <div className="p-4 h-full flex flex-col max-h-[80vh]">
+            <div className="flex justify-between items-center mb-4 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <Bell className="h-4 w-4" />
+                <span className="font-medium">通知</span>
+                {unreadCount > 0 && (
+                  <span className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded-full">
+                    {unreadCount}
+                  </span>
+                )}
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClearNotifications();
+                }}
+                disabled={notifications.length === 0}
+                className="h-7 px-2 text-xs rounded-full"
+              >
+                全部清除
+              </Button>
+            </div>
 
+            <div className="flex-1 overflow-y-auto min-h-0 -mr-2 pr-2 custom-scrollbar">
               {notifications.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <Bell className="h-12 w-12 mx-auto mb-3 opacity-30" />
@@ -239,7 +303,7 @@ export function Header({
                   <p className="text-xs mt-1">新的通知将在这里显示</p>
                 </div>
               ) : (
-                <div className="max-h-64 overflow-y-auto pr-1">
+                <div className="space-y-1">
                   {notifications.map((n, index) => (
                     <div key={n.id}>
                       <div
@@ -277,11 +341,9 @@ export function Header({
                   ))}
                 </div>
               )}
-
-
             </div>
-          </HoverCardContent>
-        </HoverCard>
+          </div>
+        </MorphingMenu>
 
         {/* 通知弹窗 */}
         {activeNotification && (
@@ -303,13 +365,13 @@ export function Header({
 
         {/* 窗口控制按钮 */}
         <div className="flex items-center gap-1 pl-2">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.api.minimizeWindow()}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => window.api.minimizeWindow()}>
             <Minus className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => window.api.maximizeWindow()}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => window.api.maximizeWindow()}>
             {isMaximized ? <PictureInPicture2 className="h-4 w-4" /> : <Square className="h-4 w-4" />}
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-500/90" onClick={() => window.api.closeWindow()}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-500/90 rounded-full" onClick={() => window.api.closeWindow()}>
             <X className="h-4 w-4" />
           </Button>
         </div>

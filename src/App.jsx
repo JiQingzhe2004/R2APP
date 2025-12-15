@@ -96,6 +96,7 @@ function AppUpdateDialog() {
 function MainLayout() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const [r2Status, setR2Status] = useState({ loading: true, success: false, message: '正在检查连接...' });
   const [profiles, setProfiles] = useState([]);
   const [activeProfileId, setActiveProfileId] = useState(null);
@@ -162,21 +163,26 @@ function MainLayout() {
     <Layout>
       <Sidebar isCollapsed={isSidebarCollapsed} onToggle={toggleSidebar} />
       <LayoutBody>
-        <Header 
-          onSearchClick={() => setIsSearchDialogOpen(true)} 
-          r2Status={r2Status}
-          profiles={profiles}
-          activeProfileId={activeProfileId}
-          onProfileSwitch={handleProfileSwitch}
-          notifications={notifications}
-          unreadCount={unreadCount}
-          onMarkAllRead={markAllAsRead}
-          onClearNotifications={clearNotifications}
-          onRemoveNotification={removeNotification}
-        />
-        <AnnouncementBanner />
-        <main className="relative flex-1 overflow-auto p-4">
-          <Outlet context={{ activeProfileId, isSearchDialogOpen, setIsSearchDialogOpen, refreshState }}/>
+        <main className="relative flex-1 overflow-auto">
+          <Header 
+            isSearchOpen={isSearchDialogOpen}
+            onSearchOpenChange={setIsSearchDialogOpen}
+            searchTerm={searchTerm}
+            onSearch={setSearchTerm}
+            r2Status={r2Status}
+            profiles={profiles}
+            activeProfileId={activeProfileId}
+            onProfileSwitch={handleProfileSwitch}
+            notifications={notifications}
+            unreadCount={unreadCount}
+            onMarkAllRead={markAllAsRead}
+            onClearNotifications={clearNotifications}
+            onRemoveNotification={removeNotification}
+          />
+          <AnnouncementBanner />
+          <div className="p-4">
+            <Outlet context={{ activeProfileId, isSearchDialogOpen, setIsSearchDialogOpen, searchTerm, setSearchTerm, refreshState }}/>
+          </div>
         </main>
       </LayoutBody>
     </Layout>

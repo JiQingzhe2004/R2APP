@@ -132,7 +132,7 @@ export default function AboutPage() {
     <div className="p-4 sm:p-6 flex flex-col items-center gap-6 max-w-6xl mx-auto">
     
       {/* 应用信息卡片 */}
-      <Card className="w-full">
+      <Card className="w-full rounded-3xl">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <img src={BlackLogo} alt="App Logo" className="w-32 h-32 hidden dark:block" draggable="false" />
@@ -178,7 +178,7 @@ export default function AboutPage() {
               <div className="flex items-center">
                 <Database className="h-5 w-5 mr-4 text-muted-foreground" />
                 <span className="w-16 text-muted-foreground">机器码</span>
-                <span className="font-mono text-xs bg-muted px-2 py-1 rounded">
+                <span className="font-mono text-xs bg-muted px-2 py-1 rounded-lg">
                   {machineInfo.machineId}
                 </span>
               </div>
@@ -203,7 +203,7 @@ export default function AboutPage() {
                 href="https://v.douyin.com/WZoKGvJil18/ 9@1.com :1pm" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="p-2 rounded-xl transition-all duration-300 hover:scale-110"
+                className="p-2 rounded-full transition-all duration-300 hover:scale-110 hover:bg-muted"
                 title="抖音"
               >
                 <Tiktok theme="filled" size="20" fill="currentColor" strokeWidth={1}/>
@@ -214,7 +214,7 @@ export default function AboutPage() {
                 href="https://github.com/JiQingzhe2004" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="p-2 rounded-xl transition-all duration-300 hover:scale-110"
+                className="p-2 rounded-full transition-all duration-300 hover:scale-110 hover:bg-muted"
                 title="Github"
               >
                 <Github size="20" fill="currentColor"/>
@@ -225,7 +225,7 @@ export default function AboutPage() {
                 href="mailto:jqz1215@qq.com" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="p-2 rounded-xl transition-all duration-300 hover:scale-110"
+                className="p-2 rounded-full transition-all duration-300 hover:scale-110 hover:bg-muted"
                 title="邮箱"
               >
                 <MaillOne theme="outline" size="20" fill="currentColor"/>
@@ -242,7 +242,7 @@ export default function AboutPage() {
       </Card>
 
       {/* 打赏支持 */}
-      <Card className="w-full">
+      <Card className="w-full rounded-3xl">
         <CardHeader className="text-center">
           <CardTitle className="flex items-center justify-center gap-2">
             <BadgeCheck className="h-6 w-6 text-red-500" />
@@ -263,9 +263,9 @@ export default function AboutPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* 微信打赏 */}
             <div className="text-center space-y-3">
-              <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+              <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-3xl">
                 <div 
-                  className="max-w-32 mx-auto rounded-lg overflow-hidden border-2 border-green-200 dark:border-green-800 cursor-pointer hover:shadow-lg transition-shadow"
+                  className="max-w-32 mx-auto rounded-2xl overflow-hidden border-2 border-green-200 dark:border-green-800 cursor-pointer hover:shadow-lg transition-shadow"
                   onClick={() => openLightbox(WechatQR, '微信打赏二维码')}
                 >
                   <img 
@@ -281,9 +281,9 @@ export default function AboutPage() {
 
             {/* 支付宝打赏 */}
             <div className="text-center space-y-3">
-              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-3xl">
                 <div 
-                  className="max-w-32 mx-auto rounded-lg overflow-hidden border-2 border-blue-200 dark:border-blue-800 cursor-pointer hover:shadow-lg transition-shadow"
+                  className="max-w-32 mx-auto rounded-2xl overflow-hidden border-2 border-blue-200 dark:border-blue-800 cursor-pointer hover:shadow-lg transition-shadow"
                   onClick={() => openLightbox(AlipayQR, '支付宝打赏二维码')}
                 >
                   <img 
@@ -307,7 +307,7 @@ export default function AboutPage() {
       </Card>
 
       {/* 存储服务快捷通道 */}
-      <Card className="w-full">
+      <Card className="w-full rounded-3xl">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Atom className="h-6 w-6" />
@@ -322,11 +322,11 @@ export default function AboutPage() {
             {storageServices.map((service, index) => (
               <div
                 key={index}
-                className={`p-4 rounded-lg border transition-all hover:shadow-md cursor-pointer ${service.bgColor || ''}`}
+                className={`p-4 rounded-2xl border transition-all hover:shadow-md cursor-pointer ${service.bgColor || ''}`}
                 onClick={() => window.open(service.url, '_blank')}
               >
                 <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-lg bg-white dark:bg-gray-900/70 shadow-sm">
+                  <div className="p-2 rounded-xl bg-white dark:bg-gray-900/70 shadow-sm">
                     {typeof service.icon === 'string' ? (
                       <img src={service.icon} alt={service.name} className="h-6 w-6 object-contain" draggable="false" />
                     ) : (
@@ -374,11 +374,11 @@ export default function AboutPage() {
           <div className="relative max-w-4xl max-h-full">
             <button
               onClick={closeLightbox}
-              className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors p-2"
+              className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors p-2 bg-white/10 hover:bg-white/20 rounded-full"
             >
               <X className="h-6 w-6" />
             </button>
-            <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-2xl">
+            <div className="bg-white dark:bg-gray-800 rounded-3xl p-4 shadow-2xl">
               <h3 className="text-lg font-semibold text-center mb-4 text-gray-900 dark:text-gray-100">
                 {lightbox.title}
               </h3>
@@ -386,7 +386,7 @@ export default function AboutPage() {
                 <img 
                   src={lightbox.image} 
                   alt={lightbox.title}
-                  className="max-w-full max-h-[70vh] object-contain rounded-lg"
+                  className="max-w-full max-h-[70vh] object-contain rounded-2xl"
                   draggable="false"
                   onClick={(e) => e.stopPropagation()}
                 />

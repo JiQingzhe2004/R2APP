@@ -19,7 +19,7 @@ export function DeleteOverlay({
       "fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center",
       className
     )}>
-      <div className="bg-background rounded-lg border shadow-lg p-6 max-w-sm mx-4">
+      <div className="bg-background rounded-3xl border shadow-lg p-6 max-w-sm mx-4">
         <div className="flex flex-col items-center gap-4">
           {/* 删除图标和加载动画 */}
           <div className="relative">

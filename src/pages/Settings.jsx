@@ -9,10 +9,12 @@ import { useNotifications } from '@/contexts/NotificationContext';
 import { 
   User, KeyRound, Container, Globe, Plug, Save, PlusCircle, Trash2, 
   Cloud, Server, Settings as SettingsIcon, ChevronDown, ChevronRight,
-  Database, Shield, MapPin, Link2, HardDrive, Edit2, Check, X, FolderOpen, Image, ScrollText
+  Database, Shield, MapPin, Link2, HardDrive, Edit2, Check, X, FolderOpen, Image, ScrollText, ChevronsUpDown, Minus, Plus, ChevronUp
 } from 'lucide-react'
 import AppSettings from './AppSettings';
 import { ReleaseNotesContent } from '@/components/ReleaseNotesContent';
+import { MorphingMenu } from "@/components/ui/morphing-menu"
+import { cn } from '@/lib/utils'
 
 // 导入云服务图标
 import CloudflareIcon from '@/assets/cloudico/Cloudflare.svg';
@@ -53,7 +55,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import BucketSelector from '@/components/BucketSelector'
 
 const R2_TEMPLATE = {
   type: 'r2',
@@ -256,7 +257,6 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(profile.name);
-  const [showBucketSelector, setShowBucketSelector] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const providerInfo = PROVIDER_INFO[profile.type] || {
     name: '未知服务',
@@ -285,14 +285,14 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
   };
 
   return (
-    <Card className={`transition-all ${isActive ? 'ring-2 ring-primary' : ''}`}>
+    <Card className={`rounded-3xl transition-all ${isActive ? 'ring-2 ring-primary' : ''}`}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="sm"
-              className="p-0 h-auto"
+              className="p-0 h-auto rounded-full"
               onClick={() => setIsExpanded(!isExpanded)}
             >
               {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
@@ -321,17 +321,17 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                 <Input
                   value={tempName}
                   onChange={(e) => setTempName(e.target.value)}
-                  className="h-7 w-48"
+                  className="h-7 w-48 rounded-full"
                   autoFocus
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleNameSave();
                     if (e.key === 'Escape') handleNameCancel();
                   }}
                 />
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleNameSave}>
+                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 rounded-full" onClick={handleNameSave}>
                   <Check className="h-4 w-4" />
                 </Button>
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={handleNameCancel}>
+                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 rounded-full" onClick={handleNameCancel}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
@@ -341,7 +341,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                 <Button 
                   size="sm" 
                   variant="ghost" 
-                  className="h-7 w-7 p-0"
+                  className="h-7 w-7 p-0 rounded-full"
                   onClick={() => {
                     setTempName(profile.name);
                     setIsEditingName(true);
@@ -359,6 +359,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
               variant="outline" 
               onClick={() => onTest(profile.id)} 
               disabled={isTesting || isSaving}
+              className="rounded-full"
             >
               <Plug className="mr-2 h-4 w-4" />
               {isTesting ? '测试中...' : '测试'}
@@ -368,15 +369,17 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
               variant="default" 
               onClick={() => onSave(profile.id)} 
               disabled={isSaving}
+              className="rounded-full"
             >
               <Save className="mr-2 h-4 w-4" />
               {isSaving ? '保存中...' : '保存'}
             </Button>
             <Button 
-              size="sm" 
+              size="icon" 
               variant="destructive" 
               onClick={() => setShowDeleteDialog(true)} 
               disabled={isSaving}
+              className="rounded-full h-9 w-9"
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -410,6 +413,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.accountId} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="您的 Cloudflare 账户 ID" 
+                    className="rounded-full"
                   />
                 </div>
                 <div className="space-y-2">
@@ -417,25 +421,14 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     <Container className="h-4 w-4" />
                     存储桶名称
                   </Label>
-                  <div className="flex gap-2">
-                    <Input 
-                      id={`bucketName-${profile.id}`} 
-                      name="bucketName" 
-                      value={profile.bucketName} 
-                      onChange={(e) => onChange(profile.id, e)} 
-                      placeholder="您的 R2 存储桶名称" 
-                      className="flex-1"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setShowBucketSelector(true)}
-                      title="选择存储桶"
-                    >
-                      <FolderOpen className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Input 
+                    id={`bucketName-${profile.id}`} 
+                    name="bucketName" 
+                    value={profile.bucketName} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="您的 R2 存储桶名称" 
+                    className="rounded-full"
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -450,6 +443,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.accessKeyId} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="您的 R2 访问密钥 ID" 
+                    className="rounded-full"
                   />
                 </div>
                 <div className="space-y-2">
@@ -464,6 +458,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.secretAccessKey} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="您的 R2 秘密访问密钥" 
+                    className="rounded-full"
                   />
                 </div>
               </div>
@@ -479,6 +474,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                   value={profile.publicDomain || ''} 
                   onChange={(e) => onChange(profile.id, e)} 
                   placeholder="例如: https://cdn.yourdomain.com (可选)" 
+                  className="rounded-full"
                 />
                 <p className="text-xs text-muted-foreground">
                   配置自定义域名后，文件访问将使用您的域名而不是默认的R2域名，务必正确解析！
@@ -501,6 +497,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.accessKeyId} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="您的 OSS AccessKey ID" 
+                    className="rounded-full"
                   />
                 </div>
                 <div className="space-y-2">
@@ -515,6 +512,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.accessKeySecret} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="您的 OSS AccessKey Secret" 
+                    className="rounded-full"
                   />
                 </div>
               </div>
@@ -524,25 +522,14 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     <Container className="h-4 w-4" />
                     存储空间名称
                   </Label>
-                  <div className="flex gap-2">
-                    <Input 
-                      id={`bucket-${profile.id}`} 
-                      name="bucket" 
-                      value={profile.bucket} 
-                      onChange={(e) => onChange(profile.id, e)} 
-                      placeholder="您的 OSS 存储空间名称" 
-                      className="flex-1"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setShowBucketSelector(true)}
-                      title="选择存储桶"
-                    >
-                      <FolderOpen className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Input 
+                    id={`bucket-${profile.id}`} 
+                    name="bucket" 
+                    value={profile.bucket} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="您的 OSS 存储空间名称" 
+                    className="rounded-full"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor={`region-${profile.id}`} className="flex items-center gap-2">
@@ -555,6 +542,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.region} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="例如: oss-cn-hangzhou" 
+                    className="rounded-full"
                   />
                 </div>
               </div>
@@ -570,6 +558,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                   value={profile.publicDomain || ''} 
                   onChange={(e) => onChange(profile.id, e)} 
                   placeholder="例如: https://cdn.yourdomain.com (可选)" 
+                  className="rounded-full"
                 />
                 <p className="text-xs text-muted-foreground">
                   配置自定义域名后，文件访问将使用您的域名而不是默认的OSS域名，务必正确解析！
@@ -592,6 +581,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.secretId} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="您的 COS SecretId" 
+                    className="rounded-full"
                   />
                 </div>
                 <div className="space-y-2">
@@ -606,6 +596,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.secretKey} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="您的 COS SecretKey" 
+                    className="rounded-full"
                   />
                 </div>
               </div>
@@ -615,25 +606,14 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     <Container className="h-4 w-4" />
                     存储桶名称
                   </Label>
-                  <div className="flex gap-2">
-                    <Input 
-                      id={`bucket-${profile.id}`} 
-                      name="bucket" 
-                      value={profile.bucket} 
-                      onChange={(e) => onChange(profile.id, e)} 
-                      placeholder="格式: name-appid" 
-                      className="flex-1"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setShowBucketSelector(true)}
-                      title="选择存储桶"
-                    >
-                      <FolderOpen className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Input 
+                    id={`bucket-${profile.id}`} 
+                    name="bucket" 
+                    value={profile.bucket} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="格式: name-appid" 
+                    className="rounded-full"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor={`region-${profile.id}`} className="flex items-center gap-2">
@@ -646,6 +626,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.region} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="例如: ap-guangzhou" 
+                    className="rounded-full"
                   />
                 </div>
               </div>
@@ -661,6 +642,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                   value={profile.publicDomain || ''} 
                   onChange={(e) => onChange(profile.id, e)} 
                   placeholder="例如: https://cdn.yourdomain.com (可选)" 
+                  className="rounded-full"
                 />
                 <p className="text-xs text-muted-foreground">
                   配置自定义域名后，文件访问将使用您的域名而不是默认的COS域名，务必正确解析！
@@ -684,6 +666,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.accessToken} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="您的 Gitee Access Token" 
+                    className="rounded-full"
                   />
                 </div>
                 <div className="space-y-2">
@@ -697,6 +680,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.owner} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="Gitee 用户名或组织名" 
+                    className="rounded-full"
                   />
                 </div>
               </div>
@@ -712,6 +696,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.repo} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="仓库名称" 
+                    className="rounded-full"
                   />
                 </div>
                 <div className="space-y-2">
@@ -725,6 +710,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.branch} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="例如: main, master" 
+                    className="rounded-full"
                   />
                 </div>
               </div>
@@ -740,6 +726,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                   value={profile.publicDomain || ''} 
                   onChange={(e) => onChange(profile.id, e)} 
                   placeholder="例如: https://cdn.yourdomain.com (可选)" 
+                  className="rounded-full"
                 />
                 <p className="text-xs text-muted-foreground">
                   配置自定义域名后，文件访问将使用您的域名而不是默认的Gitee域名，务必正确解析！
@@ -762,6 +749,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.projectId} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="您的 GCP 项目 ID" 
+                    className="rounded-full"
                   />
                 </div>
                 <div className="space-y-2">
@@ -775,6 +763,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.bucketName} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="您的 GCS 存储桶名称" 
+                    className="rounded-full"
                   />
                 </div>
               </div>
@@ -791,7 +780,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                   onChange={(e) => onChange(profile.id, e)} 
                   placeholder='粘贴服务账号 JSON 密钥内容，例如: {"type":"service_account",...}'
                   rows={4}
-                  className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm"
+                  className="w-full px-3 py-2 border border-input bg-background rounded-xl text-sm"
                 />
                 <p className="text-xs text-muted-foreground">
                   从 GCP 控制台下载的服务账号 JSON 密钥文件内容
@@ -809,6 +798,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                   value={profile.keyFilename || ''} 
                   onChange={(e) => onChange(profile.id, e)} 
                   placeholder="例如: /path/to/service-account-key.json (可选)" 
+                  className="rounded-full"
                 />
                 <p className="text-xs text-muted-foreground">
                   如果不想直接粘贴 JSON，可以指定密钥文件的绝对路径
@@ -826,6 +816,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                   value={profile.publicDomain || ''} 
                   onChange={(e) => onChange(profile.id, e)} 
                   placeholder="例如: https://cdn.yourdomain.com (可选)" 
+                  className="rounded-full"
                 />
                 <p className="text-xs text-muted-foreground">
                   配置自定义域名后，文件访问将使用您的域名而不是默认的 GCS 域名
@@ -880,6 +871,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                           onChange(profile.id, { target: { name: 'proxyConfig', value: newProxyConfig } });
                         }}
                         placeholder="例如: http://127.0.0.1:7890 或 socks5://127.0.0.1:1080"
+                        className="rounded-full"
                       />
                       <p className="text-xs text-muted-foreground">
                         推荐：直接填写完整的代理 URL，包括协议、主机和端口
@@ -893,22 +885,54 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor={`proxyProtocol-${profile.id}`}>协议</Label>
-                        <select
-                          id={`proxyProtocol-${profile.id}`}
-                          value={profile.proxyConfig?.proxyProtocol || 'http'}
-                          onChange={(e) => {
-                            const newProxyConfig = {
-                              ...(profile.proxyConfig || {}),
-                              proxyProtocol: e.target.value
-                            };
-                            onChange(profile.id, { target: { name: 'proxyConfig', value: newProxyConfig } });
-                          }}
-                          className="w-full px-3 py-2 border border-input bg-background rounded-md text-sm"
+                        <MorphingMenu
+                          className="w-full h-10 z-30"
+                          triggerClassName="rounded-full border bg-background hover:bg-accent hover:text-accent-foreground"
+                          direction="top-left"
+                          collapsedRadius="20px"
+                          expandedRadius="20px"
+                          expandedWidth={150}
+                          trigger={
+                            <div className="flex w-full items-center justify-between px-3 text-sm font-medium">
+                              <span className="truncate">
+                                {(profile.proxyConfig?.proxyProtocol || 'http').toUpperCase()}
+                              </span>
+                              <ChevronsUpDown className="h-4 w-4 opacity-50 ml-2" />
+                            </div>
+                          }
                         >
-                          <option value="http">HTTP</option>
-                          <option value="https">HTTPS</option>
-                          <option value="socks5">SOCKS5</option>
-                        </select>
+                          <div className="flex flex-col p-2 gap-1 overflow-y-auto no-scrollbar">
+                            <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                              选择协议
+                            </div>
+                            <div className="h-px bg-border mx-2 my-1" />
+                            {['http', 'https', 'socks5'].map(proto => (
+                              <div
+                                key={proto}
+                                onClick={() => {
+                                  const newProxyConfig = {
+                                    ...(profile.proxyConfig || {}),
+                                    proxyProtocol: proto
+                                  };
+                                  onChange(profile.id, { target: { name: 'proxyConfig', value: newProxyConfig } });
+                                }}
+                                className={cn(
+                                  "relative flex cursor-pointer select-none items-center rounded-full px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground",
+                                  (profile.proxyConfig?.proxyProtocol || 'http') === proto && "bg-accent"
+                                )}
+                              >
+                                {(profile.proxyConfig?.proxyProtocol || 'http') === proto && (
+                                  <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                                    <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                                  </span>
+                                )}
+                                <span className={cn("ml-6", (profile.proxyConfig?.proxyProtocol || 'http') !== proto && "ml-6")}>
+                                  {proto.toUpperCase()}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </MorphingMenu>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor={`proxyHost-${profile.id}`}>主机</Label>
@@ -923,6 +947,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                             onChange(profile.id, { target: { name: 'proxyConfig', value: newProxyConfig } });
                           }}
                           placeholder="127.0.0.1"
+                          className="rounded-full"
                         />
                       </div>
                       <div className="space-y-2">
@@ -938,6 +963,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                             onChange(profile.id, { target: { name: 'proxyConfig', value: newProxyConfig } });
                           }}
                           placeholder="7890"
+                          className="rounded-full"
                         />
                       </div>
                     </div>
@@ -956,6 +982,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                             onChange(profile.id, { target: { name: 'proxyConfig', value: newProxyConfig } });
                           }}
                           placeholder="如果代理需要认证"
+                          className="rounded-full"
                         />
                       </div>
                       <div className="space-y-2">
@@ -972,6 +999,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                             onChange(profile.id, { target: { name: 'proxyConfig', value: newProxyConfig } });
                           }}
                           placeholder="如果代理需要认证"
+                          className="rounded-full"
                         />
                       </div>
                     </div>
@@ -993,6 +1021,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                             toast.error('代理测试失败', { description: error.message });
                           }
                         }}
+                        className="rounded-full"
                       >
                         <Plug className="h-4 w-4 mr-2" />
                         测试代理连接
@@ -1018,6 +1047,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.accessKeyId} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="您的华为云 Access Key ID" 
+                    className="rounded-full"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1032,6 +1062,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.secretAccessKey} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="您的华为云 Secret Access Key" 
+                    className="rounded-full"
                   />
                 </div>
               </div>
@@ -1041,48 +1072,78 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     <MapPin className="h-4 w-4" />
                     区域
                   </Label>
-                  <Select 
-                    value={profile.region} 
-                    onValueChange={(value) => onChange(profile.id, { target: { name: 'region', value } })}
+                  <MorphingMenu
+                    className="w-full h-10 z-30"
+                    triggerClassName="rounded-full border bg-background hover:bg-accent hover:text-accent-foreground"
+                    direction="top-left"
+                    collapsedRadius="20px"
+                    expandedRadius="20px"
+                    expandedWidth={300}
+                    trigger={
+                      <div className="flex w-full items-center justify-between px-3 text-sm font-medium">
+                        <span className="truncate">
+                          {[
+                            { value: "cn-north-4", label: "华北-北京四（cn-north-4）" },
+                            { value: "cn-north-1", label: "华北-北京一（cn-north-1）" },
+                            { value: "cn-east-3", label: "华东-上海一（cn-east-3）" },
+                            { value: "cn-east-2", label: "华东-上海二（cn-east-2）" },
+                            { value: "cn-south-1", label: "华南-广州（cn-south-1）" },
+                            { value: "ap-southeast-1", label: "亚太-香港（ap-southeast-1）" },
+                            { value: "ap-southeast-3", label: "亚太-新加坡（ap-southeast-3）" }
+                          ].find(r => r.value === profile.region)?.label || '选择区域'}
+                        </span>
+                        <ChevronsUpDown className="h-4 w-4 opacity-50 ml-2" />
+                      </div>
+                    }
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="选择区域" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cn-north-4">华北-北京四（cn-north-4）</SelectItem>
-                      <SelectItem value="cn-north-1">华北-北京一（cn-north-1）</SelectItem>
-                      <SelectItem value="cn-east-3">华东-上海一（cn-east-3）</SelectItem>
-                      <SelectItem value="cn-east-2">华东-上海二（cn-east-2）</SelectItem>
-                      <SelectItem value="cn-south-1">华南-广州（cn-south-1）</SelectItem>
-                      <SelectItem value="ap-southeast-1">亚太-香港（ap-southeast-1）</SelectItem>
-                      <SelectItem value="ap-southeast-3">亚太-新加坡（ap-southeast-3）</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    <div className="flex flex-col p-2 gap-1 max-h-[300px] overflow-y-auto [&::-webkit-scrollbar]:hidden">
+                      <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                        选择区域
+                      </div>
+                      <div className="h-px bg-border mx-2 my-1" />
+                      {[
+                        { value: "cn-north-4", label: "华北-北京四（cn-north-4）" },
+                        { value: "cn-north-1", label: "华北-北京一（cn-north-1）" },
+                        { value: "cn-east-3", label: "华东-上海一（cn-east-3）" },
+                        { value: "cn-east-2", label: "华东-上海二（cn-east-2）" },
+                        { value: "cn-south-1", label: "华南-广州（cn-south-1）" },
+                        { value: "ap-southeast-1", label: "亚太-香港（ap-southeast-1）" },
+                        { value: "ap-southeast-3", label: "亚太-新加坡（ap-southeast-3）" }
+                      ].map(item => (
+                        <div
+                          key={item.value}
+                          onClick={() => onChange(profile.id, { target: { name: 'region', value: item.value } })}
+                          className={cn(
+                            "relative flex cursor-pointer select-none items-center rounded-full px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground",
+                            profile.region === item.value && "bg-accent"
+                          )}
+                        >
+                          {profile.region === item.value && (
+                            <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                            </span>
+                          )}
+                          <span className={cn("ml-6", profile.region !== item.value && "ml-6")}>
+                            {item.label}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </MorphingMenu>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor={`bucket-${profile.id}`} className="flex items-center gap-2">
                     <Container className="h-4 w-4" />
                     存储桶名称
                   </Label>
-                  <div className="flex gap-2">
-                    <Input 
-                      id={`bucket-${profile.id}`} 
-                      name="bucket" 
-                      value={profile.bucket} 
-                      onChange={(e) => onChange(profile.id, e)} 
-                      placeholder="您的 OBS 存储桶名称" 
-                      className="flex-1"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setShowBucketSelector(true)}
-                      title="选择存储桶"
-                    >
-                      <FolderOpen className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Input 
+                    id={`bucket-${profile.id}`} 
+                    name="bucket" 
+                    value={profile.bucket} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="您的 OBS 存储桶名称" 
+                    className="rounded-full"
+                  />
                 </div>
               </div>
               
@@ -1097,6 +1158,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                   value={profile.publicDomain || ''} 
                   onChange={(e) => onChange(profile.id, e)} 
                   placeholder="例如: https://cdn.yourdomain.com (可选)" 
+                  className="rounded-full"
                 />
                 <p className="text-xs text-muted-foreground">
                   配置自定义域名后，文件访问将使用您的域名
@@ -1119,6 +1181,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.accessKeyId}
                     onChange={(e) => onChange(profile.id, e)}
                     placeholder="您的京东云 Access Key ID"
+                    className="rounded-full"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1133,6 +1196,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.secretAccessKey}
                     onChange={(e) => onChange(profile.id, e)}
                     placeholder="您的京东云 Secret Access Key"
+                    className="rounded-full"
                   />
                 </div>
               </div>
@@ -1143,47 +1207,76 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     <Container className="h-4 w-4" />
                     存储桶名称
                   </Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id={`bucket-${profile.id}`}
-                      name="bucket"
-                      value={profile.bucket}
-                      onChange={(e) => onChange(profile.id, e)}
-                      placeholder="您的京东云存储桶"
-                      className="flex-1"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setShowBucketSelector(true)}
-                      title="选择存储桶"
-                    >
-                      <FolderOpen className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Input
+                    id={`bucket-${profile.id}`}
+                    name="bucket"
+                    value={profile.bucket}
+                    onChange={(e) => onChange(profile.id, e)}
+                    placeholder="您的京东云存储桶"
+                    className="rounded-full"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor={`region-${profile.id}`} className="flex items-center gap-2">
                     <MapPin className="h-4 w-4" />
                     区域
                   </Label>
-                  <Select
-                    value={profile.region}
-                    onValueChange={(value) => onChange(profile.id, { target: { name: 'region', value } })}
+                  <MorphingMenu
+                    className="w-full h-10 z-30"
+                    triggerClassName="rounded-full border bg-background hover:bg-accent hover:text-accent-foreground"
+                    direction="top-left"
+                    collapsedRadius="20px"
+                    expandedRadius="20px"
+                    expandedWidth={300}
+                    trigger={
+                      <div className="flex w-full items-center justify-between px-3 text-sm font-medium">
+                        <span className="truncate">
+                          {[
+                            { value: "cn-north-1", label: "华北-北京（cn-north-1）" },
+                            { value: "cn-north-2", label: "华北-承德（cn-north-2）" },
+                            { value: "cn-east-1", label: "华东-宿迁（cn-east-1）" },
+                            { value: "cn-east-2", label: "华东-上海（cn-east-2）" },
+                            { value: "cn-south-1", label: "华南-广州（cn-south-1）" },
+                            { value: "ap-southeast-1", label: "亚太-曼谷（ap-southeast-1）" }
+                          ].find(r => r.value === profile.region)?.label || '选择区域'}
+                        </span>
+                        <ChevronsUpDown className="h-4 w-4 opacity-50 ml-2" />
+                      </div>
+                    }
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="选择区域" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cn-north-1">华北-北京（cn-north-1）</SelectItem>
-                      <SelectItem value="cn-north-2">华北-承德（cn-north-2）</SelectItem>
-                      <SelectItem value="cn-east-1">华东-宿迁（cn-east-1）</SelectItem>
-                      <SelectItem value="cn-east-2">华东-上海（cn-east-2）</SelectItem>
-                      <SelectItem value="cn-south-1">华南-广州（cn-south-1）</SelectItem>
-                      <SelectItem value="ap-southeast-1">亚太-曼谷（ap-southeast-1）</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    <div className="flex flex-col p-2 gap-1 max-h-[300px] overflow-y-auto [&::-webkit-scrollbar]:hidden">
+                      <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                        选择区域
+                      </div>
+                      <div className="h-px bg-border mx-2 my-1" />
+                      {[
+                        { value: "cn-north-1", label: "华北-北京（cn-north-1）" },
+                        { value: "cn-north-2", label: "华北-承德（cn-north-2）" },
+                        { value: "cn-east-1", label: "华东-宿迁（cn-east-1）" },
+                        { value: "cn-east-2", label: "华东-上海（cn-east-2）" },
+                        { value: "cn-south-1", label: "华南-广州（cn-south-1）" },
+                        { value: "ap-southeast-1", label: "亚太-曼谷（ap-southeast-1）" }
+                      ].map(item => (
+                        <div
+                          key={item.value}
+                          onClick={() => onChange(profile.id, { target: { name: 'region', value: item.value } })}
+                          className={cn(
+                            "relative flex cursor-pointer select-none items-center rounded-full px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground",
+                            profile.region === item.value && "bg-accent"
+                          )}
+                        >
+                          {profile.region === item.value && (
+                            <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                            </span>
+                          )}
+                          <span className={cn("ml-6", profile.region !== item.value && "ml-6")}>
+                            {item.label}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </MorphingMenu>
                 </div>
               </div>
 
@@ -1198,6 +1291,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                   value={profile.endpoint || ''}
                   onChange={(e) => onChange(profile.id, e)}
                   placeholder="例如: https://s3.cn-north-1.jdcloud-oss.com (可选)"
+                  className="rounded-full"
                 />
                 <p className="text-xs text-muted-foreground">
                   默认将根据所选区域推导官方域名，可在需要自建网关或专线时自定义。
@@ -1215,6 +1309,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                   value={profile.publicDomain || ''}
                   onChange={(e) => onChange(profile.id, e)}
                   placeholder="例如: https://cdn.example.com (可选)"
+                  className="rounded-full"
                 />
                 <p className="text-xs text-muted-foreground">
                   如果配置了 CDN 或自定义域名，公共访问与预签名链接将优先使用该域名。
@@ -1267,6 +1362,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.accessKey} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="您的七牛云 Access Key" 
+                    className="rounded-full"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1281,6 +1377,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.secretKey} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="您的七牛云 Secret Key" 
+                    className="rounded-full"
                   />
                 </div>
               </div>
@@ -1290,47 +1387,76 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     <MapPin className="h-4 w-4" />
                     存储区域
                   </Label>
-                  <Select 
-                    value={profile.zone} 
-                    onValueChange={(value) => onChange(profile.id, { target: { name: 'zone', value } })}
+                  <MorphingMenu
+                    className="w-full h-10 z-30"
+                    triggerClassName="rounded-full border bg-background hover:bg-accent hover:text-accent-foreground"
+                    direction="top-left"
+                    collapsedRadius="20px"
+                    expandedRadius="20px"
+                    expandedWidth={300}
+                    trigger={
+                      <div className="flex w-full items-center justify-between px-3 text-sm font-medium">
+                        <span className="truncate">
+                          {[
+                            { value: "z0", label: "华东-浙江1（z0）" },
+                            { value: "cn-east-2", label: "华东-浙江2（cn-east-2）" },
+                            { value: "z1", label: "华北（z1）" },
+                            { value: "z2", label: "华南（z2）" },
+                            { value: "na0", label: "北美（na0）" },
+                            { value: "as0", label: "亚太-新加坡（as0）" }
+                          ].find(r => r.value === profile.zone)?.label || '选择存储区域'}
+                        </span>
+                        <ChevronsUpDown className="h-4 w-4 opacity-50 ml-2" />
+                      </div>
+                    }
                   >
-                    <SelectTrigger>
-                      <SelectValue placeholder="选择存储区域" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="z0">华东-浙江1（z0）</SelectItem>
-                      <SelectItem value="cn-east-2">华东-浙江2（cn-east-2）</SelectItem>
-                      <SelectItem value="z1">华北（z1）</SelectItem>
-                      <SelectItem value="z2">华南（z2）</SelectItem>
-                      <SelectItem value="na0">北美（na0）</SelectItem>
-                      <SelectItem value="as0">亚太-新加坡（as0）</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    <div className="flex flex-col p-2 gap-1 max-h-[300px] overflow-y-auto [&::-webkit-scrollbar]:hidden">
+                      <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                        选择存储区域
+                      </div>
+                      <div className="h-px bg-border mx-2 my-1" />
+                      {[
+                        { value: "z0", label: "华东-浙江1（z0）" },
+                        { value: "cn-east-2", label: "华东-浙江2（cn-east-2）" },
+                        { value: "z1", label: "华北（z1）" },
+                        { value: "z2", label: "华南（z2）" },
+                        { value: "na0", label: "北美（na0）" },
+                        { value: "as0", label: "亚太-新加坡（as0）" }
+                      ].map(item => (
+                        <div
+                          key={item.value}
+                          onClick={() => onChange(profile.id, { target: { name: 'zone', value: item.value } })}
+                          className={cn(
+                            "relative flex cursor-pointer select-none items-center rounded-full px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground",
+                            profile.zone === item.value && "bg-accent"
+                          )}
+                        >
+                          {profile.zone === item.value && (
+                            <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                            </span>
+                          )}
+                          <span className={cn("ml-6", profile.zone !== item.value && "ml-6")}>
+                            {item.label}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </MorphingMenu>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor={`bucket-${profile.id}`} className="flex items-center gap-2">
                     <Container className="h-4 w-4" />
                     存储空间名称
                   </Label>
-                  <div className="flex gap-2">
-                    <Input 
-                      id={`bucket-${profile.id}`} 
-                      name="bucket" 
-                      value={profile.bucket} 
-                      onChange={(e) => onChange(profile.id, e)} 
-                      placeholder="您的七牛云存储空间名称" 
-                      className="flex-1"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={() => setShowBucketSelector(true)}
-                      title="选择存储空间"
-                    >
-                      <FolderOpen className="h-4 w-4" />
-                    </Button>
-                  </div>
+                  <Input 
+                    id={`bucket-${profile.id}`} 
+                    name="bucket" 
+                    value={profile.bucket} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="您的七牛云存储空间名称" 
+                    className="rounded-full"
+                  />
                 </div>
               </div>
               
@@ -1345,6 +1471,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                   value={profile.publicDomain || ''} 
                   onChange={(e) => onChange(profile.id, e)} 
                   placeholder="例如: https://cdn.yourdomain.com" 
+                  className="rounded-full"
                 />
                 <p className="text-xs text-muted-foreground">
                   七牛云需要配置自定义域名才能访问文件。请在七牛云控制台绑定域名后填写此处。
@@ -1381,7 +1508,87 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.smmsToken} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="您的 SM.MS Token" 
+                    className="rounded-full"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <HardDrive className="h-4 w-4" />
+                    存储配额
+                  </Label>
+                  <div className="flex gap-2">
+                    <div className="relative flex flex-1 items-center rounded-full border border-input bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 overflow-hidden h-9">
+                      <Input 
+                        id={`storageQuotaGB-${profile.id}`} 
+                        name="storageQuotaGB" 
+                        type="number"
+                        value={profile.storageQuotaGB || ''} 
+                        onChange={(e) => onChange(profile.id, e)} 
+                        placeholder="10"
+                        className="flex-1 border-0 shadow-none focus-visible:ring-0 h-full p-0 px-3 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <div className="flex flex-col h-full w-8 border-l border-input shrink-0">
+                        <div
+                          className="flex-1 flex items-center justify-center hover:bg-accent cursor-pointer border-b border-input transition-colors active:bg-accent/80"
+                          onClick={() => {
+                            const current = parseFloat(profile.storageQuotaGB) || 0;
+                            const newValue = (current || 0) + 1;
+                            onChange(profile.id, { target: { name: 'storageQuotaGB', value: newValue } });
+                          }}
+                        >
+                          <ChevronUp className="h-3 w-3 text-muted-foreground" />
+                        </div>
+                        <div
+                          className="flex-1 flex items-center justify-center hover:bg-accent cursor-pointer transition-colors active:bg-accent/80"
+                          onClick={() => {
+                            const current = parseFloat(profile.storageQuotaGB) || 0;
+                            const newValue = Math.max(0, current - 1);
+                            onChange(profile.id, { target: { name: 'storageQuotaGB', value: newValue } });
+                          }}
+                        >
+                          <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                        </div>
+                      </div>
+                    </div>
+                    <MorphingMenu
+                      className="w-24 h-10 z-30"
+                      triggerClassName="rounded-full border bg-background hover:bg-accent hover:text-accent-foreground"
+                      direction="top-left"
+                      collapsedRadius="20px"
+                      expandedRadius="20px"
+                      expandedWidth={100}
+                      trigger={
+                        <div className="flex w-full items-center justify-between px-3 text-sm font-medium">
+                          <span className="truncate">
+                            {profile.storageQuotaUnit || 'GB'}
+                          </span>
+                          <ChevronsUpDown className="h-4 w-4 opacity-50 ml-2" />
+                        </div>
+                      }
+                    >
+                      <div className="flex flex-col p-2 gap-1 overflow-y-auto [&::-webkit-scrollbar]:hidden">
+                        {['MB', 'GB', 'TB'].map(unit => (
+                          <div
+                            key={unit}
+                            onClick={() => onChange(profile.id, { target: { name: 'storageQuotaUnit', value: unit } })}
+                            className={cn(
+                              "relative flex cursor-pointer select-none items-center rounded-full px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground",
+                              (profile.storageQuotaUnit || 'GB') === unit && "bg-accent"
+                            )}
+                          >
+                            {(profile.storageQuotaUnit || 'GB') === unit && (
+                              <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                              </span>
+                            )}
+                            <span className={cn("ml-6", (profile.storageQuotaUnit || 'GB') !== unit && "ml-6")}>
+                              {unit}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </MorphingMenu>
+                  </div>
                 </div>
               </div>
             </>
@@ -1401,6 +1608,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.lskyUrl || ''} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="例如: https://your-lsky-domain.com" 
+                    className="rounded-full"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1414,6 +1622,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.lskyToken || ''} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="Bearer token，如：Bearer 1|xxxxx" 
+                    className="rounded-full"
                   />
                 </div>
 
@@ -1427,6 +1636,7 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                     value={profile.albumId || ''} 
                     onChange={(e) => onChange(profile.id, e)} 
                     placeholder="可选，相册ID" 
+                    className="rounded-full"
                   />
                 </div>
               </div>
@@ -1435,48 +1645,89 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
 
           <Separator />
           
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <HardDrive className="h-4 w-4" />
-              存储配额
-            </Label>
-            <div className="flex gap-2">
-              <Input 
-                id={`storageQuotaGB-${profile.id}`} 
-                name="storageQuotaGB" 
-                type="number"
-                value={profile.storageQuotaGB || ''} 
-                onChange={(e) => onChange(profile.id, e)} 
-                placeholder="默认: 10"
-                className="flex-1"
-              />
-              <Select 
-                value={profile.storageQuotaUnit || 'GB'} 
-                onValueChange={(value) => onChange(profile.id, { target: { name: 'storageQuotaUnit', value } })}
-              >
-                <SelectTrigger className="w-24">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MB">MB</SelectItem>
-                  <SelectItem value="GB">GB</SelectItem>
-                  <SelectItem value="TB">TB</SelectItem>
-                </SelectContent>
-              </Select>
+          {profile.type !== 'smms' && (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <HardDrive className="h-4 w-4" />
+                存储配额
+              </Label>
+              <div className="flex gap-2">
+                <div className="relative flex flex-1 items-center rounded-full border border-input bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 overflow-hidden h-9">
+                  <Input 
+                    id={`storageQuotaGB-${profile.id}`} 
+                    name="storageQuotaGB" 
+                    type="number"
+                    value={profile.storageQuotaGB || ''} 
+                    onChange={(e) => onChange(profile.id, e)} 
+                    placeholder="10"
+                    className="flex-1 border-0 shadow-none focus-visible:ring-0 h-full p-0 px-3 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <div className="flex flex-col h-full w-8 border-l border-input shrink-0">
+                    <div
+                      className="flex-1 flex items-center justify-center hover:bg-accent cursor-pointer border-b border-input transition-colors active:bg-accent/80"
+                      onClick={() => {
+                        const current = parseFloat(profile.storageQuotaGB) || 0;
+                        const newValue = (current || 0) + 1;
+                        onChange(profile.id, { target: { name: 'storageQuotaGB', value: newValue } });
+                      }}
+                    >
+                      <ChevronUp className="h-3 w-3 text-muted-foreground" />
+                    </div>
+                    <div
+                      className="flex-1 flex items-center justify-center hover:bg-accent cursor-pointer transition-colors active:bg-accent/80"
+                      onClick={() => {
+                        const current = parseFloat(profile.storageQuotaGB) || 0;
+                        const newValue = Math.max(0, current - 1);
+                        onChange(profile.id, { target: { name: 'storageQuotaGB', value: newValue } });
+                      }}
+                    >
+                      <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                    </div>
+                  </div>
+                </div>
+                <MorphingMenu
+                  className="w-24 h-10 z-30"
+                  triggerClassName="rounded-full border bg-background hover:bg-accent hover:text-accent-foreground"
+                  direction="top-left"
+                  collapsedRadius="20px"
+                  expandedRadius="20px"
+                  expandedWidth={100}
+                  trigger={
+                    <div className="flex w-full items-center justify-between px-3 text-sm font-medium">
+                      <span className="truncate">
+                        {profile.storageQuotaUnit || 'GB'}
+                      </span>
+                      <ChevronsUpDown className="h-4 w-4 opacity-50 ml-2" />
+                    </div>
+                  }
+                >
+                  <div className="flex flex-col p-2 gap-1 overflow-y-auto [&::-webkit-scrollbar]:hidden">
+                    {['MB', 'GB', 'TB'].map(unit => (
+                      <div
+                        key={unit}
+                        onClick={() => onChange(profile.id, { target: { name: 'storageQuotaUnit', value: unit } })}
+                        className={cn(
+                          "relative flex cursor-pointer select-none items-center rounded-full px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground",
+                          (profile.storageQuotaUnit || 'GB') === unit && "bg-accent"
+                        )}
+                      >
+                        {(profile.storageQuotaUnit || 'GB') === unit && (
+                          <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                          </span>
+                        )}
+                        <span className={cn("ml-6", (profile.storageQuotaUnit || 'GB') !== unit && "ml-6")}>
+                          {unit}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </MorphingMenu>
+              </div>
             </div>
-          </div>
+          )}
         </CardContent>
       )}
-      
-      <BucketSelector
-        profile={profile}
-        isOpen={showBucketSelector}
-        onClose={() => setShowBucketSelector(false)}
-        onSelect={(bucketName) => {
-          const fieldName = profile.type === 'r2' ? 'bucketName' : 'bucket';
-          onChange(profile.id, { target: { name: fieldName, value: bucketName } });
-        }}
-      />
       
       {/* 删除确认对话框 */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
@@ -1514,6 +1765,9 @@ export default function SettingsPage() {
   const [isTesting, setIsTesting] = useState({}); // Track by profile id
   const [isSaving, setIsSaving] = useState({}); // Track by profile id
   const [activeTab, setActiveTab] = useState('profiles'); // profiles | app
+  
+  const tabOrder = ['profiles', 'app', 'release'];
+  const activeTabIndex = Math.max(0, tabOrder.indexOf(activeTab));
 
   const fetchSettings = useCallback(async () => {
     const data = await window.api.getSettings();
@@ -1667,85 +1921,96 @@ export default function SettingsPage() {
   return (
     <div className="p-4 sm:p-6 space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full max-w-2xl grid-cols-3">
-          <TabsTrigger value="profiles" className="flex items-center gap-2">
-            <Cloud className="h-4 w-4" />
-            存储配置
-          </TabsTrigger>
+        <div className="w-full max-w-2xl mx-auto mb-6">
+          <TabsList className="grid w-full grid-cols-3 bg-muted/50 p-1 rounded-full h-12 relative z-0">
+            <div 
+              className="absolute top-1 bottom-1 rounded-full bg-background shadow-sm transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
+              style={{ 
+                left: `calc(${activeTabIndex * 100 / 3}% + 4px)`, 
+                width: `calc(${100 / 3}% - 8px)`
+              }} 
+            />
+            
+            <TabsTrigger 
+              value="profiles" 
+              className="flex items-center gap-2 rounded-full z-10 data-[state=active]:bg-transparent data-[state=active]:shadow-none transition-colors duration-200"
+            >
+              <Cloud className="h-4 w-4" />
+              存储配置
+            </TabsTrigger>
 
-          <TabsTrigger value="app" className="flex items-center gap-2">
-            <SettingsIcon className="h-4 w-4" />
-            应用设置
-          </TabsTrigger>
+            <TabsTrigger 
+              value="app" 
+              className="flex items-center gap-2 rounded-full z-10 data-[state=active]:bg-transparent data-[state=active]:shadow-none transition-colors duration-200"
+            >
+              <SettingsIcon className="h-4 w-4" />
+              应用设置
+            </TabsTrigger>
 
-          <TabsTrigger value="release" className="flex items-center gap-2">
-            <ScrollText className="h-4 w-4" />
-            更新日志
-          </TabsTrigger>
-        </TabsList>
+            <TabsTrigger 
+              value="release" 
+              className="flex items-center gap-2 rounded-full z-10 data-[state=active]:bg-transparent data-[state=active]:shadow-none transition-colors duration-200"
+            >
+              <ScrollText className="h-4 w-4" />
+              更新日志
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="profiles" className="space-y-4 mt-6">
           <Card>
-            <CardHeader>
-              <CardTitle>存储服务配置</CardTitle>
-              <CardDescription>
-                管理您的云存储服务配置。支持多个配置文件，可随时切换活动配置。
-              </CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <div className="space-y-1">
+                <CardTitle>存储服务配置</CardTitle>
+                <CardDescription>
+                  管理您的云存储服务配置。支持多个配置文件，可随时切换活动配置。
+                </CardDescription>
+              </div>
+              <MorphingMenu
+                className="w-32 h-9 z-40"
+                triggerClassName="rounded-full border bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+                direction="top-right"
+                collapsedRadius="20px"
+                expandedRadius="20px"
+                expandedWidth={220}
+                trigger={
+                  <div className="flex w-full items-center justify-center px-3 text-sm font-medium">
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    <span>添加配置</span>
+                  </div>
+                }
+              >
+                <div className="flex flex-col p-2 gap-1 overflow-y-auto max-h-[400px] [&::-webkit-scrollbar]:hidden">
+                  <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                    选择服务类型
+                  </div>
+                  <div className="h-px bg-border mx-2 my-1" />
+                  {[
+                    { type: 'r2', label: 'Cloudflare R2', icon: CloudflareIcon },
+                    { type: 'oss', label: '阿里云 OSS', icon: AliyunIcon },
+                    { type: 'cos', label: '腾讯云 COS', icon: TencentIcon },
+                    { type: 'smms', label: 'SM.MS 图床', icon: SmmsIcon },
+                    { type: 'lsky', label: '兰空图床', icon: LskyIcon },
+                    { type: 'gitee', label: 'Gitee 仓库', icon: GiteeIcon },
+                    { type: 'gcs', label: 'Google Cloud', icon: GoogleCloudIcon },
+                    { type: 'obs', label: '华为云 OBS', icon: HuaweiIcon },
+                    { type: 'jdcloud', label: '京东云对象存储', icon: JDCloudIcon },
+                    { type: 'qiniu', label: '七牛云 Kodo', icon: QiniuIcon },
+                  ].map((item) => (
+                    <div
+                      key={item.type}
+                      onClick={() => handleAddProfile(item.type)}
+                      className="relative flex cursor-pointer select-none items-center rounded-full px-2 py-2 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground"
+                    >
+                      <img src={item.icon} alt={item.label} className="mr-3 h-5 w-5 object-contain" />
+                      <span>{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </MorphingMenu>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* 添加配置按钮 - 移到上面 */}
-              <div className="flex justify-center mb-6">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="w-full">
-                      <PlusCircle className="mr-2 h-4 w-4" />
-                      添加存储配置
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-56">
-                    <DropdownMenuItem onClick={() => handleAddProfile('r2')}>
-                      <img src={CloudflareIcon} alt="Cloudflare R2" className="mr-2 h-4 w-4" />
-                      <span>Cloudflare R2</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleAddProfile('oss')}>
-                      <img src={AliyunIcon} alt="阿里云 OSS" className="mr-2 h-4 w-4" />
-                      <span>阿里云 OSS</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleAddProfile('cos')}>
-                      <img src={TencentIcon} alt="腾讯云 COS" className="mr-2 h-4 w-4" />
-                      <span>腾讯云 COS</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleAddProfile('smms')}>
-                      <img src={SmmsIcon} alt="SM.MS 图床" className="mr-2 h-4 w-4" />
-                      <span>SM.MS 图床</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleAddProfile('lsky')}>
-                      <img src={LskyIcon} alt="兰空图床" className="mr-2 h-4 w-4" />
-                      <span>兰空图床</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleAddProfile('gitee')}>
-                      <img src={GiteeIcon} alt="Gitee 仓库" className="mr-2 h-4 w-4" />
-                      <span>Gitee 仓库</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleAddProfile('gcs')}>
-                      <img src={GoogleCloudIcon} alt="Google Cloud" className="mr-2 h-4 w-4" />
-                      <span>Google Cloud</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleAddProfile('obs')}>
-                      <img src={HuaweiIcon} alt="华为云 OBS" className="mr-2 h-4 w-4" />
-                      <span>华为云 OBS</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleAddProfile('jdcloud')}>
-                      <img src={JDCloudIcon} alt="京东云对象存储" className="mr-2 h-4 w-4" />
-                      <span>京东云对象存储</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleAddProfile('qiniu')}>
-                      <img src={QiniuIcon} alt="七牛云 Kodo" className="mr-2 h-4 w-4" />
-                      <span>七牛云 Kodo</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+
 
               {profiles.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">

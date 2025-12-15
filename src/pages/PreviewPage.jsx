@@ -3,11 +3,13 @@ import { getFileIcon, isImage, isVideo, isAudio } from '@/lib/file-utils';
 import { PreviewHeader } from '@/components/PreviewHeader';
 import CodePreview from '@/components/CodePreview';
 import { toast } from 'sonner';
-import QRCode from 'qrcode';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import LottieAnimation from '@/components/LottieAnimation';
 import LoadingLottie from '@/assets/lottie/loding.lottie';
 import ErrorLottie from '@/assets/lottie/error.lottie';
+import { ZoomIn, ZoomOut } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { VideoPlayer } from '@/components/VideoPlayer';
 // removed inline context menu
 
 const compressedExtensions = ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'iso'];
@@ -35,8 +37,6 @@ export default function PreviewPage() {
   const imgRef = useRef(null);
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
-  const [isShareOpen, setIsShareOpen] = useState(false);
-  const [qrDataUrl, setQrDataUrl] = useState('');
   const loadingStartTimeRef = useRef(0);
   // removed inline context menu state
 
@@ -201,23 +201,6 @@ export default function PreviewPage() {
     }
   };
 
-  const handleShare = async () => {
-    if (!file) return;
-    try {
-      const dataUrl = await QRCode.toDataURL(file.publicUrl, { width: 200, margin: 1 });
-      setQrDataUrl(dataUrl);
-      setIsShareOpen(true);
-    } catch {
-      // 退化到复制
-      try {
-        await navigator.clipboard.writeText(file.publicUrl);
-        toast.success('已复制预览链接到剪贴板');
-      } catch {
-        toast.error('分享失败');
-      }
-    }
-  };
-
   const handleCopy = async () => {
     if (!file) return;
     if (isText) {
@@ -240,18 +223,6 @@ export default function PreviewPage() {
   };
 
   // removed inline context menu handlers
-
-  useEffect(() => {
-    const el = imgRef.current;
-    if (!el) return;
-    const onWheel = (e) => {
-      e.preventDefault();
-      const delta = e.deltaY < 0 ? 0.1 : -0.1;
-      handleZoom(delta);
-    };
-    el.addEventListener('wheel', onWheel, { passive: false });
-    return () => el.removeEventListener('wheel', onWheel);
-  }, [imgRef.current]);
 
   const renderPreview = () => {
     if (loading) {
@@ -284,7 +255,11 @@ export default function PreviewPage() {
         ref={imgRef}
         src={file.publicUrl} 
         alt={file.fileName} 
-        style={{ transform: `scale(${zoom}) rotate(${rotation}deg)`, transformOrigin: 'center center' }}
+        style={{ 
+          transform: `scale(${zoom}) rotate(${rotation}deg)`, 
+          transformOrigin: 'center center',
+          transition: 'transform 0.1s ease-out'
+        }}
         className="max-w-full max-h-full object-contain select-none"
         draggable="false"
         onDragStart={(e) => e.preventDefault()}
@@ -294,17 +269,16 @@ export default function PreviewPage() {
       />;
     }
     if (isVideo(file.fileName)) {
-      return <video 
-        src={file.publicUrl} 
-        controls 
-        autoPlay 
-        playsInline
-        preload="auto"
-        poster={posterUrl || undefined}
-        className="max-w-full max-h-full select-none"
-        draggable="false"
-        onDragStart={(e) => e.preventDefault()}
-      />;
+      return (
+        <div className="w-full h-full bg-black flex items-center justify-center">
+            <VideoPlayer 
+                src={file.publicUrl} 
+                poster={posterUrl || undefined}
+                autoPlay
+                className="w-full h-full max-w-full max-h-full"
+            />
+        </div>
+      );
     }
     if (isAudio(file.fileName)) {
       return (
@@ -366,40 +340,70 @@ export default function PreviewPage() {
   };
 
   return (
-    <div className="preview-page flex flex-col h-screen bg-background">
-      <PreviewHeader 
-        fileName={file ? file.fileName : '...'} 
-        isImage={file ? isImage(file.fileName) : false}
-        onZoomIn={() => handleZoom(0.1)}
-        onZoomOut={() => handleZoom(-0.1)}
-        onRotate={handleRotate}
-        onDownload={handleDownload}
-        onShare={handleShare}
-        onCopy={handleCopy}
-      />
-      <main className="flex-1 flex items-center justify-center overflow-hidden">
+    <div className="preview-page h-screen bg-background relative overflow-hidden">
+      <div className="absolute top-0 left-0 right-0 z-50">
+        <PreviewHeader 
+          fileName={file ? file.fileName : '...'} 
+          isImage={file ? isImage(file.fileName) : false}
+          onZoomIn={() => handleZoom(0.1)}
+          onZoomOut={() => handleZoom(-0.1)}
+          onRotate={handleRotate}
+          onDownload={handleDownload}
+          publicUrl={file?.publicUrl}
+          onCopy={handleCopy}
+          zoomLevel={zoom}
+        />
+      </div>
+      <main 
+        className={`w-full h-full flex items-center justify-center overflow-hidden relative ${file && isImage(file.fileName) ? '' : 'pt-14'}`}
+        onWheel={(e) => {
+          if (file && isImage(file.fileName)) {
+            const delta = e.deltaY < 0 ? 0.1 : -0.1;
+            handleZoom(delta);
+          }
+        }}
+      >
         {renderPreview()}
-      </main>
 
-      <Dialog open={isShareOpen} onOpenChange={setIsShareOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>分享</DialogTitle>
-            <DialogDescription>使用手机微信扫描二维码，或复制链接发送。</DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col items-center gap-3 py-2">
-            {qrDataUrl && <img src={qrDataUrl} alt="分享二维码" className="w-48 h-48" />}
-            <div className="text-xs text-muted-foreground">链接有效期约 15 分钟</div>
-            <button
-              className="px-3 py-2 rounded-md border hover:bg-accent"
-              onClick={async () => {
-                try { await navigator.clipboard.writeText(file.publicUrl); toast.success('链接已复制'); }
-                catch { toast.error('复制失败'); }
-              }}
-            >复制链接</button>
+        {/* 右下角悬浮缩放控制 */}
+        {file && isImage(file.fileName) && (
+          <div className="absolute bottom-4 right-4 flex items-center gap-2 bg-background/80 backdrop-blur-sm border rounded-full px-3 py-1.5 shadow-sm z-50">
+            <TooltipProvider delayDuration={0}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="w-6 h-6 rounded-full hover:bg-accent" 
+                    onClick={() => handleZoom(-0.1)}
+                  >
+                    <ZoomOut className="w-3.5 h-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>缩小</TooltipContent>
+              </Tooltip>
+              
+              <div className="text-xs font-mono font-medium min-w-[3rem] text-center select-none">
+                {Math.round(zoom * 100)}%
+              </div>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="w-6 h-6 rounded-full hover:bg-accent" 
+                    onClick={() => handleZoom(0.1)}
+                  >
+                    <ZoomIn className="w-3.5 h-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>放大</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
-        </DialogContent>
-      </Dialog>
+        )}
+      </main>
     </div>
   );
 } 

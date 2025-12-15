@@ -72,7 +72,7 @@ function DashboardEmptyStateIllustration({ hasSettings, onGoToSettings }) {
       {/* 功能提示 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl">
         <div className="text-center">
-          <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <BarChart3 className="w-8 h-8 text-blue-600 dark:text-blue-400" />
           </div>
           <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2 text-lg">存储统计</h4>
@@ -80,7 +80,7 @@ function DashboardEmptyStateIllustration({ hasSettings, onGoToSettings }) {
         </div>
         
         <div className="text-center">
-          <div className="w-16 h-16 bg-green-100 dark:bg-green-900 rounded-xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 bg-green-100 dark:bg-green-900 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Activity className="w-8 h-8 text-green-600 dark:text-green-400" />
           </div>
           <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2 text-lg">活动监控</h4>
@@ -88,7 +88,7 @@ function DashboardEmptyStateIllustration({ hasSettings, onGoToSettings }) {
         </div>
         
         <div className="text-center">
-          <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Database className="w-8 h-8 text-purple-600 dark:text-purple-400" />
           </div>
           <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2 text-lg">状态监控</h4>
@@ -121,12 +121,12 @@ function DashboardSkeleton() {
     <div className="flex-1 space-y-4 p-4 sm:p-6">
       <div className="flex items-center justify-between space-y-2">
         <Skeleton className="h-9 w-48" />
-        <Skeleton className="h-10 w-32" />
+        <Skeleton className="h-10 w-32 rounded-full" />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {[...Array(4)].map((_, i) => (
-          <Card key={i}>
+          <Card key={i} className="rounded-[24px]">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <Skeleton className="h-4 w-20" />
               <Skeleton className="h-8 w-8 rounded-full" />
@@ -140,29 +140,32 @@ function DashboardSkeleton() {
       </div>
 
       <div className="grid grid-cols-1 gap-4">
-        <Card>
+        <Card className="rounded-[24px]">
           <CardHeader>
             <Skeleton className="h-6 w-40" />
           </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex justify-between">
-              <Skeleton className="h-4 w-16" />
-              <Skeleton className="h-4 w-24" />
-            </div>
-            <Skeleton className="h-4 w-full" />
-            <div className="flex justify-between">
-              <Skeleton className="h-4 w-8" />
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-4 w-8" />
+          <CardContent>
+             <div className="space-y-4">
+                <div className="flex justify-between items-end">
+                    <div className="flex flex-col gap-2">
+                        <Skeleton className="h-4 w-20" />
+                        <Skeleton className="h-8 w-24" />
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                        <Skeleton className="h-4 w-20" />
+                        <Skeleton className="h-3 w-32" />
+                    </div>
+                </div>
+                <Skeleton className="h-3 w-full rounded-full" />
             </div>
           </CardContent>
         </Card>
         
-        <Card>
+        <Card className="rounded-[24px]">
           <CardHeader>
             <div className="flex justify-between items-center">
               <Skeleton className="h-6 w-32" />
-              <Skeleton className="h-9 w-28" />
+              <Skeleton className="h-9 w-28 rounded-full" />
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -346,7 +349,7 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">仪表盘</h2>
         <div className="flex items-center space-x-2">
-          <Button onClick={() => fetchData()} disabled={loading}>
+          <Button onClick={() => fetchData()} disabled={loading} className="rounded-full">
             <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
             刷新数据
           </Button>
@@ -354,7 +357,7 @@ export default function DashboardPage() {
       </div>
       
       {error && (
-        <div className="p-4 bg-destructive/10 text-destructive border border-destructive/20 rounded-md flex items-center gap-2">
+        <div className="p-4 bg-destructive/10 text-destructive border border-destructive/20 rounded-[24px] flex items-center gap-2">
           <AlertCircle className="h-5 w-5" />
           <div>
             <p className="font-semibold">数据加载出错</p>
@@ -364,7 +367,7 @@ export default function DashboardPage() {
       )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="rounded-[24px]">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">文件总数</CardTitle>
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/50">
@@ -376,7 +379,7 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">当前存储桶中的对象总数</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="rounded-[24px]">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">已用存储</CardTitle>
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/50">
@@ -388,7 +391,7 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">当前存储桶的总大小</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="rounded-[24px]">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">使用率</CardTitle>
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-900/50">
@@ -400,7 +403,7 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">存储空间使用百分比</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="rounded-[24px]">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">存储桶</CardTitle>
              <div className={cn(
@@ -434,7 +437,7 @@ export default function DashboardPage() {
       </div>
       
       <div className="grid grid-cols-1 gap-4">
-       <Card>
+       <Card className="rounded-[24px]">
          <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <span>存储使用情况</span>
@@ -442,33 +445,32 @@ export default function DashboardPage() {
             </CardTitle>
          </CardHeader>
          <CardContent>
-             <div className="space-y-2">
-                <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>已用空间</span>
-                    <span>{`${formatBytes(stats.totalSize)} / ${stats.storageQuotaGB ? stats.storageQuotaGB + ' ' + stats.storageQuotaUnit : '未设置'}`}</span>
+             <div className="space-y-4">
+                <div className="flex justify-between items-end">
+                    <div className="flex flex-col gap-1">
+                        <span className="text-sm text-muted-foreground">已用空间占比</span>
+                        <span className="text-3xl font-bold">{storageUsagePercent.toFixed(1)}%</span>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                        <span className="text-sm font-medium">{formatBytes(stats.totalSize)}</span>
+                        <span className="text-xs text-muted-foreground">
+                            / {stats.storageQuotaGB ? stats.storageQuotaGB + ' ' + stats.storageQuotaUnit : '∞'}
+                        </span>
+                    </div>
                 </div>
-                <div className="relative">
-                  <Progress value={storageUsagePercent} />
-                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-semibold">
-                    {storageUsagePercent.toFixed(1)}%
-                  </div>
-                </div>
-                <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>0%</span>
-                    <span>100%</span>
-                </div>
+                <Progress value={storageUsagePercent} className="h-3 rounded-full" />
             </div>
           </CardContent>
         </Card>
         
-        <Card>
+        <Card className="rounded-[24px]">
           <CardHeader>
             <div className="flex justify-between items-center">
               <CardTitle className="flex items-center gap-2">
                 <span>最近活动</span>
                 <Activity className="h-5 w-5 text-muted-foreground" />
               </CardTitle>
-              <Button variant="destructive" size="sm" onClick={handleClearActivities} disabled={activities.length === 0}>
+              <Button variant="destructive" size="sm" onClick={handleClearActivities} disabled={activities.length === 0} className="rounded-full">
                 <Trash2 className="h-4 w-4 mr-1" />
                 清除记录
               </Button>

@@ -54,7 +54,7 @@ function UploadsEmptyStateIllustration({ hasSettings, onGoToSettings }) {
       <div className="flex flex-col sm:flex-row gap-4 mb-12">
         <Button 
           onClick={onGoToSettings} 
-          className="flex items-center gap-2 px-8 py-4 text-lg"
+          className="flex items-center gap-2 px-8 py-4 text-lg rounded-full"
           size="lg"
         >
           <Settings className="w-6 h-6" />
@@ -65,7 +65,7 @@ function UploadsEmptyStateIllustration({ hasSettings, onGoToSettings }) {
           <Button 
             variant="outline" 
             onClick={onGoToSettings}
-            className="flex items-center gap-2 px-8 py-4 text-lg"
+            className="flex items-center gap-2 px-8 py-4 text-lg rounded-full"
             size="lg"
           >
             <Plus className="w-6 h-6" />
@@ -77,7 +77,7 @@ function UploadsEmptyStateIllustration({ hasSettings, onGoToSettings }) {
       {/* 功能提示 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl">
         <div className="text-center">
-          <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-3xl flex items-center justify-center mx-auto mb-4">
             <UploadCloud className="w-8 h-8 text-blue-600 dark:text-blue-400" />
           </div>
           <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2 text-lg">拖拽上传</h4>
@@ -85,7 +85,7 @@ function UploadsEmptyStateIllustration({ hasSettings, onGoToSettings }) {
         </div>
         
         <div className="text-center">
-          <div className="w-16 h-16 bg-green-100 dark:bg-green-900 rounded-xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 bg-green-100 dark:bg-green-900 rounded-3xl flex items-center justify-center mx-auto mb-4">
             <Zap className="w-8 h-8 text-green-600 dark:text-green-400" />
           </div>
           <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2 text-lg">高速传输</h4>
@@ -93,7 +93,7 @@ function UploadsEmptyStateIllustration({ hasSettings, onGoToSettings }) {
         </div>
         
         <div className="text-center">
-          <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-3xl flex items-center justify-center mx-auto mb-4">
             <Shield className="w-8 h-8 text-purple-600 dark:text-purple-400" />
           </div>
           <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2 text-lg">安全可靠</h4>
@@ -287,7 +287,7 @@ export default function UploadsPage() {
       </div>
 
       <Card 
-        className={`p-8 border-2 border-dashed ${isDragging ? 'border-primary' : 'border-border'}`}
+        className={`p-8 border-2 border-dashed rounded-3xl ${isDragging ? 'border-primary' : 'border-border'}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -297,7 +297,7 @@ export default function UploadsPage() {
           <h3 className="mt-4 text-lg font-medium">选择要上传的文件</h3>
           <p className="mt-1 text-sm text-muted-foreground">或者将文件拖放到这里</p>
           <div className="mt-6 flex justify-center">
-            <Button onClick={handleFileSelect} disabled={isUploading} className="flex items-center gap-2">
+            <Button onClick={handleFileSelect} disabled={isUploading} className="flex items-center gap-2 rounded-full">
               <FolderOpen className="h-4 w-4" />
               选择文件
             </Button>
@@ -315,6 +315,7 @@ export default function UploadsPage() {
                     size="icon"
                     onClick={handleClearList} 
                     disabled={isUploading}
+                    className="rounded-full"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -327,7 +328,7 @@ export default function UploadsPage() {
             <Button 
               onClick={startAllUploads} 
               disabled={isUploading || uploads.every(u => u.status !== 'pending')}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 rounded-full"
             >
               <UploadCloud className="h-4 w-4" />
               {isUploading ? '正在上传...' : '全部上传'}
@@ -342,7 +343,7 @@ export default function UploadsPage() {
             {uploads.map(file => {
               const displayName = file.key.split('/').pop();
               return (
-                <Card key={file.id} className="p-4 flex items-center space-x-4">
+                <Card key={file.id} className="p-4 flex items-center space-x-4 rounded-3xl">
                   <File className="h-6 w-6 text-muted-foreground" />
                   <div className="flex-1 space-y-1 min-w-0">
                     <p className="text-sm font-medium leading-none truncate" title={displayName}>{displayName}</p>
@@ -371,6 +372,7 @@ export default function UploadsPage() {
                           variant="outline" 
                           size="sm" 
                           onClick={() => navigator.clipboard.writeText(file.imageUrl)}
+                          className="rounded-full"
                         >
                           复制图片链接
                         </Button>
@@ -378,7 +380,7 @@ export default function UploadsPage() {
                       <TooltipProvider delayDuration={0}>
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" onClick={() => handleRemoveUpload(file.id)}>
+                            <Button variant="ghost" size="icon" onClick={() => handleRemoveUpload(file.id)} className="rounded-full">
                               <X className="h-4 w-4" />
                             </Button>
                           </TooltipTrigger>
@@ -394,7 +396,7 @@ export default function UploadsPage() {
                         <TooltipProvider delayDuration={0}>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon" onClick={() => pauseUpload(file.id)}>
+                              <Button variant="ghost" size="icon" onClick={() => pauseUpload(file.id)} className="rounded-full">
                                 <PauseCircle className="h-6 w-6" />
                               </Button>
                             </TooltipTrigger>
@@ -408,7 +410,7 @@ export default function UploadsPage() {
                         <TooltipProvider delayDuration={0}>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button variant="ghost" size="icon" onClick={() => resumeUpload(file.id)}>
+                              <Button variant="ghost" size="icon" onClick={() => resumeUpload(file.id)} className="rounded-full">
                                 <PlayCircle className="h-6 w-6" />
                               </Button>
                             </TooltipTrigger>
@@ -427,6 +429,7 @@ export default function UploadsPage() {
                                 size="icon" 
                                 onClick={() => startUpload(file.id)}
                                 disabled={isUploading}
+                                className="rounded-full"
                               >
                                 <Upload className="h-5 w-5 text-primary" />
                               </Button>
@@ -445,6 +448,7 @@ export default function UploadsPage() {
                               size="icon" 
                               onClick={() => handleRemoveUpload(file.id)} 
                               disabled={file.status === 'uploading'}
+                              className="rounded-full"
                             >
                               <X className="h-4 w-4" />
                             </Button>

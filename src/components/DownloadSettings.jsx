@@ -133,7 +133,7 @@ export default function DownloadSettings() {
               value={downloadPath}
               onChange={handlePathChange}
               placeholder="选择下载文件夹路径"
-              className="flex-1"
+              className="flex-1 rounded-full"
             />
             <Button
               variant="outline"
@@ -141,6 +141,7 @@ export default function DownloadSettings() {
               onClick={handleSelectPath}
               disabled={isLoading}
               title="选择文件夹"
+              className="rounded-full"
             >
               <FolderOpen className="h-4 w-4" />
             </Button>
@@ -150,6 +151,7 @@ export default function DownloadSettings() {
               onClick={handleResetPath}
               disabled={isLoading}
               title="重置为默认路径"
+              className="rounded-full"
             >
               <RefreshCw className="h-4 w-4" />
             </Button>

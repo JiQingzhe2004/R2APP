@@ -47,7 +47,7 @@ function DownloadsEmptyStateIllustration({ hasSettings, onGoToSettings }) {
       <div className="flex flex-col sm:flex-row gap-4 mb-12">
         <Button 
           onClick={onGoToSettings} 
-          className="flex items-center gap-2 px-8 py-4 text-lg"
+          className="flex items-center gap-2 px-8 py-4 text-lg rounded-full"
           size="lg"
         >
           <Settings className="w-6 h-6" />
@@ -58,7 +58,7 @@ function DownloadsEmptyStateIllustration({ hasSettings, onGoToSettings }) {
           <Button 
             variant="outline" 
             onClick={onGoToSettings}
-            className="flex items-center gap-2 px-8 py-4 text-lg"
+            className="flex items-center gap-2 px-8 py-4 text-lg rounded-full"
             size="lg"
           >
             <Plus className="w-6 h-6" />
@@ -70,7 +70,7 @@ function DownloadsEmptyStateIllustration({ hasSettings, onGoToSettings }) {
       {/* 功能提示 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl">
         <div className="text-center">
-          <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-3xl flex items-center justify-center mx-auto mb-4">
             <Download className="w-8 h-8 text-blue-600 dark:text-blue-400" />
           </div>
           <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2 text-lg">快速下载</h4>
@@ -78,7 +78,7 @@ function DownloadsEmptyStateIllustration({ hasSettings, onGoToSettings }) {
         </div>
         
         <div className="text-center">
-          <div className="w-16 h-16 bg-green-100 dark:bg-green-900 rounded-xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 bg-green-100 dark:bg-green-900 rounded-3xl flex items-center justify-center mx-auto mb-4">
             <Clock className="w-8 h-8 text-green-600 dark:text-green-400" />
           </div>
           <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2 text-lg">任务管理</h4>
@@ -86,7 +86,7 @@ function DownloadsEmptyStateIllustration({ hasSettings, onGoToSettings }) {
         </div>
         
         <div className="text-center">
-          <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-3xl flex items-center justify-center mx-auto mb-4">
             <HardDrive className="w-8 h-8 text-purple-600 dark:text-purple-400" />
           </div>
           <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-2 text-lg">本地管理</h4>
@@ -234,14 +234,14 @@ export default function DownloadsPage() {
             <h1 className="text-2xl font-bold">下载管理 ({activeTasks.length})</h1>
             <p className="text-muted-foreground">管理您的文件下载</p>
         </div>
-        <Button variant="outline" onClick={handleClearCompleted} disabled={taskValues.every(t => t.status !== 'completed')}>
+        <Button variant="outline" onClick={handleClearCompleted} disabled={taskValues.every(t => t.status !== 'completed')} className="rounded-full">
             <Trash2 className="mr-2 h-4 w-4" />
             清除已完成
         </Button>
       </div>
 
       {taskValues.length === 0 ? (
-         <div className="flex flex-col items-center justify-center text-center p-8 border-2 border-dashed rounded-lg">
+         <div className="flex flex-col items-center justify-center text-center p-8 border-2 border-dashed rounded-[24px]">
             <Download className="mx-auto h-12 w-12 text-muted-foreground" />
             <h3 className="mt-4 text-lg font-medium">暂无下载任务</h3>
             <p className="mt-1 text-sm text-muted-foreground">从文件管理页面开始下载后，会在这里显示。</p>
@@ -249,7 +249,7 @@ export default function DownloadsPage() {
       ) : (
         <div className="space-y-4">
             {taskValues.map(task => (
-                <Card key={task.id} className="p-4">
+                <Card key={task.id} className="p-4 rounded-[24px]">
                    <div className="flex items-center gap-4">
                        {getFileIcon(task.key)}
                        <div className="flex-1 min-w-0">
@@ -260,13 +260,13 @@ export default function DownloadsPage() {
                        </div>
                        <div className="flex items-center gap-2">
                            {task.status === 'completed' && (
-                                <Button variant="ghost" size="icon" onClick={() => window.api.showItemInFolder(task.filePath)}>
+                                <Button variant="ghost" size="icon" onClick={() => window.api.showItemInFolder(task.filePath)} className="rounded-full">
                                    <FolderOpen className="h-4 w-4" />
                                 </Button>
                            )}
                            {task.status === 'completed' && <CheckCircle className="h-6 w-6 text-green-500" />}
                            {task.status === 'error' && <AlertTriangle className="h-6 w-6 text-red-500" />}
-                           <Button variant="ghost" size="icon" onClick={() => handleDeleteTask(task.id)}>
+                           <Button variant="ghost" size="icon" onClick={() => handleDeleteTask(task.id)} className="rounded-full">
                                <X className="h-4 w-4" />
                            </Button>
                        </div>

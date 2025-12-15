@@ -1,6 +1,16 @@
 {
   "versions": [
     {
+      "version": "5.1.2",
+      "date": "2025-12-15",
+      "type": "重大更新",
+      "title": "界面UI更新",
+      "changes": [
+        "更新UI界面部分组件的显示方式，使其看上去更加QQ弹弹。"
+      ],
+      "breaking": false
+    },
+    {
       "version": "5.1.1",
       "date": "2025-11-07",
       "type": "功能更新",
