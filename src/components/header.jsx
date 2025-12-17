@@ -2,9 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Bell, TextSearch, ShieldEllipsis, ShieldCheck, ShieldX, ChevronsUpDown, Minus, Square, X, CheckCircle, XCircle, Trash2, Info, PictureInPicture2 } from 'lucide-react'
 import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
-import { Card } from "@/components/ui/Card"
 import { Input } from "@/components/ui/Input"
-import { Progress } from "@/components/ui/Progress"
+
 import {
   Tooltip,
   TooltipContent,
@@ -82,61 +81,13 @@ export function Header({
 
   // 定义需要显示存储桶选择的页面
   const showProfileSelector = ['/dashboard', '/files', '/uploads', '/downloads'].includes(location.pathname);
-  const [activeNotification, setActiveNotification] = useState(null);
-  const [isPopupVisible, setIsPopupVisible] = useState(false);
-  const [progress, setProgress] = useState(100);
   const [isMaximized, setIsMaximized] = useState(false);
-  const prevNotificationsRef = useRef();
 
   useEffect(() => {
     window.api.isWindowMaximized().then(setIsMaximized);
     const cleanup = window.api.onWindowMaximizedStatusChanged(setIsMaximized);
     return cleanup;
   }, []);
-
-  useEffect(() => {
-    if (notifications && (!prevNotificationsRef.current || notifications.length > prevNotificationsRef.current.length)) {
-      const newest = notifications[0];
-      if (newest && newest.id !== activeNotification?.id) {
-        setActiveNotification(newest);
-      }
-    }
-    prevNotificationsRef.current = notifications;
-  }, [notifications, activeNotification]);
-
-  useEffect(() => {
-    if (activeNotification) {
-      setIsPopupVisible(true);
-      setProgress(100);
-
-      const progressInterval = setInterval(() => setProgress(p => p > 0 ? p - 1 : 0), 100);
-      const timeout = setTimeout(() => setIsPopupVisible(false), 10000);
-
-      return () => {
-        clearInterval(progressInterval);
-        clearTimeout(timeout);
-      };
-    }
-  }, [activeNotification]);
-
-  useEffect(() => {
-    let unmountTimer;
-    if (!isPopupVisible && activeNotification) {
-      unmountTimer = setTimeout(() => {
-        setActiveNotification(null);
-      }, 300);
-    }
-    return () => clearTimeout(unmountTimer);
-  }, [isPopupVisible, activeNotification]);
-
-  const dismissPopup = () => {
-    setIsPopupVisible(false);
-  };
-
-  const handleRemoveAndDismiss = (id) => {
-    onRemoveNotification(id);
-    dismissPopup();
-  };
 
   const getStatusIcon = () => {
     if (r2Status.loading) {
@@ -255,7 +206,6 @@ export function Header({
           onOpenChange={(open) => {
             if (open) {
               onMarkAllRead();
-              dismissPopup();
             }
           }}
           trigger={
@@ -345,23 +295,6 @@ export function Header({
           </div>
         </MorphingMenu>
 
-        {/* 通知弹窗 */}
-        {activeNotification && (
-          <div className={`fixed top-16 right-4 z-50 w-72 transform transition-all duration-300 ease-in-out ${isPopupVisible ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-full'}`}>
-            <Card className="p-3 shadow-lg">
-              <div className="flex items-start gap-3">
-                <NotificationIcon type={activeNotification.type} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium break-words">{activeNotification.message}</p>
-                </div>
-                <button onClick={() => handleRemoveAndDismiss(activeNotification.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <Progress value={progress} className="h-1 mt-2" />
-            </Card>
-          </div>
-        )}
 
         {/* 窗口控制按钮 */}
         <div className="flex items-center gap-1 pl-2">

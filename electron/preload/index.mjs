@@ -133,6 +133,7 @@ export const api = {
   setSetting: (key, value) => ipcRenderer.invoke('set-setting', key, value),
   getSetting: (key) => ipcRenderer.invoke('get-setting', key),
   getDefaultDownloadPath: () => ipcRenderer.invoke('get-default-download-path'),
+  saveBase64Image: (directory, filename, base64Data) => ipcRenderer.invoke('save-base64-image', directory, filename, base64Data),
 
   // Shell integration (Windows)
   registerShellUploadMenu: () => ipcRenderer.invoke('register-shell-upload-menu'),

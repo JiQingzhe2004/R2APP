@@ -5,18 +5,141 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { MorphingMenu } from "@/components/ui/morphing-menu";
 import QRCode from 'qrcode';
 import { toast } from 'sonner';
+import BlackLogo from '@/assets/BlackLOGO.png';
+import WhiteLogo from '@/assets/WhiteLOGO.png';
+import { useTheme } from '@/components/theme-provider';
 
-export function PreviewHeader({ fileName, isImage = false, onZoomIn, onZoomOut, onRotate, onDownload, publicUrl, onCopy, zoomLevel = 1 }) {
+export function PreviewHeader({ fileName, isImage = false, onZoomIn, onZoomOut, onRotate, onDownload, publicUrl, shareUrl, onCopy, zoomLevel = 1 }) {
+  const { theme } = useTheme();
   const [isMaximized, setIsMaximized] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState('');
 
+  const qrUrl = shareUrl || publicUrl;
+
+  const handleDownloadQr = async () => {
+    if (!qrUrl) return;
+    try {
+      const isDark = theme === 'dark';
+      const bgColor = isDark ? '#09090b' : '#ffffff';
+      const fgColor = isDark ? '#ffffff' : '#000000';
+      const textColor = isDark ? '#ffffff' : '#000000';
+      const subTextColor = isDark ? '#a1a1aa' : '#666666';
+      const logoSrc = isDark ? BlackLogo : WhiteLogo;
+
+      // 生成高分辨率二维码
+      const highResQrUrl = await QRCode.toDataURL(qrUrl, { 
+        width: 800, 
+        margin: 1, 
+        errorCorrectionLevel: 'H',
+        color: {
+          dark: fgColor,
+          light: bgColor
+        }
+      });
+      
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const width = 600;
+      const height = 800;
+      canvas.width = width;
+      canvas.height = height;
+
+      // 绘制背景
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, width, height);
+      
+      // 加载 Logo
+      const logoImg = new Image();
+      logoImg.src = logoSrc;
+      await new Promise((resolve) => {
+           logoImg.onload = resolve;
+           logoImg.onerror = resolve; 
+      });
+      
+      // 绘制头部 (Logo + 标题)
+      const headerY = 80;
+      const logoSize = 60;
+      const titleText = "CS-Explorer";
+      ctx.font = 'bold 40px sans-serif';
+      const titleWidth = ctx.measureText(titleText).width;
+      
+      // 居中计算
+      const gap = 20;
+      const totalHeaderWidth = logoSize + gap + titleWidth;
+      const startX = (width - totalHeaderWidth) / 2;
+      
+      ctx.drawImage(logoImg, startX, headerY, logoSize, logoSize);
+      
+      ctx.fillStyle = textColor;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(titleText, startX + logoSize + gap, headerY + logoSize/2);
+
+      // 绘制二维码
+      const qrImg = new Image();
+      qrImg.src = highResQrUrl;
+      await new Promise(r => qrImg.onload = r);
+      
+      const qrSize = 400;
+      const qrX = (width - qrSize) / 2;
+      const qrY = headerY + logoSize + 60;
+      ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+
+      // 绘制底部文字
+      ctx.font = 'normal 24px sans-serif';
+      ctx.fillStyle = subTextColor;
+      ctx.textAlign = 'center';
+      ctx.fillText('扫描二维码下载文件', width / 2, qrY + qrSize + 50);
+      
+      // 获取下载路径
+      let downloadDir = '';
+      try {
+        const result = await window.api.getSetting('download-path');
+        if (result && result.success && result.value) {
+          downloadDir = result.value;
+        } else {
+          const defaultPath = await window.api.getDefaultDownloadPath();
+          if (defaultPath && defaultPath.success) {
+            downloadDir = defaultPath.path;
+          }
+        }
+      } catch (e) {
+        console.error('获取下载路径失败:', e);
+      }
+
+      const rawName = qrUrl.split('/').pop() || 'unknown';
+      const fileName = `CS-Explorer-${rawName.replace(/\.[^.]+$/, '')}.png`;
+      const dataUrl = canvas.toDataURL('image/png');
+
+      if (downloadDir) {
+        // 使用 IPC 保存文件
+        const saveResult = await window.api.saveBase64Image(downloadDir, fileName, dataUrl);
+        if (saveResult && saveResult.success) {
+          toast.success(`二维码图片已下载到: ${saveResult.filePath || downloadDir}`);
+        } else {
+          throw new Error(saveResult.error || '保存失败');
+        }
+      } else {
+        // 降级处理：使用浏览器下载
+        const link = document.createElement('a');
+        link.download = fileName;
+        link.href = dataUrl;
+        link.click();
+        toast.success('二维码图片已下载');
+      }
+
+    } catch (e) {
+      console.error(e);
+      toast.error('生成二维码图片失败');
+    }
+  };
+
   useEffect(() => {
-    if (publicUrl) {
-      QRCode.toDataURL(publicUrl, { width: 200, margin: 1 })
+    if (qrUrl) {
+      QRCode.toDataURL(qrUrl, { width: 200, margin: 1 })
         .then(url => setQrCodeUrl(url))
         .catch(err => console.error(err));
     }
-  }, [publicUrl]);
+  }, [qrUrl]);
 
   useEffect(() => {
     const init = async () => {
@@ -86,7 +209,7 @@ export function PreviewHeader({ fileName, isImage = false, onZoomIn, onZoomOut, 
 
       {/* 右侧：分享和窗口控制按钮 */}
       <div className="flex items-center flex-shrink-0 ml-auto" style={{ WebkitAppRegion: 'no-drag' }}>
-        {publicUrl && (
+        {qrUrl && (
              <MorphingMenu
                className="w-8 h-8 z-50 mr-2"
                triggerClassName="w-8 h-8 rounded-full border-none hover:bg-accent hover:text-accent-foreground p-0 bg-transparent"
@@ -117,14 +240,10 @@ export function PreviewHeader({ fileName, isImage = false, onZoomIn, onZoomOut, 
                     size="sm" 
                     variant="secondary" 
                     className="w-full rounded-full"
-                    onClick={() => {
-                      navigator.clipboard.writeText(publicUrl)
-                        .then(() => toast.success('链接已复制'))
-                        .catch(() => toast.error('复制失败'));
-                    }}
+                    onClick={handleDownloadQr}
                   >
-                    <Copy className="w-3 h-3 mr-2" />
-                    复制链接
+                    <Download className="w-3 h-3 mr-2" />
+                    下载二维码
                   </Button>
                </div>
              </MorphingMenu>

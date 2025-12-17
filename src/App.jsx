@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ThemeProvider } from "@/components/theme-provider"
+import { ThemeProvider, useTheme } from "@/components/theme-provider"
 import { Toaster, toast } from 'sonner';
 import { Layout, LayoutBody } from '@/components/ui/layout'
 import { Sidebar } from '@/components/sidebar'
@@ -191,10 +191,24 @@ function MainLayout() {
 
 function AppContent() {
   const { isVisible, hideConfetti } = useConfetti();
+  const { theme } = useTheme();
   
   return (
     <>
-      <Toaster richColors position="top-center" />
+      <Toaster 
+        richColors 
+        position="top-center" 
+        closeButton
+        theme={theme}
+        toastOptions={{
+          style: { borderRadius: '24px', WebkitAppRegion: 'no-drag' },
+          className: 'rounded-[24px]',
+          classNames: {
+            closeButton: '!left-auto !right-3 !top-3 !transform-none !bg-muted/50 hover:!bg-muted !border-none'
+          }
+        }}
+        style={{ marginTop: '60px' }}
+      />
       <Routes>
         <Route element={<MainLayout />}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />

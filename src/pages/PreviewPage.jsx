@@ -85,13 +85,14 @@ export default function PreviewPage() {
         }
 
         const routedPublicUrl = new URLSearchParams(window.location.hash.split('?')[1]).get('publicUrl');
+        const shareUrl = new URLSearchParams(window.location.hash.split('?')[1]).get('shareUrl');
         const publicUrl = routedPublicUrl || await window.api.getPresignedUrl(bucket, `${filePath}${fileName}`);
         
         if (!publicUrl) {
           throw new Error('无法获取文件预览链接。');
         }
         
-        setFile({ fileName, filePath, bucket, publicUrl });
+        setFile({ fileName, filePath, bucket, publicUrl, shareUrl });
         
         if (isImage(fileName)) {
           // 所有存储服务都使用直接URL加载，就像浏览器一样
@@ -350,6 +351,7 @@ export default function PreviewPage() {
           onRotate={handleRotate}
           onDownload={handleDownload}
           publicUrl={file?.publicUrl}
+          shareUrl={file?.shareUrl}
           onCopy={handleCopy}
           zoomLevel={zoom}
         />

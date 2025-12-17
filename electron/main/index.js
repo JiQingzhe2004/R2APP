@@ -788,7 +788,7 @@ function pauseAllActiveUploads() {
 }
 let initialFileInfo = null;
 
-function createPreviewWindow(fileName, filePath, bucket, publicUrl) {
+function createPreviewWindow(fileName, filePath, bucket, publicUrl, shareUrl) {
   const key = `${bucket}/${filePath}/${fileName}`;
 
   if (previewWindows.has(key)) {
@@ -800,7 +800,7 @@ function createPreviewWindow(fileName, filePath, bucket, publicUrl) {
   }
 
   // 设置初始文件信息
-  initialFileInfo = { fileName, filePath, bucket, publicUrl };
+  initialFileInfo = { fileName, filePath, bucket, publicUrl, shareUrl };
 
   const previewWindow = new BrowserWindow({
     width: 800,
@@ -838,6 +838,9 @@ function createPreviewWindow(fileName, filePath, bucket, publicUrl) {
   const queryObj = { fileName, filePath, bucket };
   if (publicUrl) {
     queryObj.publicUrl = publicUrl;
+  }
+  if (shareUrl) {
+    queryObj.shareUrl = shareUrl;
   }
   const query = new URLSearchParams(queryObj);
 
@@ -1490,6 +1493,24 @@ ipcMain.handle('get-default-download-path', () => {
     const downloadsPath = app.getPath('downloads');
     return { success: true, path: downloadsPath };
   } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// 保存 Base64 图片到指定目录
+ipcMain.handle('save-base64-image', async (event, directory, filename, base64Data) => {
+  try {
+    const filePath = join(directory, filename);
+    
+    // 移除 base64 头部信息 (e.g., "data:image/png;base64,")
+    const base64Image = base64Data.split(';base64,').pop();
+    
+    // 写入文件
+    fs.writeFileSync(filePath, base64Image, { encoding: 'base64' });
+    
+    return { success: true, filePath };
+  } catch (error) {
+    console.error('保存图片失败:', error);
     return { success: false, error: error.message };
   }
 });
@@ -3235,8 +3256,8 @@ ipcMain.on('resize-preview-window', (event, { width, height }) => {
 });
 
 ipcMain.on('open-preview-window', (event, fileInfo) => {
-  const { fileName, filePath, bucket, publicUrl } = fileInfo || {};
-  createPreviewWindow(fileName, filePath, bucket, publicUrl);
+  const { fileName, filePath, bucket, publicUrl, shareUrl } = fileInfo;
+  createPreviewWindow(fileName, filePath, bucket, publicUrl, shareUrl);
 });
 
 ipcMain.on('get-initial-file-info', (event) => {

@@ -14,6 +14,7 @@ import {
   DialogFooter,
   DialogTitle,
   DialogDescription,
+  DialogTrigger,
 } from "@/components/ui/dialog"
 import { 
   Table,
@@ -50,7 +51,7 @@ import {
 import { MorphingMenu } from "@/components/ui/morphing-menu"
 import { cn } from '@/lib/utils';
 import { 
-  RefreshCw, Trash2, Download, Copy, List, LayoutGrid, TextSearch, XCircle, FolderPlus, UploadCloud, FolderClosed, EllipsisVertical, Search, ArrowUpDown, Cloud, Settings, Plus, ChevronsUpDown, Check, QrCode
+  RefreshCw, Trash2, Download, Copy, List, LayoutGrid, TextSearch, XCircle, FolderPlus, UploadCloud, FolderClosed, EllipsisVertical, Search, ArrowUpDown, Cloud, Settings, Plus, ChevronsUpDown, Check, QrCode, X
 } from 'lucide-react';
 import { formatBytes, getFileIcon, getFileTypeDescription } from '@/lib/file-utils.jsx';
 import { useNotifications } from '@/contexts/NotificationContext';
@@ -66,8 +67,12 @@ import { useOutletContext } from 'react-router-dom';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DeleteOverlay, useDeleteState } from '@/components/ui/delete-overlay';
 import QRCode from 'qrcode';
+import BlackLogo from '@/assets/BlackLOGO.png';
+import WhiteLogo from '@/assets/WhiteLOGO.png';
+import { useTheme } from '@/components/theme-provider';
 
-function FileQrMenu({ publicUrl }) {
+function FileQrMenu({ publicUrl, variant = "outline", triggerClassName }) {
+  const { theme } = useTheme();
   const [qrCodeUrl, setQrCodeUrl] = useState('');
 
   useEffect(() => {
@@ -82,52 +87,171 @@ function FileQrMenu({ publicUrl }) {
 
   if (!publicUrl) return null;
 
-  return (
-    <MorphingMenu
-      className="h-9 w-9 z-50"
-      triggerClassName="w-9 h-9 rounded-full border bg-background hover:bg-accent hover:text-accent-foreground flex items-center justify-center"
-      direction="top-right"
-      collapsedRadius="18px"
-      expandedRadius="24px"
-      expandedWidth={260}
-      trigger={
-        <div className="flex w-full h-full items-center justify-center">
-          <QrCode className="h-4 w-4" />
-        </div>
+  const handleDownloadQr = async () => {
+    try {
+      const isDark = theme === 'dark';
+      const bgColor = isDark ? '#09090b' : '#ffffff';
+      const fgColor = isDark ? '#ffffff' : '#000000';
+      const textColor = isDark ? '#ffffff' : '#000000';
+      const subTextColor = isDark ? '#a1a1aa' : '#666666';
+      const logoSrc = isDark ? BlackLogo : WhiteLogo;
+
+      // 生成高分辨率二维码
+      const highResQrUrl = await QRCode.toDataURL(publicUrl, { 
+        width: 800, 
+        margin: 1, 
+        errorCorrectionLevel: 'H',
+        color: {
+          dark: fgColor,
+          light: bgColor
+        }
+      });
+      
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const width = 600;
+      const height = 800;
+      canvas.width = width;
+      canvas.height = height;
+
+      // 绘制背景
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, width, height);
+      
+      // 加载 Logo
+      const logoImg = new Image();
+      logoImg.src = logoSrc;
+      await new Promise((resolve) => {
+           logoImg.onload = resolve;
+           logoImg.onerror = resolve; 
+      });
+      
+      // 绘制头部 (Logo + 标题)
+      const headerY = 80;
+      const logoSize = 60;
+      const titleText = "CS-Explorer";
+      ctx.font = 'bold 40px sans-serif';
+      const titleWidth = ctx.measureText(titleText).width;
+      
+      // 居中计算
+      const gap = 20;
+      const totalHeaderWidth = logoSize + gap + titleWidth;
+      const startX = (width - totalHeaderWidth) / 2;
+      
+      ctx.drawImage(logoImg, startX, headerY, logoSize, logoSize);
+      
+      ctx.fillStyle = textColor;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(titleText, startX + logoSize + gap, headerY + logoSize/2);
+
+      // 绘制二维码
+      const qrImg = new Image();
+      qrImg.src = highResQrUrl;
+      await new Promise(r => qrImg.onload = r);
+      
+      const qrSize = 400;
+      const qrX = (width - qrSize) / 2;
+      const qrY = headerY + logoSize + 60;
+      ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+
+      // 绘制底部文字
+      ctx.font = 'normal 24px sans-serif';
+      ctx.fillStyle = subTextColor;
+      ctx.textAlign = 'center';
+      ctx.fillText('扫描二维码下载文件', width / 2, qrY + qrSize + 50);
+      
+      // 获取下载路径
+      let downloadDir = '';
+      try {
+        const result = await window.api.getSetting('download-path');
+        if (result && result.success && result.value) {
+          downloadDir = result.value;
+        } else {
+          const defaultPath = await window.api.getDefaultDownloadPath();
+          if (defaultPath && defaultPath.success) {
+            downloadDir = defaultPath.path;
+          }
+        }
+      } catch (e) {
+        console.error('获取下载路径失败:', e);
       }
-    >
-      <div className="flex flex-col items-center gap-4 p-4">
-        <div className="text-sm font-medium w-full text-center border-b pb-2">
-          扫码打开文件链接
+
+      const rawName = publicUrl.split('/').pop() || 'unknown';
+      const fileName = `CS-Explorer-${rawName.replace(/\.[^.]+$/, '')}.png`;
+      const dataUrl = canvas.toDataURL('image/png');
+
+      if (downloadDir) {
+        // 使用 IPC 保存文件
+        const saveResult = await window.api.saveBase64Image(downloadDir, fileName, dataUrl);
+        if (saveResult && saveResult.success) {
+          toast.success(`二维码图片已下载到: ${saveResult.filePath || downloadDir}`);
+        } else {
+          throw new Error(saveResult.error || '保存失败');
+        }
+      } else {
+        // 降级处理：使用浏览器下载
+        const link = document.createElement('a');
+        link.download = fileName;
+        link.href = dataUrl;
+        link.click();
+        toast.success('二维码图片已下载');
+      }
+
+    } catch (e) {
+      console.error(e);
+      toast.error('生成二维码图片失败');
+    }
+  };
+
+  return (
+    <Dialog>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DialogTrigger asChild>
+            <Button 
+              variant={variant} 
+              size="icon" 
+              className={cn("rounded-full", triggerClassName)}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <QrCode className="h-4 w-4" />
+            </Button>
+          </DialogTrigger>
+        </TooltipTrigger>
+        <TooltipContent>
+          <p>二维码</p>
+        </TooltipContent>
+      </Tooltip>
+      
+      <DialogContent className="sm:max-w-xs" onClick={(e) => e.stopPropagation()}>
+        <DialogHeader>
+          <DialogTitle className="text-center">文件二维码</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col items-center gap-4 py-2">
+          <div className="bg-white p-2 rounded-lg border shadow-sm">
+            {qrCodeUrl ? (
+              <img src={qrCodeUrl} alt="文件链接二维码" className="w-40 h-40" />
+            ) : (
+              <div className="w-40 h-40 flex items-center justify-center text-muted-foreground text-xs">
+                生成中...
+              </div>
+            )}
+          </div>
+          <div className="text-xs text-muted-foreground text-center">
+            使用微信或浏览器扫描二维码
+          </div>
+          <Button 
+            size="sm"
+            variant="default"
+            className="w-full rounded-full"
+            onClick={handleDownloadQr}
+          >
+            <Download className="h-3 w-3 mr-2" />
+            下载二维码
+          </Button>
         </div>
-        <div className="bg-white p-2 rounded-lg">
-          {qrCodeUrl ? (
-            <img src={qrCodeUrl} alt="文件链接二维码" className="w-40 h-40" />
-          ) : (
-            <div className="w-40 h-40 flex items-center justify-center text-muted-foreground text-xs">
-              生成中...
-            </div>
-          )}
-        </div>
-        <div className="text-xs text-muted-foreground text-center px-2">
-          使用微信或浏览器扫描二维码即可访问该文件链接
-        </div>
-        <Button
-          size="sm"
-          variant="secondary"
-          className="w-full rounded-full"
-          onClick={() => {
-            navigator.clipboard
-              .writeText(publicUrl)
-              .then(() => toast.success('链接已复制'))
-              .catch(() => toast.error('复制失败'));
-          }}
-        >
-          <Copy className="w-3 h-3 mr-2" />
-          复制链接
-        </Button>
-      </div>
-    </MorphingMenu>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -808,7 +932,8 @@ export default function FilesPage() {
                 fileName: fileName,
                 filePath: currentPrefix,
                 bucket: resolvedBucket,
-                publicUrl: (isSmms || isLsky) ? publicUrlInline : undefined
+                publicUrl: (isSmms || isLsky) ? publicUrlInline : undefined,
+                shareUrl: publicUrlInline
               });
             }
           }
@@ -846,14 +971,7 @@ export default function FilesPage() {
                     className={`flex-1 rounded-full ${publicUrl ? 'bg-muted' : 'bg-muted text-muted-foreground italic'}`}
                   />
                   <TooltipProvider delayDuration={0}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <FileQrMenu publicUrl={publicUrl} />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>{publicUrl ? '二维码' : '无可用链接'}</p>
-                      </TooltipContent>
-                    </Tooltip>
+                    <FileQrMenu publicUrl={publicUrl} variant="outline" />
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button 
@@ -986,61 +1104,56 @@ export default function FilesPage() {
                             <TableCell>{new Date(lastModified).toLocaleDateString()}</TableCell>
                             <TableCell className="text-right">
                                 {!isDir && (
-                                  <TooltipProvider delayDuration={0}>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <div onClick={(e) => e.stopPropagation()}>
-                                          <FileQrMenu publicUrl={publicUrl} />
-                                        </div>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>{publicUrl ? '二维码' : '无可用链接'}</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="rounded-full"
-                                          onClick={(e) => { e.stopPropagation(); handleCopyUrl(publicUrl); }}
-                                        >
-                                          <Copy className="h-4 w-4"/>
-                                        </Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>复制链接</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="rounded-full" onClick={(e) => { e.stopPropagation(); handleDownload(key);}} disabled={downloading[key]}><Download className="h-4 w-4"/></Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>下载</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="rounded-full" onClick={(e) => { e.stopPropagation(); handleDeleteClick(key);}} disabled={downloading[key]}><Trash2 className="h-4 w-4" color="hsl(var(--destructive))"/></Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>删除</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
+                                  <div className="flex items-center justify-end gap-1">
+                                    <TooltipProvider delayDuration={0}>
+                                    <FileQrMenu publicUrl={publicUrl} variant="ghost" />
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="rounded-full"
+                                            onClick={(e) => { e.stopPropagation(); handleCopyUrl(publicUrl); }}
+                                          >
+                                            <Copy className="h-4 w-4"/>
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>复制链接</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button variant="ghost" size="icon" className="rounded-full" onClick={(e) => { e.stopPropagation(); handleDownload(key);}} disabled={downloading[key]}><Download className="h-4 w-4"/></Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>下载</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button variant="ghost" size="icon" className="rounded-full" onClick={(e) => { e.stopPropagation(); handleDeleteClick(key);}} disabled={downloading[key]}><Trash2 className="h-4 w-4" color="hsl(var(--destructive))"/></Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>删除</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  </div>
                                 )}
                                 {isDir && (
-                                  <TooltipProvider delayDuration={0}>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="rounded-full" onClick={(e) => { e.stopPropagation(); handleDeleteClick(key); }}><Trash2 className="h-4 w-4" color="hsl(var(--destructive))"/></Button>
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>删除文件夹</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
+                                  <div className="flex items-center justify-end gap-1">
+                                    <TooltipProvider delayDuration={0}>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button variant="ghost" size="icon" className="rounded-full" onClick={(e) => { e.stopPropagation(); handleDeleteClick(key); }}><Trash2 className="h-4 w-4" color="hsl(var(--destructive))"/></Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>删除文件夹</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  </div>
                                 )}
                             </TableCell>
                         </TableRow>
