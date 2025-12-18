@@ -1,23 +1,23 @@
 import { useMemo } from 'react';
 import { Button } from "@/components/ui/Button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Progress } from "@/components/ui/Progress"
 import { useUpdate } from '@/contexts/UpdateContext';
-import { Download, RefreshCw, CheckCircle, XCircle, Loader2, HardDriveDownload, ScrollText, Info, Sparkles, ShieldCheck, Globe, X } from 'lucide-react'
-import WhiteLogo from '@/assets/WhiteLOGO.png';
-import BlackLogo from '@/assets/BlackLOGO.png';
+import { Download, RefreshCw, CheckCircle, XCircle, Loader2, HardDriveDownload, Info, X, Sparkles, Minus } from 'lucide-react'
 import versionData from '@/version.json';
-import { Link } from 'react-router-dom';
-import { useTheme } from '@/components/theme-provider';
 
 export default function UpdatePage() {
-  const { theme } = useTheme();
   // Check if we are in a standalone update window
   const isUpdateWindow = window.location.hash.includes('/update-window') || window.location.hash.includes('/update');
   
   const handleClose = () => {
     if (window.api && window.api.closeUpdateWindow) {
       window.api.closeUpdateWindow();
+    }
+  };
+
+  const handleMinimize = () => {
+    if (window.api && window.api.minimizeUpdateWindow) {
+      window.api.minimizeUpdateWindow();
     }
   };
 
@@ -31,8 +31,6 @@ export default function UpdatePage() {
     quitAndInstallUpdate
   } = useUpdate();
   
-  const logoSrc = theme === 'dark' ? BlackLogo : WhiteLogo;
-
   const downloadPercent = typeof progressInfo?.percent === 'number' ? progressInfo.percent : 0;
 
   const formatBytes = (bytes, fractionDigits = 2) => {
@@ -265,8 +263,16 @@ export default function UpdatePage() {
   if (isUpdateWindow) {
     return (
       <div className="h-screen w-screen bg-background relative flex flex-col overflow-hidden" style={{ WebkitAppRegion: 'drag' }}>
-        {/* Close Button */}
-        <div className="absolute top-3 right-3 z-50" style={{ WebkitAppRegion: 'no-drag' }}>
+        {/* Window Controls */}
+        <div className="absolute top-3 right-3 z-50 flex items-center gap-2" style={{ WebkitAppRegion: 'no-drag' }}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleMinimize}
+            className="rounded-full hover:bg-muted transition-colors h-8 w-8"
+          >
+            <Minus className="h-4 w-4" />
+          </Button>
           <Button
             variant="ghost"
             size="icon"
@@ -330,148 +336,14 @@ export default function UpdatePage() {
             </div>
           </div>
         </div>
+
+        {/* Copyright Footer */}
+        <div className="text-center text-[10px] text-muted-foreground/30 pb-3 select-none" style={{ WebkitAppRegion: 'no-drag' }}>
+          Copyright © 2025 CS-Explorer
+        </div>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-background relative">
-      <div className="container mx-auto px-4 py-8 max-w-5xl">
-        <section className="rounded-3xl border bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-6 sm:p-8 shadow-sm">
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-start gap-4">
-              <div className="relative flex h-16 w-16 items-center justify-center rounded-3xl bg-background/80 shadow-lg ring-1 ring-border">
-                <img src={logoSrc} alt="App Logo" className="h-12 w-12" draggable="false" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">更新中心</p>
-                <h1 className="mt-2 text-2xl font-semibold sm:text-3xl">保持 CS-Explorer 随时保持最佳状态</h1>
-                <p className="mt-2 text-sm text-muted-foreground">
-                获取最新的云存储支持、性能优化与安全修复。
-                </p>
-                <div className="mt-4 flex flex-wrap gap-3 text-xs sm:text-sm">
-                  <span className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 font-medium text-primary">
-                    当前版本 v{versionData.version}
-                  </span>
-                  <span className="inline-flex items-center rounded-full bg-muted px-3 py-1 text-muted-foreground">
-                    支持多云存储与网络代理
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <div className="space-y-6">
-          <Card className="shadow-sm rounded-3xl">
-            <CardContent className="space-y-6 pt-6">
-              <div className={`flex flex-col gap-4 rounded-3xl border p-5 transition-colors sm:flex-row sm:items-start ${tone.container}`}>
-                <div className={`flex h-12 w-12 items-center justify-center rounded-full ${tone.iconWrapper}`}>
-                  <StatusIcon className={`h-6 w-6 ${statusDisplay.iconAnimation || ''}`} />
-                </div>
-                <div className="space-y-3">
-                  <div className={`text-lg font-semibold ${tone.title}`}>{statusDisplay.title}</div>
-                  {statusDisplay.description && (
-                    <p className="text-sm text-muted-foreground">
-                      {statusDisplay.description}
-                    </p>
-                  )}
-                  {statusDisplay.extra}
-                </div>
-              </div>
-
-              {renderAction()}
-            </CardContent>
-          </Card>
-
-          {showProgressPanel && (
-            <Card className="shadow-sm overflow-hidden rounded-3xl">
-              <CardContent className="space-y-4 pt-6">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                    {status === 'downloading' ? (
-                      <>
-                        <Download className="h-4 w-4 text-primary" />
-                        <span>正在下载更新包</span>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="h-4 w-4 text-emerald-500" />
-                        <span>更新包已下载完成</span>
-                      </>
-                    )}
-                  </div>
-                  {(formattedTransferredSize || formattedTotalSize) && (
-                    <div className="text-xs text-muted-foreground">
-                      {status === 'downloading' && formattedTransferredSize && formattedTotalSize
-                        ? `${formattedTransferredSize} / ${formattedTotalSize}`
-                        : formattedTotalSize
-                          ? `安装包大小：${formattedTotalSize}`
-                          : null}
-                    </div>
-                  )}
-                </div>
-                <Progress
-                  value={status === 'downloaded' ? 100 : downloadPercent}
-                  className="h-3 w-full"
-                  indicatorClassName={status === 'downloaded' ? 'bg-emerald-500 animate-none' : 'bg-primary/80'}
-                />
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                  <span>{status === 'downloaded' ? '已完成 100%' : `已完成 ${downloadPercent.toFixed(1)}%`}</span>
-                  <div className="flex flex-wrap items-center gap-3">
-                    {status === 'downloading' && formattedSpeed && <span>速度 {formattedSpeed}</span>}
-                    {status === 'downloading' && formattedEta && <span>预计剩余 {formattedEta}</span>}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card className="shadow-sm rounded-3xl">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-primary" />
-                  更新提示
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-3 text-sm text-muted-foreground">
-                  <li className="flex items-start gap-2">
-                    <span className="mt-1 h-2 w-2 rounded-full bg-primary"></span>
-                    <span>检查更新后若发现新版本，系统将展示版本号。</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="mt-1 h-2 w-2 rounded-full bg-primary"></span>
-                    <span>如需回顾历史版本变化，可前往“系统设置 &gt; 更新日志”查看。</span>
-                  </li>
-                </ul>
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-sm rounded-3xl">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ShieldCheck className="h-5 w-5 text-primary" />
-                  升级小贴士
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-3 text-sm text-muted-foreground">
-                  <li className="flex items-start gap-2">
-                    <Download className="mt-0.5 h-4 w-4 text-primary" />
-                    <span>下载期间请保持应用运行，避免中断或切断网络连接。</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle className="mt-0.5 h-4 w-4 text-primary" />
-                    <span>更新完成后，重启应用即可体验最新功能与优化。</span>
-                  </li>
-                </ul>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
+  return null;
 } 

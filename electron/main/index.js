@@ -252,7 +252,7 @@ async function executeWithProxy(operation) {
   }
 }
 
-let currentProvider = 'github'; // 'github' or 'gitee'
+let currentProvider = 'custom'; // 'custom'
 
 const githubProvider = {
   provider: 'github',
@@ -260,8 +260,7 @@ const githubProvider = {
   repo: 'R2APP',
 };
 
-// 请确保这里的 owner 和 repo 与您 package.json 中的一致
-const giteeProvider = {
+const customProvider = {
   provider: 'generic',
   url: 'https://wpaiupload.aiqji.com'
 };
@@ -859,6 +858,11 @@ function createUpdateWindow() {
     return;
   }
 
+  // Resolve icon path for packaged vs dev
+  const resolvedIconPath = app.isPackaged
+    ? join(process.resourcesPath, process.platform === 'win32' ? 'icon.ico' : 'icon.png')
+    : join(__dirname, '../../resources/icon.ico');
+
   updateWindow = new BrowserWindow({
     width: 360,
     height: 520,
@@ -873,8 +877,8 @@ function createUpdateWindow() {
     frame: false,
     titleBarStyle: 'hidden',
     autoHideMenuBar: true,
-    modal: true,
-    parent: mainWindow // Make it a child of the main window
+    center: true, // 独立窗口居中显示
+    ...(process.platform === 'linux' ? {} : { icon: resolvedIconPath }),
   });
 
   updateWindow.on('ready-to-show', () => {
@@ -899,6 +903,12 @@ ipcMain.on('open-update-window', () => {
 ipcMain.on('close-update-window', () => {
   if (updateWindow && !updateWindow.isDestroyed()) {
     updateWindow.close();
+  }
+});
+
+ipcMain.on('minimize-update-window', () => {
+  if (updateWindow && !updateWindow.isDestroyed()) {
+    updateWindow.minimize();
   }
 });
 
@@ -1155,15 +1165,17 @@ app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.r2.explorer')
 
   // --- Set Feed URL for Updater ---
-  // In production, it will automatically use the GitHub provider.
-  // In development, we point it to our local server.
+  // Always use Custom Provider as default
+  console.log('Updater: Setting provider to Custom Provider.');
+  currentProvider = 'custom';
+  autoUpdater.setFeedURL(customProvider);
+  
   if (is.dev) {
-    console.log('Updater: Development mode detected. Using dev-app-update.yml for configuration.');
+    console.log('Updater: Development mode detected. Enabling forceDevUpdateConfig.');
+    // Force dev update config to allow using setFeedURL in dev mode if supported
+    // Note: Electron-updater behavior in dev mode can be tricky.
+    // We will rely on manual checks triggering setFeedURL.
     autoUpdater.forceDevUpdateConfig = true;
-  } else {
-    console.log('Updater: Production mode. Setting initial provider to GitHub.');
-    currentProvider = 'github';
-    autoUpdater.setFeedURL(githubProvider);
   }
 
   globalShortcut.register('F5', () => {
@@ -1299,7 +1311,7 @@ app.whenReady().then(async () => {
 
   // In production, this will now try GitHub first, then fallback to Gitee.
   // In dev, it will use the local config.
-  autoUpdater.checkForUpdates();
+  // autoUpdater.checkForUpdates(); // Moved to renderer init to avoid race conditions
 
   // Now that the main window exists, handle --upload args (first instance)
   handleUploadArgv(process.argv);
@@ -1360,6 +1372,8 @@ function cleanReleaseNotes(notes, defaultMessage = '新版本可用，包含功�
   return cleanedNotes;
 }
 
+let isCheckingForUpdates = false;
+
 function setupAutoUpdater() {
   console.log('Updater: Initializing event listeners...');
 
@@ -1368,10 +1382,12 @@ function setupAutoUpdater() {
 
   autoUpdater.on('checking-for-update', () => {
     console.log('Updater: Checking for update...');
+    isCheckingForUpdates = true;
   })
 
   autoUpdater.on('update-available', (info) => {
     console.log('Updater: Update available.', info);
+    isCheckingForUpdates = false;
     
     // 清理 releaseNotes，移除 GitHub 链接等无用信息
     info.releaseNotes = cleanReleaseNotes(info.releaseNotes, '新版本可用，包含功能更新和问题修复。');
@@ -1379,12 +1395,19 @@ function setupAutoUpdater() {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('update-available', info);
     }
+    if (updateWindow && !updateWindow.isDestroyed()) {
+      updateWindow.webContents.send('update-available', info);
+    }
   })
 
   autoUpdater.on('update-not-available', (info) => {
     console.log('Updater: Update not available.', info);
+    isCheckingForUpdates = false;
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('update-not-available');
+    }
+    if (updateWindow && !updateWindow.isDestroyed()) {
+      updateWindow.webContents.send('update-not-available');
     }
   });
 
@@ -1393,10 +1416,14 @@ function setupAutoUpdater() {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('update-download-progress', progressObj);
     }
+    if (updateWindow && !updateWindow.isDestroyed()) {
+      updateWindow.webContents.send('update-download-progress', progressObj);
+    }
   });
 
   autoUpdater.on('update-downloaded', (info) => {
     console.log('Updater: Update downloaded.', info);
+    isCheckingForUpdates = false;
     
     // 清理 releaseNotes，移除 GitHub 链接等无用信息
     info.releaseNotes = cleanReleaseNotes(info.releaseNotes, '新版本已下载完成，包含功能更新和问题修复。');
@@ -1404,38 +1431,40 @@ function setupAutoUpdater() {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('update-downloaded', info);
     }
+    if (updateWindow && !updateWindow.isDestroyed()) {
+      updateWindow.webContents.send('update-downloaded', info);
+    }
   });
 
   autoUpdater.on('error', (err) => {
     console.error(`Updater: Error from ${currentProvider}:`, err);
-    // If GitHub fails, try Gitee as a fallback.
-    if (currentProvider === 'github') {
-      console.log('Updater: GitHub provider failed. Trying Gitee as a fallback...');
-      currentProvider = 'gitee';
-      autoUpdater.setFeedURL(giteeProvider);
-      // 只有在窗口存在时才继续更新检查
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        autoUpdater.checkForUpdates();
-      }
-    } else {
-      // If Gitee also fails, then send the final error to the renderer.
-      console.error('Updater: Gitee provider also failed. Reporting error to renderer.');
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('update-error', err);
-      }
+    isCheckingForUpdates = false;
+    
+    // Report error to renderer directly, no fallback
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('update-error', err);
+    }
+    if (updateWindow && !updateWindow.isDestroyed()) {
+      updateWindow.webContents.send('update-error', err);
     }
   });
 }
 
 ipcMain.handle('check-for-updates', () => {
-  console.log('IPC: Received "check-for-updates". Triggering updater with GitHub as primary.');
-  // Always start with GitHub when manually checking
-  currentProvider = 'github';
+  if (isCheckingForUpdates) {
+    console.log('IPC: Update check already in progress. Ignoring request.');
+    return;
+  }
+  console.log('IPC: Received "check-for-updates". Triggering updater with Custom Provider.');
+  // Always use Custom Provider
+  currentProvider = 'custom';
   if (is.dev) {
-     // In dev, we use the local yml file, which simulates one provider.
+     // In dev, try to use the same logic as prod to test URL
+     console.log('IPC: Dev mode check. Forcing setFeedURL.');
+     autoUpdater.setFeedURL(customProvider);
      autoUpdater.checkForUpdates();
   } else {
-     autoUpdater.setFeedURL(githubProvider);
+     autoUpdater.setFeedURL(customProvider);
      autoUpdater.checkForUpdates();
   }
 });
@@ -1463,9 +1492,6 @@ ipcMain.handle('show-notification', (event, notificationData) => {
       silent: silent,
       tag: tag || 'default'
     };
-    
-    // 发送通知到渲染进程
-    event.sender.send('notification-clicked', { title, body, tag });
     
     // 如果需要在主进程也显示通知（可选）
     if (process.platform === 'win32') {

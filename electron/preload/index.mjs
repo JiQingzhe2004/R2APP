@@ -33,6 +33,7 @@ export const api = {
   // Window Management
   openUpdateWindow: () => ipcRenderer.send('open-update-window'),
   closeUpdateWindow: () => ipcRenderer.send('close-update-window'),
+  minimizeUpdateWindow: () => ipcRenderer.send('minimize-update-window'),
   getObjectContent: (bucket, key) => ipcRenderer.invoke('get-object-content', bucket, key),
   uploadFile: (filePath, key) => ipcRenderer.invoke('upload-file', { filePath, key }),
   showOpenDialog: (options) => ipcRenderer.invoke('show-open-dialog', options),

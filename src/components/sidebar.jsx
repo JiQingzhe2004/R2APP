@@ -20,6 +20,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useState, useEffect } from 'react'
+import pkg from '../../package.json'
 
 export function Sidebar({ isCollapsed, onToggle }) {
   const location = useLocation();
@@ -129,7 +130,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
           })}
         </ul>
       </nav>
-      <div className="p-4 border-t">
+      <div className="p-4 border-t flex flex-col">
           <Tooltip>
             <TooltipTrigger asChild>
          <div
@@ -155,6 +156,10 @@ export function Sidebar({ isCollapsed, onToggle }) {
               </TooltipContent>
             )}
           </Tooltip>
+          
+          <div className="text-[10px] text-center text-muted-foreground/40 pt-2 whitespace-nowrap overflow-hidden select-none">
+            v{pkg.version}
+          </div>
       </div>
     </aside>
     </TooltipProvider>

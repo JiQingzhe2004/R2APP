@@ -31,7 +31,19 @@ export function UpdateProvider({ children }) {
         console.log('Context: Update available', info);
         setStatus('available');
         setUpdateInfo(info);
-        setIsUpdateModalOpen(true); // Open the initial dialog
+        
+        // 检查本次会话是否已经提示过该版本的更新
+        // 使用 sessionStorage 确保刷新页面后不会再次弹窗（除非是新版本）
+        const promptKey = `update-prompt-${info.version}`;
+        const hasSeenPrompt = sessionStorage.getItem(promptKey);
+        
+        // 检查是否在独立的更新窗口中
+        const isUpdateWindow = window.location.hash.includes('/update-window') || window.location.hash.includes('/update');
+
+        if (!hasSeenPrompt && !isUpdateWindow) {
+          setIsUpdateModalOpen(true); // Open the initial dialog
+          sessionStorage.setItem(promptKey, 'true');
+        }
       }),
       window.api.onUpdateNotAvailable(() => {
         console.log('Context: Update not available');
