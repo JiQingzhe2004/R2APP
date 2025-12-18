@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/Button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Progress } from "@/components/ui/Progress"
 import { useUpdate } from '@/contexts/UpdateContext';
-import { Download, RefreshCw, CheckCircle, XCircle, Loader2, HardDriveDownload, ScrollText, Info, Sparkles, ShieldCheck, Globe } from 'lucide-react'
+import { Download, RefreshCw, CheckCircle, XCircle, Loader2, HardDriveDownload, ScrollText, Info, Sparkles, ShieldCheck, Globe, X } from 'lucide-react'
 import WhiteLogo from '@/assets/WhiteLOGO.png';
 import BlackLogo from '@/assets/BlackLOGO.png';
 import versionData from '@/version.json';
@@ -12,6 +12,15 @@ import { useTheme } from '@/components/theme-provider';
 
 export default function UpdatePage() {
   const { theme } = useTheme();
+  // Check if we are in a standalone update window
+  const isUpdateWindow = window.location.hash.includes('/update-window') || window.location.hash.includes('/update');
+  
+  const handleClose = () => {
+    if (window.api && window.api.closeUpdateWindow) {
+      window.api.closeUpdateWindow();
+    }
+  };
+
   const {
     status,
     updateInfo,
@@ -253,9 +262,81 @@ export default function UpdatePage() {
   const tone = tonePalette[statusDisplay.tone] || tonePalette.neutral;
   const StatusIcon = statusDisplay.icon;
 
+  if (isUpdateWindow) {
+    return (
+      <div className="h-screen w-screen bg-background relative flex flex-col overflow-hidden" style={{ WebkitAppRegion: 'drag' }}>
+        {/* Close Button */}
+        <div className="absolute top-3 right-3 z-50" style={{ WebkitAppRegion: 'no-drag' }}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleClose}
+            className="rounded-full hover:bg-destructive/10 hover:text-destructive transition-colors h-8 w-8"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Main Content Centered */}
+        <div className="flex-1 flex flex-col items-center justify-center p-8" style={{ WebkitAppRegion: 'no-drag' }}>
+          <div className="w-full max-w-md space-y-6">
+            {/* Status Icon & Title */}
+            <div className="flex flex-col items-center text-center gap-4">
+               <div className={`flex h-16 w-16 items-center justify-center rounded-full ${tone.iconWrapper} bg-opacity-20`}>
+                  <StatusIcon className={`h-8 w-8 ${statusDisplay.iconAnimation || ''}`} />
+               </div>
+               <div className="space-y-2">
+                 <h2 className={`text-xl font-semibold ${tone.title}`}>{statusDisplay.title}</h2>
+                 {statusDisplay.description && (
+                   <p className="text-sm text-muted-foreground px-4">
+                     {statusDisplay.description}
+                   </p>
+                 )}
+               </div>
+            </div>
+
+            {/* Release Notes (Simplified) */}
+            {status === 'available' && updateInfo?.releaseNotes && (
+               <div className="max-h-24 overflow-y-auto rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground custom-scrollbar">
+                 <div className="whitespace-pre-line">{updateInfo.releaseNotes}</div>
+               </div>
+            )}
+            
+            {/* Progress Bar */}
+            {showProgressPanel && (
+              <div className="space-y-2">
+                 <Progress
+                    value={status === 'downloaded' ? 100 : downloadPercent}
+                    className="h-2 w-full"
+                    indicatorClassName={status === 'downloaded' ? 'bg-emerald-500 animate-none' : 'bg-primary/80'}
+                  />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{status === 'downloaded' ? '100%' : `${downloadPercent.toFixed(1)}%`}</span>
+                    <span>{status === 'downloading' && formattedSpeed ? formattedSpeed : ''}</span>
+                  </div>
+              </div>
+            )}
+
+            {/* Error Message */}
+            {status === 'error' && errorInfo && (
+              <div className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-xs text-destructive">
+                 {errorInfo.message || '未知错误'}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="pt-2">
+              {renderAction()}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-4 sm:p-6">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+    <div className="min-h-screen bg-background relative">
+      <div className="container mx-auto px-4 py-8 max-w-5xl">
         <section className="rounded-3xl border bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-6 sm:p-8 shadow-sm">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
           <div className="flex items-start gap-4">

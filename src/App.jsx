@@ -61,18 +61,22 @@ function AppUpdateDialog() {
         if (data.tag === 'update-available') {
           // 关闭对话框
           setIsUpdateModalOpen(false);
-          // 跳转到更新页面
-          navigate('/update');
+          // 打开独立更新窗口
+          if (window.api.openUpdateWindow) {
+            window.api.openUpdateWindow();
+          }
         }
       });
       
       return removeListener;
     }
-  }, [setIsUpdateModalOpen, navigate]);
+  }, [setIsUpdateModalOpen]);
 
   const handleGoToUpdate = () => {
-    navigate('/update');
     setIsUpdateModalOpen(false);
+    if (window.api && window.api.openUpdateWindow) {
+      window.api.openUpdateWindow();
+    }
   };
 
   return (
@@ -223,6 +227,7 @@ function AppContent() {
           <Route path="/update" element={<UpdatePage />} />
         </Route>
         <Route path="/preview" element={<PreviewPage />} />
+        <Route path="/update-window" element={<UpdatePage />} />
       </Routes>
       <AppUpdateDialog />
       <ConfettiOverlay isVisible={isVisible} onComplete={hideConfetti} />
@@ -233,7 +238,7 @@ function AppContent() {
 function App() {
   return (
     <Router>
-      <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
+      <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
         <UpdateProvider>
           <NotificationProvider>
             <ConfettiProvider>

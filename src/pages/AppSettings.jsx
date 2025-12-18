@@ -101,7 +101,7 @@ export default function AppSettings() {
               trigger={
                 <div className="flex w-full items-center justify-between px-3 text-sm font-medium">
                   <span className="truncate">
-                    {theme === 'light' ? '浅色' : theme === 'dark' ? '深色' : '跟随系统'}
+                    {theme === 'light' ? '浅色' : theme === 'dark' ? '深色' : theme === 'violet' ? '紫罗兰' : theme === 'green' ? '森林绿' : '跟随系统'}
                   </span>
                   <ChevronsUpDown className="h-4 w-4 opacity-50 ml-2" />
                 </div>
@@ -115,6 +115,8 @@ export default function AppSettings() {
                 {[
                   { value: 'light', label: '浅色' },
                   { value: 'dark', label: '深色' },
+                  { value: 'violet', label: '紫罗兰' },
+                  { value: 'green', label: '森林绿' },
                   { value: 'system', label: '跟随系统' }
                 ].map(item => (
                   <div

@@ -17,7 +17,7 @@ const fileTypeMappings = [
   { type: '压缩包', extensions: ['zip', 'rar', '7z', 'tar', 'gz'], icon: <Archive className="h-10 w-10 text-orange-500" /> },
   { type: '代码', extensions: ['js', 'jsx', 'ts', 'tsx', 'py', 'java', 'c', 'cpp', 'go', 'html', 'css'], icon: <Code className="h-10 w-10 text-indigo-500" /> },
   { type: 'JSON', extensions: ['json'], icon: <FileJson className="h-10 w-10 text-purple-500" /> },
-  { type: '应用', extensions: ['exe', 'app', 'dmg'], icon: <AppWindow className="h-10 w-10 text-gray-500" /> },
+  { type: '应用', extensions: ['exe', 'app', 'dmg', 'msi', 'pkg', 'deb', 'apk', 'ipa'], icon: <AppWindow className="h-10 w-10 text-gray-500" /> },
 ];
 
 export const getFileMeta = (file) => {

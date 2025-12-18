@@ -852,6 +852,56 @@ function createPreviewWindow(fileName, filePath, bucket, publicUrl, shareUrl) {
   previewWindows.set(key, previewWindow);
 }
 
+let updateWindow = null;
+function createUpdateWindow() {
+  if (updateWindow && !updateWindow.isDestroyed()) {
+    updateWindow.focus();
+    return;
+  }
+
+  updateWindow = new BrowserWindow({
+    width: 360,
+    height: 520,
+    resizable: false,
+    webPreferences: {
+      preload: join(__dirname, '../preload/index.mjs'),
+      sandbox: false,
+      contextIsolation: true,
+      webSecurity: true,
+    },
+    show: false,
+    frame: false,
+    titleBarStyle: 'hidden',
+    autoHideMenuBar: true,
+    modal: true,
+    parent: mainWindow // Make it a child of the main window
+  });
+
+  updateWindow.on('ready-to-show', () => {
+    updateWindow.show()
+  })
+
+  updateWindow.on('closed', () => {
+    updateWindow = null;
+  });
+
+  const updateUrl = is.dev && process.env['ELECTRON_RENDERER_URL']
+    ? `${process.env['ELECTRON_RENDERER_URL']}/#/update-window`
+    : `file://${join(__dirname, '../renderer/index.html')}#/update-window`;
+
+  updateWindow.loadURL(updateUrl);
+}
+
+ipcMain.on('open-update-window', () => {
+  createUpdateWindow();
+});
+
+ipcMain.on('close-update-window', () => {
+  if (updateWindow && !updateWindow.isDestroyed()) {
+    updateWindow.close();
+  }
+});
+
 
 
 function createWindow() {
@@ -874,7 +924,7 @@ function createWindow() {
       sandbox: false,
       contextIsolation: true,
       devTools: !app.isPackaged,
-      webSecurity: false, // 禁用web安全策略以允许跨域图片加载
+      webSecurity: true, // 启用web安全策略
     }
   })
   // Intercept close to support minimize-to-tray
@@ -1079,6 +1129,23 @@ app.whenReady().then(async () => {
     // 修改请求头，添加必要的 headers
     details.requestHeaders['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
     callback({ requestHeaders: details.requestHeaders });
+  });
+
+  // 处理跨域请求，允许所有来源加载图片等资源
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const responseHeaders = { ...details.responseHeaders };
+    
+    // 移除可能存在的 CORS 限制头，防止冲突
+    delete responseHeaders['access-control-allow-origin'];
+    delete responseHeaders['access-control-allow-headers'];
+    delete responseHeaders['access-control-allow-methods'];
+    
+    // 注入允许跨域的头
+    responseHeaders['Access-Control-Allow-Origin'] = ['*'];
+    responseHeaders['Access-Control-Allow-Headers'] = ['*'];
+    responseHeaders['Access-Control-Allow-Methods'] = ['*'];
+
+    callback({ responseHeaders });
   });
 
   

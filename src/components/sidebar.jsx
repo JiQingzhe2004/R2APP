@@ -1,9 +1,6 @@
 import {
   File,
-  HardDriveDownload,
   Settings,
-  Sun,
-  Moon,
   PanelLeftClose,
   PanelRightClose,
   LayoutDashboard,
@@ -13,7 +10,6 @@ import {
   Bell
 } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
-import { useTheme } from "./theme-provider"
 import { cn } from "@/lib/utils"
 import WhiteLogo from '@/assets/WhiteLOGO.png'
 import BlackLogo from '@/assets/BlackLOGO.png'
@@ -26,7 +22,6 @@ import {
 import { useState, useEffect } from 'react'
 
 export function Sidebar({ isCollapsed, onToggle }) {
-  const { theme, setTheme } = useTheme()
   const location = useLocation();
   const isActive = (path) => location.pathname.startsWith(path);
 
@@ -39,7 +34,6 @@ export function Sidebar({ isCollapsed, onToggle }) {
     { id: 'announcements', href: '/announcements', icon: Bell, label: '系统公告' },
     { id: 'settings', href: '/settings', icon: Settings, label: '系统设置' },
 
-    { id: 'update', href: '/update', icon: HardDriveDownload, label: '应用更新' },
     { id: 'about', href: '/about', icon: BadgeInfo, label: '关于应用' },
   ]
 
@@ -138,35 +132,10 @@ export function Sidebar({ isCollapsed, onToggle }) {
       <div className="p-4 border-t">
           <Tooltip>
             <TooltipTrigger asChild>
-        <div
-                  draggable="false"
-            className={cn(
-              "flex items-center rounded-full transition-all duration-300 ease-in-out select-none h-12 w-full text-muted-foreground cursor-pointer hover:text-primary justify-start pl-3.5"
-            )}
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-        >
-            {theme === 'dark' ? 
-              <Moon className={cn("h-5 w-5 flex-shrink-0 transition-all duration-300 ease-in-out", isCollapsed ? "mr-0" : "mr-3")} /> : 
-              <Sun className={cn("h-5 w-5 flex-shrink-0 transition-all duration-300 ease-in-out", isCollapsed ? "mr-0" : "mr-3")} />
-            }
-            <span className={cn(
-              "whitespace-nowrap overflow-hidden transition-all duration-300 ease-in-out",
-              isCollapsed ? "max-w-0 opacity-0 translate-x-[-10px]" : "max-w-[200px] opacity-100 translate-x-0"
-            )}>{theme === 'dark' ? '深色模式' : '浅色模式'}</span>
-        </div>
-            </TooltipTrigger>
-            {isCollapsed && (
-              <TooltipContent side="right">
-                <p>{theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}</p>
-              </TooltipContent>
-            )}
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
          <div
                   draggable="false"
             className={cn(
-              "mt-2 flex items-center rounded-full transition-all duration-300 ease-in-out select-none h-12 w-full text-muted-foreground cursor-pointer hover:text-primary justify-start pl-3.5"
+              "flex items-center rounded-full transition-all duration-300 ease-in-out select-none h-12 w-full text-muted-foreground cursor-pointer hover:text-primary justify-start pl-3.5"
             )}
             onClick={onToggle}
         >

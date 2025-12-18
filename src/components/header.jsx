@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { Bell, TextSearch, ShieldEllipsis, ShieldCheck, ShieldX, ChevronsUpDown, Minus, Square, X, CheckCircle, XCircle, Trash2, Info, PictureInPicture2 } from 'lucide-react'
+import { Bell, TextSearch, ShieldEllipsis, ShieldCheck, ShieldX, ChevronsUpDown, Minus, Square, X, CheckCircle, XCircle, Trash2, Info, PictureInPicture2, Sun, Moon, Monitor, Palette, Leaf, Cloud, CloudUpload } from 'lucide-react'
 import { useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Input } from "@/components/ui/Input"
+import { useTheme } from "@/components/theme-provider"
+import { useUpdate } from '@/contexts/UpdateContext';
 
 import {
   Tooltip,
@@ -54,6 +56,8 @@ export function Header({
   onClearNotifications,
   onRemoveNotification
 }) {
+  const { theme, setTheme } = useTheme();
+  const { status } = useUpdate();
   const location = useLocation();
   const showSearch = location.pathname === '/files';
   const [inputValue, setInputValue] = useState(searchTerm || '');
@@ -198,6 +202,60 @@ export function Header({
           </Tooltip>
         </TooltipProvider>
 
+        {/* 主题切换 */}
+        <MorphingMenu
+          className="w-8 h-8 z-50"
+          triggerClassName="rounded-full border bg-background hover:bg-accent hover:text-accent-foreground flex items-center justify-center"
+          direction="top-right"
+          collapsedRadius="16px"
+          expandedRadius="20px"
+          expandedWidth={200}
+          trigger={
+            <>
+              {theme === 'light' && <Sun className="h-4 w-4" />}
+              {theme === 'dark' && <Moon className="h-4 w-4" />}
+              {theme === 'system' && <Monitor className="h-4 w-4" />}
+              {theme === 'violet' && <Palette className="h-4 w-4" />}
+              {theme === 'green' && <Leaf className="h-4 w-4" />}
+              {theme === 'cloud-dancer' && <Cloud className="h-4 w-4" />}
+            </>
+          }
+        >
+          <div className="flex flex-col p-2 gap-1">
+            <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+              选择主题
+            </div>
+            <div className="h-px bg-border mx-2 my-1" />
+            {[
+              { value: 'light', label: '浅色', icon: Sun },
+              { value: 'dark', label: '深色', icon: Moon },
+              { value: 'violet', label: '紫罗兰', icon: Palette },
+              { value: 'green', label: '森林绿', icon: Leaf },
+              { value: 'cloud-dancer', label: '云上舞白', icon: Cloud },
+              { value: 'system', label: '跟随系统', icon: Monitor }
+            ].map(item => (
+              <div
+                key={item.value}
+                onClick={() => setTheme(item.value)}
+                className={cn(
+                  "relative flex cursor-pointer select-none items-center rounded-full px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground",
+                  theme === item.value && "bg-accent"
+                )}
+              >
+                {theme === item.value && (
+                  <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                  </span>
+                )}
+                <item.icon className={cn("ml-6 h-4 w-4 mr-2", theme !== item.value && "ml-6")} />
+                <span>
+                  {item.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </MorphingMenu>
+
         {/* 通知按钮 */}
         <MorphingMenu
           className="h-8 w-8 z-50"
@@ -295,6 +353,19 @@ export function Header({
           </div>
         </MorphingMenu>
 
+
+        {/* 更新按钮 */}
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="rounded-full border bg-background hover:bg-accent hover:text-accent-foreground h-8 w-8 relative"
+          onClick={() => window.api.openUpdateWindow()}
+        >
+          <CloudUpload className="h-4 w-4" />
+          {status === 'available' && (
+            <span className="absolute top-0 right-0 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-background animate-pulse" />
+          )}
+        </Button>
 
         {/* 窗口控制按钮 */}
         <div className="flex items-center gap-1 pl-2">
