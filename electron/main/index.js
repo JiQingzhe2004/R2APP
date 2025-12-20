@@ -1612,6 +1612,10 @@ ipcMain.handle('save-profiles', (event, { profiles, activeProfileId }) => {
   try {
     store.set('profiles', profiles);
     store.set('activeProfileId', activeProfileId);
+    
+    // Clear API instances cache when profiles change
+    apiInstances.clear();
+    
     return { success: true };
   } catch (error) {
     console.error('Failed to save profiles:', error);

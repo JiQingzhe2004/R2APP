@@ -1898,7 +1898,7 @@ export default function SettingsPage() {
     
     const result = await window.api.saveProfiles({ 
       profiles: updatedProfiles, // 保存所有配置，而不是只保存单个配置
-      activeProfileId: activeProfileId === profileId ? profileId : null 
+      activeProfileId: activeProfileId 
     });
 
     if (result.success) {
