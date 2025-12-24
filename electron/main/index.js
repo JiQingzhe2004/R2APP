@@ -1215,9 +1215,15 @@ app.whenReady().then(async () => {
     });
   });
 
-  // 3. Permission Request Handler
+      // 3. Permission Request Handler
   session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
     try {
+      // 始终允许剪贴板写入权限，确保复制功能正常
+      if (permission === 'clipboard-sanitized-write') {
+        callback(true);
+        return;
+      }
+
       const url = webContents.getURL();
       // Handle empty or invalid URLs gracefully
       if (!url) {
@@ -1228,7 +1234,7 @@ app.whenReady().then(async () => {
       const parsedUrl = new URL(url);
       
       // Allow permissions for local files (app pages) and devtools
-      if (parsedUrl.protocol === 'file:' || parsedUrl.protocol === 'devtools:') {
+      if (parsedUrl.protocol === 'file:' || parsedUrl.protocol === 'devtools:' || parsedUrl.hostname === 'localhost') {
          callback(true);
          return;
       }
