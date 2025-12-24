@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/Input';
 import { useTheme } from '@/components/theme-provider';
 import { toast } from 'sonner';
-import { User, Upload, X, Database, Trash2, Download, RefreshCw, ChevronsUpDown } from 'lucide-react';
+import { User, Upload, X, Database, Trash2, Download, RefreshCw, ChevronsUpDown, Loader2 } from 'lucide-react';
 import DownloadSettings from '@/components/DownloadSettings';
 import { MorphingMenu } from "@/components/ui/morphing-menu"
 import { cn } from '@/lib/utils'
@@ -77,9 +77,53 @@ export default function AppSettings() {
     } catch {}
   };
 
+  const [cacheSize, setCacheSize] = useState('计算中...');
+  const [isClearing, setIsClearing] = useState(false);
 
+  useEffect(() => {
+    // Check cache size on mount
+    fetchCacheSize();
+  }, []);
 
-  
+  const fetchCacheSize = async () => {
+    try {
+      const result = await window.api.getAppCacheSize();
+      if (result.success) {
+        setCacheSize(formatBytes(result.size));
+      } else {
+        setCacheSize('未知');
+      }
+    } catch {
+      setCacheSize('未知');
+    }
+  };
+
+  const formatBytes = (bytes, decimals = 2) => {
+    if (!+bytes) return '0 B';
+    const k = 1024;
+    const dm = decimals < 0 ? 0 : decimals;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+  };
+
+  const clearCache = async () => {
+    if (isClearing) return;
+    setIsClearing(true);
+    try {
+      const result = await window.api.clearAppCache();
+      if (result.success) {
+        toast.success('缓存清理成功');
+        await fetchCacheSize(); // Update size after clearing
+      } else {
+        toast.error('清理失败: ' + result.error);
+      }
+    } catch (error) {
+      toast.error('清理失败');
+    } finally {
+      setIsClearing(false);
+    }
+  };
 
   return (
     <Card className="rounded-3xl">
@@ -321,6 +365,35 @@ export default function AppSettings() {
               }}>移除右键菜单</Button>
             </div>
             <div className="text-xs text-muted-foreground">仅支持 Windows。注册后，可在资源管理器右键文件直接"上传到 CS-Explorer"。</div>
+          </div>
+
+          {/* 分隔线 */}
+          <div className="border-t border-border my-6"></div>
+
+          <div className="space-y-2">
+            <Label>缓存管理</Label>
+            <div className="flex gap-2 items-center">
+              <Button 
+                size="sm" 
+                variant="destructive" 
+                className="rounded-full" 
+                onClick={clearCache}
+                disabled={isClearing}
+              >
+                {isClearing ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="mr-2 h-4 w-4" />
+                )}
+                {isClearing ? '正在清理...' : '清理应用缓存'}
+              </Button>
+              <span className="text-xs font-medium px-3 py-1.5 rounded-full bg-secondary text-secondary-foreground border border-border">
+                当前占用: {cacheSize}
+              </span>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              清理图片缓存、API 临时数据和网页缓存。不会删除您的账号配置和下载记录。
+            </div>
           </div>
       </CardContent>
     </Card>

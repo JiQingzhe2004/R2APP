@@ -197,9 +197,15 @@ function createSplashWindow() {
     maximizable: false,
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),
-      sandbox: false,
+      sandbox: true,
       contextIsolation: true,
     }
+  });
+
+  // Security: Limit navigation
+  splashWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  splashWindow.webContents.on('will-navigate', (event, url) => {
+    event.preventDefault();
   });
 
   // 加载启动图HTML内容

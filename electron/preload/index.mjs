@@ -183,7 +183,18 @@ export const api = {
   // onDebugLog: (callback) => ipcRenderer.on('debug-log', callback),
   // removeDebugLogListener: (callback) => ipcRenderer.removeListener('debug-log', callback),
 
+  // Theme
+  setTheme: (theme) => ipcRenderer.send('set-theme', theme),
+  getTheme: () => ipcRenderer.invoke('get-theme'),
+  onThemeChanged: (callback) => {
+    const handler = (event, ...args) => callback(...args);
+    ipcRenderer.on('theme-changed', handler);
+    return () => ipcRenderer.removeListener('theme-changed', handler);
+  },
 
+  // Cache
+  clearAppCache: () => ipcRenderer.invoke('clear-app-cache'),
+  getAppCacheSize: () => ipcRenderer.invoke('get-app-cache-size'),
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

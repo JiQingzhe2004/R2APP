@@ -1,6 +1,6 @@
 {
   "name": "CS-Explorer",
-  "version": "5.1.4",
+  "version": "5.1.5",
   "description": "一个用于管理在线云存储的现代化桌面应用。",
   "main": "out/main/index.js",
   "author": "吉庆喆",
@@ -16,7 +16,8 @@
     "build:linux": "npm run build && electron-builder --linux",
     "release:win": "npm run build && electron-builder --win -p always",
     "release:mac": "npm run build && electron-builder --mac -p always",
-    "release:linux": "npm run build && electron-builder --linux -p always"
+    "release:linux": "npm run build && electron-builder --linux -p always",
+    "audit": "electronegativity -i ."
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.953.0",
@@ -67,6 +68,7 @@
     "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "@doyensec/electronegativity": "^1.10.3",
     "@electron-toolkit/preload": "^3.0.0",
     "@electron-toolkit/utils": "^3.0.0",
     "@radix-ui/react-label": "^2.1.8",
@@ -90,12 +92,41 @@
   "build": {
     "appId": "com.r2.explorer",
     "productName": "CS-Explorer",
+    "electronLanguages": ["zh-CN", "en"],
+    "compression": "maximum",
+    "asar": true,
     "directories": {
       "output": "release"
     },
     "artifactName": "${productName}-Setup-${version}.${ext}",
     "files": [
-      "out/**"
+      "out/**",
+      "!**/*.map",
+      "!**/*.pdb",
+      "!**/*.vshost.*",
+      "!**/*.log",
+      "!**/*.md",
+      "!**/tsconfig.json",
+      "!**/jsconfig.json",
+      "!**/.eslintrc*",
+      "!**/.prettierrc*",
+      "!**/coverage/**",
+      "!**/.git/**",
+      "!**/.github/**",
+      "!**/node_modules/**/.bin",
+      "!**/node_modules/**/*.md",
+      "!**/node_modules/**/*.txt",
+      "!**/node_modules/**/*.ts",
+      "!**/node_modules/**/*.map",
+      "!**/node_modules/**/*.png",
+      "!**/node_modules/**/*.jpg",
+      "!**/node_modules/**/*.jpeg",
+      "!**/node_modules/**/*.gif",
+      "!**/node_modules/**/test/**",
+      "!**/node_modules/**/tests/**",
+      "!**/node_modules/**/docs/**",
+      "!**/node_modules/**/example/**",
+      "!**/node_modules/**/examples/**"
     ],
     "extraResources": [
       {
@@ -124,7 +155,7 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "allowElevation": false,
-      "license": "EULA.txt",
+      "include": "build/installer.nsh",
       "installerIcon": "resources/icon.ico"
     },
     "publish": [

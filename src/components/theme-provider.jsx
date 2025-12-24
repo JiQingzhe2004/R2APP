@@ -9,7 +9,14 @@ export function ThemeProvider({
   ...props
 }) {
   const [theme, setTheme] = useState(
-    () => localStorage.getItem(storageKey) || defaultTheme
+    () => {
+      // Check URL params first (for auxiliary windows)
+      const params = new URLSearchParams(window.location.search)
+      const urlTheme = params.get('theme')
+      if (urlTheme) return urlTheme
+
+      return localStorage.getItem(storageKey) || defaultTheme
+    }
   )
 
   useEffect(() => {
@@ -29,11 +36,26 @@ export function ThemeProvider({
     }
   }, [theme])
 
+  // Listen for IPC updates
+  useEffect(() => {
+    if (window.api && window.api.onThemeChanged) {
+      const cleanup = window.api.onThemeChanged((newTheme) => {
+        setTheme(newTheme)
+        localStorage.setItem(storageKey, newTheme)
+      })
+      return cleanup
+    }
+  }, [storageKey])
+
   const value = {
     theme,
-    setTheme: (theme) => {
-      localStorage.setItem(storageKey, theme)
-      setTheme(theme)
+    setTheme: (newTheme) => {
+      localStorage.setItem(storageKey, newTheme)
+      setTheme(newTheme)
+      // Sync via IPC
+      if (window.api && window.api.setTheme) {
+        window.api.setTheme(newTheme)
+      }
     },
   }
 

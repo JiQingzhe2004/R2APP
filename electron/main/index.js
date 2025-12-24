@@ -193,6 +193,47 @@ function clearAPIInstances() {
   apiInstances.clear();
 }
 
+/**
+ * 清除应用缓存 (不包括配置)
+ */
+ipcMain.handle('clear-app-cache', async () => {
+  try {
+    const wins = BrowserWindow.getAllWindows();
+    for (const win of wins) {
+      if (!win.isDestroyed()) {
+        await win.webContents.session.clearCache();
+        await win.webContents.session.clearStorageData({
+          storages: ['appcache', 'shadercache', 'serviceworkers', 'cachestorage']
+        });
+      }
+    }
+    // 同时也清除API实例缓存和URL缓存
+    clearAPIInstances();
+    objectUrlCache.clear();
+    objectDeleteUrlCache.clear();
+    objectHashCache.clear();
+    
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to clear cache:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+/**
+ * 获取应用缓存大小
+ */
+ipcMain.handle('get-app-cache-size', async () => {
+  try {
+    // 默认只计算 defaultSession 的缓存大小
+    const size = await session.defaultSession.getCacheSize();
+    return { success: true, size };
+  } catch (error) {
+    console.error('Failed to get cache size:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 autoUpdater.autoDownload = false;
 
 // 创建COS客户端的简单函数
@@ -808,13 +849,30 @@ function createPreviewWindow(fileName, filePath, bucket, publicUrl, shareUrl) {
     minHeight: 600,
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),
-      sandbox: false,
+      sandbox: false, // Preview needs to load local file with potential diverse content
       contextIsolation: true,
       webSecurity: false, // 禁用web安全策略以允许跨域图片加载
     },
     show: false,
     frame: false,
     titleBarStyle: 'hidden'
+  });
+
+  // Security: Limit navigation
+  previewWindow.webContents.setWindowOpenHandler(({ url }) => {
+    // Allow opening http/https links in external browser
+    if (url.startsWith('http:') || url.startsWith('https:')) {
+      shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
+  
+  previewWindow.webContents.on('will-navigate', (event, url) => {
+    // Prevent navigation away from the app
+    const parsedUrl = new URL(url);
+    if (parsedUrl.protocol !== 'file:') {
+       event.preventDefault();
+    }
   });
 
   previewWindow.on('ready-to-show', () => {
@@ -843,9 +901,10 @@ function createPreviewWindow(fileName, filePath, bucket, publicUrl, shareUrl) {
   }
   const query = new URLSearchParams(queryObj);
 
+  const currentTheme = store.get('app-settings.theme', 'light');
   const previewUrl = is.dev && process.env['ELECTRON_RENDERER_URL']
-    ? `${process.env['ELECTRON_RENDERER_URL']}/#/preview?${query.toString()}`
-    : `file://${join(__dirname, '../renderer/index.html')}#/preview?${query.toString()}`;
+    ? `${process.env['ELECTRON_RENDERER_URL']}/?theme=${currentTheme}#/preview?${query.toString()}`
+    : `file://${join(__dirname, '../renderer/index.html')}?theme=${currentTheme}#/preview?${query.toString()}`;
   
   previewWindow.loadURL(previewUrl);
   previewWindows.set(key, previewWindow);
@@ -889,9 +948,10 @@ function createUpdateWindow() {
     updateWindow = null;
   });
 
+  const currentTheme = store.get('app-settings.theme', 'light');
   const updateUrl = is.dev && process.env['ELECTRON_RENDERER_URL']
-    ? `${process.env['ELECTRON_RENDERER_URL']}/#/update-window`
-    : `file://${join(__dirname, '../renderer/index.html')}#/update-window`;
+    ? `${process.env['ELECTRON_RENDERER_URL']}/?theme=${currentTheme}#/update-window`
+    : `file://${join(__dirname, '../renderer/index.html')}?theme=${currentTheme}#/update-window`;
 
   updateWindow.loadURL(updateUrl);
 }
@@ -1122,6 +1182,66 @@ if (!gotLock) {
 // Defer initial argv handling until after the main window is created
 
 app.whenReady().then(async () => {
+  // Security: Limit navigation and permissions
+  app.on('web-contents-created', (event, contents) => {
+    // 1. Limit navigation
+    contents.on('will-navigate', (event, navigationUrl) => {
+      const parsedUrl = new URL(navigationUrl);
+      // Allow navigation to local files (app pages)
+      if (parsedUrl.protocol === 'file:') return;
+      
+      // Allow navigation to trusted domains (update server)
+      if (navigationUrl.startsWith('https://wpaiupload.aiqji.com')) return;
+
+      // Handle external links (open in browser)
+      if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
+        shell.openExternal(navigationUrl);
+        event.preventDefault();
+        return;
+      }
+
+      // Block others
+      console.log(`Blocked navigation to: ${navigationUrl}`);
+      event.preventDefault();
+    });
+
+    // 2. Limit new windows
+    contents.setWindowOpenHandler(({ url }) => {
+      // Allow opening links in external browser if they are http/https
+      if (url.startsWith('https:') || url.startsWith('http:')) {
+        shell.openExternal(url);
+      }
+      return { action: 'deny' };
+    });
+  });
+
+  // 3. Permission Request Handler
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    try {
+      const url = webContents.getURL();
+      // Handle empty or invalid URLs gracefully
+      if (!url) {
+        callback(false);
+        return;
+      }
+      
+      const parsedUrl = new URL(url);
+      
+      // Allow permissions for local files (app pages) and devtools
+      if (parsedUrl.protocol === 'file:' || parsedUrl.protocol === 'devtools:') {
+         callback(true);
+         return;
+      }
+
+      // Deny all other permissions by default
+      console.log(`Blocked permission '${permission}' for ${url}`);
+      callback(false);
+    } catch (error) {
+      console.error('Error in permission request handler:', error);
+      callback(false);
+    }
+  });
+
   // 注释掉强制直连，让请求可以使用代理
   // await session.defaultSession.setProxy({ proxyRules: 'direct://' });
   
@@ -3361,7 +3481,23 @@ ipcMain.on('get-initial-file-info', (event) => {
   event.reply('file-info-for-preview', initialFileInfo);
 });
 
+// Theme IPC
+ipcMain.on('set-theme', (event, theme) => {
+  // Save theme
+  store.set('app-settings.theme', theme);
+  
+  // Broadcast to all windows
+  BrowserWindow.getAllWindows().forEach(win => {
+    // Skip if window is destroyed
+    if (!win.isDestroyed()) {
+      win.webContents.send('theme-changed', theme);
+    }
+  });
+});
 
+ipcMain.handle('get-theme', () => {
+  return store.get('app-settings.theme', 'light');
+});
 
 ipcMain.handle('get-presigned-url', async (event, bucket, key) => {
   const storage = await getStorageClient();
