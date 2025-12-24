@@ -25,3 +25,5 @@ analytics-website/node_modules
 analytics-website/client/build
 .cursor/rules/插件文档.md
 .cursor/rules/cjkf.mdc
+festival-config.json
+FESTIVAL_SPLASH_README.md

@@ -7,6 +7,7 @@ import AlipayQR from '@/assets/zfb.png'
 import { Github, GitCommit, UserCircle, Award, BadgeCheck, Atom, ExternalLink, Heart, Coffee, X, Calendar, Database } from 'lucide-react'
 import { Tiktok, MaillOne} from '@icon-park/react'
 import { useTheme } from '@/components/theme-provider';
+import { useFestivalLogo } from '@/contexts/FestivalLogoContext';
 import versionData from '@/version.json';
 import CloudflareIcon from '@/assets/cloudico/Cloudflare.svg';
 import AliyunIcon from '@/assets/cloudico/阿里云.svg';
@@ -21,6 +22,7 @@ import LskyIcon from '@/assets/cloudico/lsky.ico';
 
 export default function AboutPage() {
   const { theme } = useTheme();
+  const { logoUrl: festivalLogo } = useFestivalLogo();
   const [lightbox, setLightbox] = useState({ isOpen: false, image: null, title: '' });
   const [appInfo, setAppInfo] = useState({
     name: 'CS-Explorer',
@@ -135,8 +137,32 @@ export default function AboutPage() {
       <Card className="w-full rounded-3xl">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <img src={BlackLogo} alt="App Logo" className="w-32 h-32 hidden dark:block" draggable="false" />
-            <img src={WhiteLogo} alt="App Logo" className="w-32 h-32 dark:hidden" draggable="false" />
+            {festivalLogo ? (
+              <img 
+                src={festivalLogo} 
+                alt="App Logo" 
+                className="h-32 w-auto cursor-pointer hover:opacity-80 transition-opacity rounded-lg" 
+                draggable="false"
+                onClick={() => openLightbox(festivalLogo, '应用 Logo')}
+              />
+            ) : (
+              <>
+                <img 
+                  src={BlackLogo} 
+                  alt="App Logo" 
+                  className="h-32 w-auto hidden dark:block cursor-pointer hover:opacity-80 transition-opacity rounded-lg" 
+                  draggable="false"
+                  onClick={() => openLightbox(BlackLogo, '应用 Logo')}
+                />
+                <img 
+                  src={WhiteLogo} 
+                  alt="App Logo" 
+                  className="h-32 w-auto dark:hidden cursor-pointer hover:opacity-80 transition-opacity rounded-lg" 
+                  draggable="false"
+                  onClick={() => openLightbox(WhiteLogo, '应用 Logo')}
+                />
+              </>
+            )}
           </div>
           <CardTitle className="text-3xl font-bold">{appInfo.name}</CardTitle>
         </CardHeader>

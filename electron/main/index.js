@@ -26,6 +26,7 @@ import QiniuAPI from './qiniu-api.js';
 import JdCloudAPI from './jdcloud-api.js';
 import { testProxyConnection } from './proxy-config.js';
 import { showSplash, hideSplash, destroySplash } from './splash-screen.js';
+import { getFestivalSplashImage, getFestivalLogo, initFestivalSplash, cleanupFestivalCache } from './festival-splash.js';
 
 
 const activeUploads = new Map();
@@ -1285,8 +1286,17 @@ app.whenReady().then(async () => {
   });
 
   
+  // 初始化节日启动图系统
+  initFestivalSplash();
+  
+  // 清理过期的节日缓存
+  cleanupFestivalCache();
+  
+  // 获取节日启动图（如果有）
+  const festivalImagePath = await getFestivalSplashImage();
+  
   // 显示启动图（不传递主窗口，因为此时主窗口还未创建）
-  showSplash();
+  await showSplash(null, festivalImagePath);
   
   electronApp.setAppUserModelId('com.r2.explorer')
 
@@ -1414,8 +1424,8 @@ app.whenReady().then(async () => {
   createWindow()
   // 主窗口创建完成后，将主窗口实例传递给启动图
   if (mainWindow) {
-    // 重新调用showSplash，这次传递主窗口实例
-    showSplash(mainWindow);
+    // 重新调用showSplash，这次传递主窗口实例和节日启动图路径
+    await showSplash(mainWindow, festivalImagePath);
   }
   setupAutoUpdater()
 
@@ -3312,6 +3322,15 @@ ipcMain.handle('get-app-info', () => {
     description: packageJson.description,
     license: packageJson.license,
   };
+});
+
+ipcMain.handle('get-festival-logo', async () => {
+  try {
+    return await getFestivalLogo();
+  } catch (error) {
+    console.warn('[Main] 获取节日Logo失败:', error.message);
+    return null;
+  }
 });
 
 ipcMain.handle('get-machine-id', () => {

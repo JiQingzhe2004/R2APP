@@ -10,6 +10,7 @@ import { NotificationProvider, useNotifications } from './contexts/NotificationC
 import { UpdateProvider, useUpdate } from './contexts/UpdateContext';
 import { UploadsProvider } from './contexts/UploadsContext';
 import { ConfettiProvider, useConfetti } from './contexts/ConfettiContext';
+import { FestivalLogoProvider } from './contexts/FestivalLogoContext';
 import ConfettiOverlay from './components/ConfettiOverlay';
 import {
   AlertDialog,
@@ -239,15 +240,17 @@ function App() {
   return (
     <Router>
       <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
-        <UpdateProvider>
-          <NotificationProvider>
-            <ConfettiProvider>
-              <UploadsProvider>
-                <AppContent />
-              </UploadsProvider>
-            </ConfettiProvider>
-          </NotificationProvider>
-        </UpdateProvider>
+        <FestivalLogoProvider>
+          <UpdateProvider>
+            <NotificationProvider>
+              <ConfettiProvider>
+                <UploadsProvider>
+                  <AppContent />
+                </UploadsProvider>
+              </ConfettiProvider>
+            </NotificationProvider>
+          </UpdateProvider>
+        </FestivalLogoProvider>
       </ThemeProvider>
     </Router>
   )

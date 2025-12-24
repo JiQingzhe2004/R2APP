@@ -1,6 +1,7 @@
 import { app, BrowserWindow, nativeImage } from 'electron';
 import { join } from 'path';
 import fs from 'fs';
+import { getFestivalSplashImage } from './festival-splash.js';
 
 let splashWindow = null;
 let mainWindowInstance = null;
@@ -22,26 +23,38 @@ function imageToBase64(imagePath) {
 
 /**
  * 创建启动图HTML内容
+ * @param {string|null} festivalImagePath - 节日启动图路径（可选）
  */
-function createSplashHTML() {
+async function createSplashHTML(festivalImagePath = null) {
   // 尝试多个可能的图片路径
   let logoBase64 = null;
   
-  // 首先尝试开发环境的路径
-  const devPath = join(__dirname, '../../src/assets/qidong.png');
-  logoBase64 = imageToBase64(devPath);
-  
-  // 如果开发环境路径失败，尝试打包后的路径
-  if (!logoBase64 && app.isPackaged) {
-    const prodPath = join(process.resourcesPath, 'qidong.png');
-    logoBase64 = imageToBase64(prodPath);
+  // 优先使用节日启动图
+  if (festivalImagePath && fs.existsSync(festivalImagePath)) {
+    logoBase64 = imageToBase64(festivalImagePath);
+    if (logoBase64) {
+      console.log('[Splash] 使用节日启动图:', festivalImagePath);
+    }
   }
   
-  // 如果都失败了，使用一个简单的占位符
+  // 如果没有节日启动图，尝试默认路径
   if (!logoBase64) {
-    console.warn('无法加载启动图LOGO，使用默认图标');
-    const fallbackPath = join(__dirname, '../../src/assets/BlackLOGO.png');
-    logoBase64 = imageToBase64(fallbackPath);
+    // 首先尝试开发环境的路径
+    const devPath = join(__dirname, '../../src/assets/qidong.png');
+    logoBase64 = imageToBase64(devPath);
+    
+    // 如果开发环境路径失败，尝试打包后的路径
+    if (!logoBase64 && app.isPackaged) {
+      const prodPath = join(process.resourcesPath, 'qidong.png');
+      logoBase64 = imageToBase64(prodPath);
+    }
+    
+    // 如果都失败了，使用一个简单的占位符
+    if (!logoBase64) {
+      console.warn('无法加载启动图LOGO，使用默认图标');
+      const fallbackPath = join(__dirname, '../../src/assets/BlackLOGO.png');
+      logoBase64 = imageToBase64(fallbackPath);
+    }
   }
   
   return `
@@ -178,8 +191,9 @@ function createSplashHTML() {
 
 /**
  * 创建启动图窗口
+ * @param {string|null} festivalImagePath - 节日启动图路径（可选）
  */
-function createSplashWindow() {
+async function createSplashWindow(festivalImagePath = null) {
   // 创建启动图窗口
   splashWindow = new BrowserWindow({
     width: 400,
@@ -208,8 +222,9 @@ function createSplashWindow() {
     event.preventDefault();
   });
 
-  // 加载启动图HTML内容
-  splashWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(createSplashHTML())}`);
+  // 加载启动图HTML内容（等待异步获取节日启动图）
+  const htmlContent = await createSplashHTML(festivalImagePath);
+  splashWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`);
 
   // 窗口准备好后显示
   splashWindow.once('ready-to-show', () => {
@@ -231,13 +246,15 @@ function createSplashWindow() {
 
 /**
  * 显示启动图
+ * @param {BrowserWindow|null} mainWindow - 主窗口实例（可选）
+ * @param {string|null} festivalImagePath - 节日启动图路径（可选）
  */
-function showSplash(mainWindow = null) {
+async function showSplash(mainWindow = null, festivalImagePath = null) {
   if (mainWindow) {
     mainWindowInstance = mainWindow; // 保存主窗口实例
   }
   if (!splashWindow) {
-    createSplashWindow();
+    await createSplashWindow(festivalImagePath);
   } else {
     splashWindow.show();
   }

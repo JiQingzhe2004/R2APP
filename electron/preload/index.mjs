@@ -195,6 +195,9 @@ export const api = {
   // Cache
   clearAppCache: () => ipcRenderer.invoke('clear-app-cache'),
   getAppCacheSize: () => ipcRenderer.invoke('get-app-cache-size'),
+
+  // Festival Logo (复用启动图)
+  getFestivalLogo: () => ipcRenderer.invoke('get-festival-logo'),
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
