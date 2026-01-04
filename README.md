@@ -100,3 +100,7 @@ npm run dev
 
 
 git push origin {标签}
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=JiQingzhe2004/R2APP&type=date&legend=top-left)](https://www.star-history.com/#JiQingzhe2004/R2APP&type=date&legend=top-left)
