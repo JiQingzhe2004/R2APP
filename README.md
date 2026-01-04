@@ -91,6 +91,10 @@ npm run dev
 4.  点击 **保存设置**。
 5.  导航回 **文件管理** 视图即可查看您存储桶的内容。
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=JiQingzhe2004/R2APP&type=date&legend=top-left)](https://www.star-history.com/#JiQingzhe2004/R2APP&type=date&legend=top-left)
+
 
 ---
 
@@ -100,7 +104,3 @@ npm run dev
 
 
 git push origin {标签}
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=JiQingzhe2004/R2APP&type=date&legend=top-left)](https://www.star-history.com/#JiQingzhe2004/R2APP&type=date&legend=top-left)
