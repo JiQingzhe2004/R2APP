@@ -49,8 +49,7 @@ jobs:
 
       - name: Build packages
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
-          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           # No Apple Developer certificate is required for CI packages.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           PUBLISH_MODE: ${{ github.event_name == 'push' && 'always' || 'never' }}

@@ -60,7 +60,7 @@ npm run build:linux
 - **标签发布**：将 `package.json` 的版本号更新后，推送与之匹配的 `v版本号` 标签（例如版本为 `5.1.6` 时推送 `v5.1.6`），自动打包并上传到对应的 GitHub Release。electron-builder 默认创建草稿 Release，可检查附件后手动发布。
 - **macOS 产物**：同时生成 Intel（`x64`）和 Apple Silicon（`arm64`）的 DMG 安装包、ZIP 包及更新元数据，文件名包含架构，避免相互覆盖。
 
-发布默认使用 GitHub 自动提供的 `GITHUB_TOKEN`（工作流已声明 `contents: write`）；如果仓库已设置 `GH_TOKEN`，则优先使用它。
+发布使用 GitHub 自动提供的 `GITHUB_TOKEN`（工作流已声明 `contents: write`），无需配置个人访问令牌，也不依赖仓库中旧的 `GH_TOKEN` Secret。
 
 当前 CI 的 macOS 包未配置 Apple Developer 签名和公证，首次启动可能受到 Gatekeeper 拦截，不应视为已签名的正式发行包。macOS 自动更新还需要有效的应用签名；生成 ZIP 和更新元数据本身并不代表自动更新已经可用。
 
