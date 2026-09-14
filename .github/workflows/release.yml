@@ -4,28 +4,68 @@ on:
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  create-release:
-    runs-on: windows-latest # 您也可以换成 windows-latest 或 macos-latest
+  build:
+    name: Package ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: win
+            runner: windows-latest
+          # One job builds both architectures so latest-mac.yml contains both ZIPs.
+          - platform: mac
+            runner: macos-15-intel
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18' # 建议使用与您本地一致的 Node.js 版本
-      
+          node-version: '22'
+          cache: npm
+
+      - name: Check release version
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          node -e 'const p = require("./package.json"); if (process.env.GITHUB_REF_NAME !== `v${p.version}`) { console.error("Tag must match package.json version: v" + p.version); process.exit(1); }'
+
       - name: Install dependencies
-        # 使用 npm ci 更适合 CI 环境，它更快且严格遵循 package-lock.json
         run: npm ci
 
-      - name: Build and release
+      - name: Build packages
         env:
-          # GH_TOKEN 和 GITEE_TOKEN 都需要预先在 GitHub Secrets 中设置
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN || github.token }}
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-        # 这里我们假设先发布 Windows 版本，您可以为其他平台创建类似的 job
-        run: npm run release:win 
+          # No Apple Developer certificate is required for CI packages.
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          PUBLISH_MODE: ${{ github.event_name == 'push' && 'always' || 'never' }}
+        shell: bash
+        run: npm run build:${{ matrix.platform }} -- --publish "$PUBLISH_MODE"
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: CS-Explorer-${{ matrix.platform }}-${{ github.run_number }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.zip
+            release/*.blockmap
+            release/latest*.yml

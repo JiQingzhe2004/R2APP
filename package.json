@@ -1,6 +1,6 @@
 {
   "name": "CS-Explorer",
-  "version": "5.1.6",
+  "version": "5.1.7",
   "description": "一个用于管理在线云存储的现代化桌面应用。",
   "main": "out/main/index.js",
   "author": "吉庆喆",
@@ -149,6 +149,27 @@
     "win": {
       "icon": "resources/icon.ico",
       "target": "nsis"
+    },
+    "mac": {
+      "icon": "src/assets/BlackLOGO.png",
+      "category": "public.app-category.utilities",
+      "artifactName": "${productName}-${version}-mac-${arch}.${ext}",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "extraResources": [
+        {
+          "from": "src/assets/BlackLOGO.png",
+          "to": "icon.png"
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
