@@ -1,0 +1,63 @@
+name: Publish existing packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful Release workflow run ID
+        required: true
+      version:
+        description: Package version without the v prefix
+        required: true
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: publish-packages-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_ID: ${{ inputs.run_id }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Validate source run and draft release
+        shell: bash
+        run: |
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]]
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test "$(gh run view "$RUN_ID" --json conclusion --jq .conclusion)" = success
+          test "$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID" --jq .path)" = .github/workflows/release.yml
+          test "$(gh release view "v$VERSION" --json isDraft --jq .isDraft)" = true
+
+      - name: Download successful packages
+        uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.run_id }}
+          pattern: CS-Explorer-*
+          merge-multiple: true
+          path: release-artifacts
+
+      - name: Verify and upload packages to draft
+        shell: bash
+        run: |
+          cd release-artifacts
+          files=("CS-Explorer-Setup-$VERSION.exe" "CS-Explorer-Setup-$VERSION.exe.blockmap" latest.yml latest-mac.yml)
+          for arch in x64 arm64; do
+            for ext in dmg dmg.blockmap zip zip.blockmap; do
+              files+=("CS-Explorer-$VERSION-mac-$arch.$ext")
+            done
+          done
+          for file in "${files[@]}"; do test -s "$file"; done
+          for metadata in latest.yml latest-mac.yml; do
+            grep -Fx "version: $VERSION" "$metadata"
+          done
+          gh release upload "v$VERSION" "${files[@]}" --clobber
