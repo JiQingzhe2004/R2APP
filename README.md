@@ -64,6 +64,8 @@ npm run build:linux
 
 当前 CI 的 macOS 包未配置 Apple Developer 签名和公证，首次启动可能受到 Gatekeeper 拦截，不应视为已签名的正式发行包。macOS 自动更新还需要有效的应用签名；生成 ZIP 和更新元数据本身并不代表自动更新已经可用。
 
+更新器已禁用差分下载，统一下载完整安装包。NSIS 差分包和 DMG 差分信息也已关闭，Actions 附件不再收集或要求 `.blockmap` 文件。当前 electron-builder 24 仍会为 macOS ZIP 自动生成 `.blockmap`，标签发布时可能上传该辅助文件，但客户端不会使用它进行差分更新。未签名的 macOS 版本应下载 DMG 手动安装；改为全量下载不会解除 macOS 自动安装更新的签名要求。
+
 ## ▶️ 运行应用
 
 安装完依赖项后，您可以在开发模式下运行应用程序。

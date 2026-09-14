@@ -50,9 +50,9 @@ jobs:
         shell: bash
         run: |
           cd release-artifacts
-          files=("CS-Explorer-Setup-$VERSION.exe" "CS-Explorer-Setup-$VERSION.exe.blockmap" latest.yml latest-mac.yml)
+          files=("CS-Explorer-Setup-$VERSION.exe" latest.yml latest-mac.yml)
           for arch in x64 arm64; do
-            for ext in dmg dmg.blockmap zip zip.blockmap; do
+            for ext in dmg zip; do
               files+=("CS-Explorer-$VERSION-mac-$arch.$ext")
             done
           done

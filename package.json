@@ -171,7 +171,11 @@
         }
       ]
     },
+    "dmg": {
+      "writeUpdateInfo": false
+    },
     "nsis": {
+      "differentialPackage": false,
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
