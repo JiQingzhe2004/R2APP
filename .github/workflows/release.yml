@@ -24,9 +24,11 @@ jobs:
         include:
           - platform: win
             runner: windows-latest
+            compression: maximum
           # One job builds both architectures so latest-mac.yml contains both ZIPs.
           - platform: mac
             runner: macos-15-intel
+            compression: normal
 
     steps:
       - name: Checkout code
@@ -53,8 +55,9 @@ jobs:
           # No Apple Developer certificate is required for CI packages.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           PUBLISH_MODE: ${{ github.event_name == 'push' && 'always' || 'never' }}
+          COMPRESSION: ${{ matrix.compression }}
         shell: bash
-        run: npm run build:${{ matrix.platform }} -- --publish "$PUBLISH_MODE"
+        run: npm run build:${{ matrix.platform }} -- --publish "$PUBLISH_MODE" --config.compression="$COMPRESSION"
 
       - name: Upload packages
         uses: actions/upload-artifact@v4
