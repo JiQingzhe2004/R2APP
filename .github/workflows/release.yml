@@ -49,6 +49,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Silence macOS file scanners
+        if: matrix.platform == 'mac'
+        run: |
+          # XProtect/Spotlight scan mounted DMG volumes and hold them open, which
+          # makes electron-builder's `hdiutil detach` fail with "Resource busy"
+          # (actions/runner-images#7522).
+          sudo mdutil -a -i off || true
+          sudo pkill -9 -fi XProtect || true
+          sudo pkill -9 mdworker || true
+
       - name: Build packages
         env:
           GH_TOKEN: ${{ github.token }}
@@ -57,7 +67,23 @@ jobs:
           PUBLISH_MODE: ${{ github.event_name == 'push' && 'always' || 'never' }}
           COMPRESSION: ${{ matrix.compression }}
         shell: bash
-        run: npm run build:${{ matrix.platform }} -- --publish "$PUBLISH_MODE" --config.compression="$COMPRESSION"
+        run: |
+          max_attempts=2
+          attempt=1
+          until npm run build:${{ matrix.platform }} -- --publish "$PUBLISH_MODE" --config.compression="$COMPRESSION"; do
+            if [ "$attempt" -ge "$max_attempts" ]; then
+              echo "Build failed after $attempt attempts."
+              exit 1
+            fi
+            attempt=$((attempt + 1))
+            echo "Build attempt $((attempt - 1)) failed; retrying (attempt $attempt of $max_attempts)..."
+            if [ "${{ matrix.platform }}" = "mac" ]; then
+              # Scanners respawned around the failed attempt's mounted volumes.
+              sudo pkill -9 -fi XProtect || true
+              sudo pkill -9 mdworker || true
+            fi
+            sleep 30
+          done
 
       - name: Upload packages
         uses: actions/upload-artifact@v4
