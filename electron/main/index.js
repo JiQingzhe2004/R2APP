@@ -4,7 +4,7 @@ import { electronApp, is } from '@electron-toolkit/utils'
 import Store from 'electron-store'
 
 import fs from 'fs';
-import { execFile } from 'child_process';
+import { execFile, spawn } from 'child_process';
 import { v4 as uuidv4 } from 'uuid';
 import serve from 'electron-serve';
 import packageJson from '../../package.json' assert { type: 'json' };
@@ -355,6 +355,12 @@ ipcMain.handle('get-app-cache-size', async () => {
 autoUpdater.autoDownload = false;
 // 所有更新均下载完整安装包，不请求差分 blockmap。
 autoUpdater.disableDifferentialDownload = true;
+// macOS 构建未做 Apple 代码签名，Squirrel.Mac 会因签名校验失败而无法暂存更新，
+// 因此在 macOS 上禁用自动交接，改用 installMacUpdate() 的自定义安装流程。
+if (process.platform === 'darwin') {
+  autoUpdater.autoInstallOnAppQuit = false;
+}
+let downloadedUpdateFile = null;
 
 // 创建COS客户端的简单函数
 function createCOSClient(secretId, secretKey) {
@@ -1703,6 +1709,7 @@ function setupAutoUpdater() {
   autoUpdater.on('update-downloaded', (info) => {
     console.log('Updater: Update downloaded.', info);
     isCheckingForUpdates = false;
+    downloadedUpdateFile = info.downloadedFile || downloadedUpdateFile;
     
     // 清理 releaseNotes，移除 GitHub 链接等无用信息
     info.releaseNotes = cleanReleaseNotes(info.releaseNotes, '新版本已下载完成，包含功能更新和问题修复。');
@@ -1753,9 +1760,93 @@ ipcMain.handle('download-update', () => {
   autoUpdater.downloadUpdate();
 });
 
+// macOS 未签名应用无法通过 Squirrel.Mac 完成换装（"Could not get code signature
+// for running application"），改用脚本方式：退出应用后解压已下载的 zip，
+// 清除隔离属性并替换当前 .app，失败时回滚旧版本。
+function installMacUpdate() {
+  const fail = (message) => {
+    console.error('Updater(mac):', message);
+    for (const win of [mainWindow, updateWindow]) {
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('update-error', new Error(message));
+      }
+    }
+  };
+  try {
+    if (!downloadedUpdateFile || !fs.existsSync(downloadedUpdateFile)) {
+      fail('未找到已下载的更新包，请重新下载更新。');
+      return;
+    }
+    // exe 路径形如 /Applications/CS-Explorer.app/Contents/MacOS/CS-Explorer
+    const bundlePath = join(parse(app.getPath('exe')).dir, '..', '..');
+    const installDir = parse(bundlePath).dir;
+    try {
+      fs.accessSync(installDir, fs.constants.W_OK);
+    } catch {
+      fail(`没有权限写入 ${installDir}，请先将应用移动到“应用程序”文件夹后再更新。`);
+      return;
+    }
+    const workDir = fs.mkdtempSync(join(os.tmpdir(), 'cs-explorer-update-'));
+    const scriptPath = join(workDir, 'install-update.sh');
+    const script = `#!/bin/bash
+set -u
+APP_PID="${process.pid}"
+ZIP="${downloadedUpdateFile}"
+WORK="${workDir}"
+BUNDLE="${bundlePath}"
+INSTALL_DIR="${installDir}"
+APP_NAME="$(basename "$BUNDLE")"
+
+# 等待当前应用退出（最多 60 秒），仍在运行则放弃，避免替换运行中的文件
+for _ in $(seq 1 120); do
+  kill -0 "$APP_PID" 2>/dev/null || break
+  sleep 0.5
+done
+if kill -0 "$APP_PID" 2>/dev/null; then
+  exit 1
+fi
+sleep 1
+
+EXTRACT="$WORK/extract"
+mkdir -p "$EXTRACT"
+ditto -x -k "$ZIP" "$EXTRACT" || exit 1
+
+NEW_APP="$(find "$EXTRACT" -maxdepth 2 -name '*.app' -type d | head -n 1)"
+[ -n "$NEW_APP" ] || exit 1
+
+# 清除隔离属性，避免 Gatekeeper 拦截未签名应用
+xattr -dr com.apple.quarantine "$NEW_APP" 2>/dev/null || true
+
+OLD_APP="$INSTALL_DIR/$APP_NAME.old-backup"
+rm -rf "$OLD_APP"
+if [ -d "$BUNDLE" ]; then
+  mv "$BUNDLE" "$OLD_APP" || exit 1
+fi
+if mv "$NEW_APP" "$INSTALL_DIR/$APP_NAME"; then
+  rm -rf "$OLD_APP"
+  rm -rf "$WORK"
+  open "$INSTALL_DIR/$APP_NAME"
+  exit 0
+fi
+[ -d "$OLD_APP" ] && mv "$OLD_APP" "$BUNDLE"
+exit 1
+`;
+    fs.writeFileSync(scriptPath, script, { mode: 0o755 });
+    const child = spawn('/bin/bash', [scriptPath], { detached: true, stdio: 'ignore' });
+    child.unref();
+    app.quit();
+  } catch (err) {
+    fail(`启动更新安装失败：${err.message}`);
+  }
+}
+
 ipcMain.handle('quit-and-install-update', () => {
   console.log('IPC: Received "quit-and-install-update". Triggering quit and install.');
-  autoUpdater.quitAndInstall();
+  if (process.platform === 'darwin') {
+    installMacUpdate();
+  } else {
+    autoUpdater.quitAndInstall();
+  }
 });
 
 // 发送系统通知
