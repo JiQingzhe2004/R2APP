@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/Button"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { toast } from 'sonner'
 import { useNotifications } from '@/contexts/NotificationContext';
-import { 
-  User, KeyRound, Container, Globe, Plug, Save, PlusCircle, Trash2, 
+import {
+  User, KeyRound, Container, Globe, Plug, Save, PlusCircle, Trash2,
   Cloud, Server, Settings as SettingsIcon, ChevronDown, ChevronRight,
-  Database, Shield, MapPin, Link2, HardDrive, Edit2, Check, X, FolderOpen, Image, ScrollText, ChevronsUpDown, Minus, Plus, ChevronUp
+  Database, Shield, MapPin, Link2, HardDrive, Edit2, Check, X, FolderOpen, Image, ScrollText, ChevronsUpDown, Minus, Plus, ChevronUp,
+  LogIn, Fingerprint, FileKey, Clock, Lock
 } from 'lucide-react'
 import AppSettings from './AppSettings';
 import { ReleaseNotesContent } from '@/components/ReleaseNotesContent';
@@ -27,6 +28,11 @@ import SmmsIcon from '@/assets/cloudico/smms.app.png';
 import HuaweiIcon from '@/assets/cloudico/华为云.svg';
 import QiniuIcon from '@/assets/cloudico/七牛云.svg';
 import JDCloudIcon from '@/assets/cloudico/京东云.svg';
+import S3Icon from '@/assets/cloudico/S3.svg';
+import WebDAVIcon from '@/assets/cloudico/WebDAV.svg';
+import SFTPIcon from '@/assets/cloudico/SFTP.svg';
+import OneDriveIcon from '@/assets/cloudico/OneDrive.svg';
+import GoogleDriveIcon from '@/assets/cloudico/GoogleDrive.svg';
 
 import { v4 as uuidv4 } from 'uuid';
 import { useOutletContext } from 'react-router-dom';
@@ -190,6 +196,87 @@ const QINIU_TEMPLATE = {
   createdAt: new Date().toISOString(),
 };
 
+// ===== 新增存储类型（P0-P2）=====
+// 机密字段（accessKeyId/secretAccessKey/password 等）保存时由主进程写入加密凭据存储，
+// profile 中只保留 credentialRef 标记；输入框留空表示保持已保存凭据不变。
+const S3_TEMPLATE = {
+  type: 's3',
+  name: '新 S3 兼容配置',
+  preset: 'custom', // aws | minio | b2 | custom
+  endpoint: '',
+  region: '',
+  bucket: '',
+  accessKeyId: '',
+  secretAccessKey: '',
+  sessionToken: '',
+  forcePathStyle: false,
+  publicDomain: '',
+  rootPrefix: '',
+  linkMode: 'presigned', // public | presigned
+  storageQuotaGB: 10,
+  storageQuotaUnit: 'GB',
+  createdAt: new Date().toISOString(),
+};
+
+const WEBDAV_TEMPLATE = {
+  type: 'webdav',
+  name: '新 WebDAV 配置',
+  baseUrl: '',
+  username: '',
+  password: '',
+  rootPath: '',
+  timeout: 30,
+  caText: '',
+  storageQuotaGB: 10,
+  storageQuotaUnit: 'GB',
+  createdAt: new Date().toISOString(),
+};
+
+const SFTP_TEMPLATE = {
+  type: 'sftp',
+  name: '新 SFTP 配置',
+  host: '',
+  port: 22,
+  username: '',
+  authMode: 'password', // password | key
+  password: '',
+  privateKeyPath: '',
+  passphrase: '',
+  rootPath: '/',
+  timeout: 20,
+  trustedFingerprint: '',
+  storageQuotaGB: 10,
+  storageQuotaUnit: 'GB',
+  createdAt: new Date().toISOString(),
+};
+
+const ONEDRIVE_TEMPLATE = {
+  type: 'onedrive',
+  name: '新 OneDrive 配置',
+  clientId: '',
+  clientSecret: '',
+  tenantType: 'common', // consumers | organizations | common
+  resourceKind: 'personal', // personal | business | sharepoint
+  driveId: '',
+  siteId: '',
+  accountEmail: '',
+  storageQuotaGB: 5,
+  storageQuotaUnit: 'GB',
+  createdAt: new Date().toISOString(),
+};
+
+const GOOGLE_DRIVE_TEMPLATE = {
+  type: 'google-drive',
+  name: '新 Google Drive 配置',
+  clientId: '',
+  clientSecret: '',
+  rootFolderId: '',
+  accountEmail: '',
+  storageQuotaGB: 15,
+  storageQuotaUnit: 'GB',
+  createdAt: new Date().toISOString(),
+};
+
 const PROVIDER_INFO = {
   r2: {
     name: 'Cloudflare R2',
@@ -250,10 +337,40 @@ const PROVIDER_INFO = {
     icon: QiniuIcon,
     color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200',
     description: '七牛云对象存储服务'
+  },
+  s3: {
+    name: 'S3 兼容存储',
+    icon: S3Icon,
+    color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+    description: '通用 S3 兼容服务：Amazon S3、MinIO、Backblaze B2 等'
+  },
+  webdav: {
+    name: 'WebDAV',
+    icon: WebDAVIcon,
+    color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+    description: 'Nextcloud、ownCloud 及开放 WebDAV 的 NAS'
+  },
+  sftp: {
+    name: 'SFTP',
+    icon: SFTPIcon,
+    color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+    description: 'Linux 服务器与开放 SSH/SFTP 的 NAS'
+  },
+  onedrive: {
+    name: 'OneDrive',
+    icon: OneDriveIcon,
+    color: 'bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200',
+    description: 'Microsoft 个人网盘、企业 OneDrive 与 SharePoint 文档库'
+  },
+  'google-drive': {
+    name: 'Google Drive',
+    icon: GoogleDriveIcon,
+    color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+    description: 'Google 个人网盘（我的云端硬盘）'
   }
 };
 
-const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove, onSave, isTesting, isSaving }) => {
+const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove, onSave, isTesting, isSaving, onAuthorize, authorizing }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(profile.name);
@@ -389,8 +506,12 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
         {!isExpanded && (
           <CardDescription className="mt-2 text-xs">
             {providerInfo.description}
-            {profile.bucket || profile.bucketName ? 
+            {(profile.bucket || profile.bucketName) ?
               ` • 存储桶: ${profile.bucket || profile.bucketName}` : ''}
+            {profile.type === 'webdav' && profile.baseUrl ? ` • ${profile.baseUrl}` : ''}
+            {profile.type === 'sftp' && profile.host ? ` • ${profile.username}@${profile.host}` : ''}
+            {(profile.type === 'onedrive' || profile.type === 'google-drive') && profile.accountEmail ?
+              ` • ${profile.accountEmail}` : ''}
           </CardDescription>
         )}
       </CardHeader>
@@ -1630,15 +1751,800 @@ const ProfileCard = ({ profile, isActive, onActivate, onChange, onTest, onRemove
                   <Label htmlFor={`lskyAlbum-${profile.id}`} className="flex items-center gap-2">
                     相册ID
                   </Label>
-                  <Input 
-                    id={`lskyAlbum-${profile.id}`} 
-                    name="albumId" 
-                    value={profile.albumId || ''} 
-                    onChange={(e) => onChange(profile.id, e)} 
-                    placeholder="可选，相册ID" 
+                  <Input
+                    id={`lskyAlbum-${profile.id}`}
+                    name="albumId"
+                    value={profile.albumId || ''}
+                    onChange={(e) => onChange(profile.id, e)}
+                    placeholder="可选，相册ID"
                     className="rounded-full"
                   />
                 </div>
+              </div>
+            </>
+          )}
+
+          {profile.type === 's3' && (
+            <>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Cloud className="h-4 w-4" />
+                  服务预设
+                </Label>
+                <MorphingMenu
+                  className="w-full h-10 z-30"
+                  triggerClassName="rounded-full border bg-background hover:bg-accent hover:text-accent-foreground"
+                  direction="top-left"
+                  collapsedRadius="20px"
+                  expandedRadius="20px"
+                  expandedWidth={300}
+                  trigger={
+                    <div className="flex w-full items-center justify-between px-3 text-sm font-medium">
+                      <span className="truncate">
+                        {[
+                          { value: 'aws', label: 'Amazon S3' },
+                          { value: 'minio', label: 'MinIO' },
+                          { value: 'b2', label: 'Backblaze B2' },
+                          { value: 'custom', label: '自定义 S3 兼容服务' }
+                        ].find(p => p.value === (profile.preset || 'custom'))?.label || '选择服务预设'}
+                      </span>
+                      <ChevronsUpDown className="h-4 w-4 opacity-50 ml-2" />
+                    </div>
+                  }
+                >
+                  <div className="flex flex-col p-2 gap-1">
+                    <div className="px-2 py-1.5 text-sm font-semibold text-muted-foreground">
+                      预设仅帮助填写参数，可继续手动修改
+                    </div>
+                    <div className="h-px bg-border mx-2 my-1" />
+                    {[
+                      { value: 'aws', label: 'Amazon S3', hint: 'Endpoint 可留空，按区域解析' },
+                      { value: 'minio', label: 'MinIO', hint: '通常需要开启路径风格 (Path Style)' },
+                      { value: 'b2', label: 'Backblaze B2', hint: 'Endpoint 按桶所在区域填写' },
+                      { value: 'custom', label: '自定义 S3 兼容服务', hint: '按服务文档填写' }
+                    ].map(item => (
+                      <div
+                        key={item.value}
+                        onClick={() => {
+                          onChange(profile.id, { target: { name: 'preset', value: item.value } });
+                          // 预设仅帮助填写默认参数
+                          if (item.value === 'aws') {
+                            onChange(profile.id, { target: { name: 'forcePathStyle', value: false } });
+                          } else if (item.value === 'minio' || item.value === 'custom') {
+                            onChange(profile.id, { target: { name: 'forcePathStyle', value: true } });
+                          }
+                        }}
+                        className={cn(
+                          'relative flex cursor-pointer select-none items-center rounded-full px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground',
+                          (profile.preset || 'custom') === item.value && 'bg-accent'
+                        )}
+                      >
+                        <span className="ml-2 flex flex-col">
+                          <span>{item.label}</span>
+                          <span className="text-xs text-muted-foreground">{item.hint}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </MorphingMenu>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`s3-endpoint-${profile.id}`} className="flex items-center gap-2">
+                    <Globe className="h-4 w-4" />
+                    Endpoint
+                  </Label>
+                  <Input
+                    id={`s3-endpoint-${profile.id}`}
+                    name="endpoint"
+                    value={profile.endpoint || ''}
+                    onChange={(e) => onChange(profile.id, e)}
+                    placeholder="例如: https://s3.us-west-004.backblazeb2.com（AWS 可留空）"
+                    className="rounded-full"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`s3-region-${profile.id}`} className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4" />
+                    区域 (Region)
+                  </Label>
+                  <Input
+                    id={`s3-region-${profile.id}`}
+                    name="region"
+                    value={profile.region || ''}
+                    onChange={(e) => onChange(profile.id, e)}
+                    placeholder="例如: us-east-1，按服务文档填写"
+                    className="rounded-full"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`s3-bucket-${profile.id}`} className="flex items-center gap-2">
+                    <Container className="h-4 w-4" />
+                    存储桶名称
+                  </Label>
+                  <Input
+                    id={`s3-bucket-${profile.id}`}
+                    name="bucket"
+                    value={profile.bucket || ''}
+                    onChange={(e) => onChange(profile.id, e)}
+                    placeholder="直接连接指定桶"
+                    className="rounded-full"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`s3-ak-${profile.id}`} className="flex items-center gap-2">
+                    <KeyRound className="h-4 w-4" />
+                    Access Key ID
+                  </Label>
+                  <Input
+                    id={`s3-ak-${profile.id}`}
+                    name="accessKeyId"
+                    type="password"
+                    value={profile.accessKeyId || ''}
+                    onChange={(e) => onChange(profile.id, e)}
+                    placeholder={profile.credentialRef?.accessKeyId ? '已保存（加密），留空保持不变' : '访问密钥 ID'}
+                    className="rounded-full"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`s3-sk-${profile.id}`} className="flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    Secret Access Key
+                  </Label>
+                  <Input
+                    id={`s3-sk-${profile.id}`}
+                    name="secretAccessKey"
+                    type="password"
+                    value={profile.secretAccessKey || ''}
+                    onChange={(e) => onChange(profile.id, e)}
+                    placeholder={profile.credentialRef?.secretAccessKey ? '已保存（加密），留空保持不变' : '秘密访问密钥'}
+                    className="rounded-full"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`s3-token-${profile.id}`} className="flex items-center gap-2">
+                    <Lock className="h-4 w-4" />
+                    会话令牌 (Session Token，可选)
+                  </Label>
+                  <Input
+                    id={`s3-token-${profile.id}`}
+                    name="sessionToken"
+                    type="password"
+                    value={profile.sessionToken || ''}
+                    onChange={(e) => onChange(profile.id, e)}
+                    placeholder={profile.credentialRef?.sessionToken ? '已保存（加密），留空保持不变' : '临时凭据使用'}
+                    className="rounded-full"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Link2 className="h-4 w-4" />
+                    链接模式
+                  </Label>
+                  <MorphingMenu
+                    className="w-full h-10 z-30"
+                    triggerClassName="rounded-full border bg-background hover:bg-accent hover:text-accent-foreground"
+                    direction="top-left"
+                    collapsedRadius="20px"
+                    expandedRadius="20px"
+                    expandedWidth={280}
+                    trigger={
+                      <div className="flex w-full items-center justify-between px-3 text-sm font-medium">
+                        <span className="truncate">
+                          {profile.linkMode === 'public' ? '公开链接' : '临时预签名链接（默认）'}
+                        </span>
+                        <ChevronsUpDown className="h-4 w-4 opacity-50 ml-2" />
+                      </div>
+                    }
+                  >
+                    <div className="flex flex-col p-2 gap-1">
+                      {[
+                        { value: 'presigned', label: '临时预签名链接', hint: '私有桶也可访问，链接有时效' },
+                        { value: 'public', label: '公开链接', hint: '桶或自定义域名允许公开读取时使用' }
+                      ].map(item => (
+                        <div
+                          key={item.value}
+                          onClick={() => onChange(profile.id, { target: { name: 'linkMode', value: item.value } })}
+                          className={cn(
+                            'relative flex cursor-pointer select-none items-center rounded-full px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground',
+                            (profile.linkMode || 'presigned') === item.value && 'bg-accent'
+                          )}
+                        >
+                          <span className="ml-2 flex flex-col">
+                            <span>{item.label}</span>
+                            <span className="text-xs text-muted-foreground">{item.hint}</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </MorphingMenu>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`s3-prefix-${profile.id}`} className="flex items-center gap-2">
+                    <FolderOpen className="h-4 w-4" />
+                    根前缀 (rootPrefix，可选)
+                  </Label>
+                  <Input
+                    id={`s3-prefix-${profile.id}`}
+                    name="rootPrefix"
+                    value={profile.rootPrefix || ''}
+                    onChange={(e) => onChange(profile.id, e)}
+                    placeholder="限定界面管理的对象前缀，例如: photos/2026/"
+                    className="rounded-full"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`s3-domain-${profile.id}`} className="flex items-center gap-2">
+                    <Globe className="h-4 w-4" />
+                    公开访问域名（可选）
+                  </Label>
+                  <Input
+                    id={`s3-domain-${profile.id}`}
+                    name="publicDomain"
+                    value={profile.publicDomain || ''}
+                    onChange={(e) => onChange(profile.id, e)}
+                    placeholder="例如: https://cdn.yourdomain.com"
+                    className="rounded-full"
+                  />
+                </div>
+                <div className="flex items-center space-x-2 pt-6">
+                  <input
+                    type="checkbox"
+                    id={`s3-pathstyle-${profile.id}`}
+                    checked={!!profile.forcePathStyle}
+                    onChange={(e) => onChange(profile.id, { target: { name: 'forcePathStyle', value: e.target.checked } })}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                  <Label htmlFor={`s3-pathstyle-${profile.id}`} className="text-sm font-normal cursor-pointer">
+                    路径风格 (Path Style)，MinIO 等服务需要
+                  </Label>
+                </div>
+              </div>
+            </>
+          )}
+
+          {profile.type === 'webdav' && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor={`wd-url-${profile.id}`} className="flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  服务地址 (Base URL)
+                </Label>
+                <Input
+                  id={`wd-url-${profile.id}`}
+                  name="baseUrl"
+                  value={profile.baseUrl || ''}
+                  onChange={(e) => onChange(profile.id, e)}
+                  placeholder="例如: https://cloud.example.com/remote.php/dav/files/你的用户名/"
+                  className="rounded-full"
+                />
+                <p className="text-xs text-muted-foreground">
+                  填写 WebDAV 服务地址，不是网页登录地址。Nextcloud 通常形如上方示例；NAS 需先启用 WebDAV 服务。
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`wd-user-${profile.id}`} className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    用户名
+                  </Label>
+                  <Input
+                    id={`wd-user-${profile.id}`}
+                    name="username"
+                    value={profile.username || ''}
+                    onChange={(e) => onChange(profile.id, e)}
+                    placeholder="账号用户名"
+                    className="rounded-full"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`wd-pass-${profile.id}`} className="flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    密码 / 应用密码
+                  </Label>
+                  <Input
+                    id={`wd-pass-${profile.id}`}
+                    name="password"
+                    type="password"
+                    value={profile.password || ''}
+                    onChange={(e) => onChange(profile.id, e)}
+                    placeholder={profile.credentialRef?.password ? '已保存（加密），留空保持不变' : 'Nextcloud 建议使用应用密码'}
+                    className="rounded-full"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`wd-root-${profile.id}`} className="flex items-center gap-2">
+                    <FolderOpen className="h-4 w-4" />
+                    根目录 (rootPath，可选)
+                  </Label>
+                  <Input
+                    id={`wd-root-${profile.id}`}
+                    name="rootPath"
+                    value={profile.rootPath || ''}
+                    onChange={(e) => onChange(profile.id, e)}
+                    placeholder="限定管理的目录，留空为根目录"
+                    className="rounded-full"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`wd-timeout-${profile.id}`} className="flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    连接超时（秒）
+                  </Label>
+                  <Input
+                    id={`wd-timeout-${profile.id}`}
+                    name="timeout"
+                    type="number"
+                    value={profile.timeout || 30}
+                    onChange={(e) => onChange(profile.id, e)}
+                    className="rounded-full"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor={`wd-ca-${profile.id}`} className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  受信任 CA 证书（可选）
+                </Label>
+                <textarea
+                  id={`wd-ca-${profile.id}`}
+                  name="caText"
+                  value={profile.caText || ''}
+                  onChange={(e) => onChange(profile.id, e)}
+                  placeholder="自签名证书的 NAS：粘贴 PEM 格式的 CA 证书内容。不填写则使用系统证书校验。"
+                  rows={3}
+                  className="w-full px-3 py-2 border border-input bg-background rounded-xl text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  为保证安全，应用始终校验 TLS 证书；此处仅用于添加你明确信任的 CA，不提供关闭校验的开关。
+                </p>
+              </div>
+            </>
+          )}
+
+          {profile.type === 'sftp' && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`sftp-host-${profile.id}`} className="flex items-center gap-2">
+                    <Server className="h-4 w-4" />
+                    主机地址
+                  </Label>
+                  <Input
+                    id={`sftp-host-${profile.id}`}
+                    name="host"
+                    value={profile.host || ''}
+                    onChange={(e) => onChange(profile.id, e)}
+                    placeholder="服务器 IP 或域名"
+                    className="rounded-full"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`sftp-port-${profile.id}`} className="flex items-center gap-2">
+                    <Plug className="h-4 w-4" />
+                    端口
+                  </Label>
+                  <Input
+                    id={`sftp-port-${profile.id}`}
+                    name="port"
+                    type="number"
+                    value={profile.port || 22}
+                    onChange={(e) => onChange(profile.id, e)}
+                    placeholder="默认 22"
+                    className="rounded-full"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`sftp-user-${profile.id}`} className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    用户名
+                  </Label>
+                  <Input
+                    id={`sftp-user-${profile.id}`}
+                    name="username"
+                    value={profile.username || ''}
+                    onChange={(e) => onChange(profile.id, e)}
+                    placeholder="SSH 登录用户名"
+                    className="rounded-full"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <KeyRound className="h-4 w-4" />
+                    认证方式
+                  </Label>
+                  <MorphingMenu
+                    className="w-full h-10 z-30"
+                    triggerClassName="rounded-full border bg-background hover:bg-accent hover:text-accent-foreground"
+                    direction="top-left"
+                    collapsedRadius="20px"
+                    expandedRadius="20px"
+                    expandedWidth={220}
+                    trigger={
+                      <div className="flex w-full items-center justify-between px-3 text-sm font-medium">
+                        <span className="truncate">
+                          {profile.authMode === 'key' ? '私钥认证' : '密码认证'}
+                        </span>
+                        <ChevronsUpDown className="h-4 w-4 opacity-50 ml-2" />
+                      </div>
+                    }
+                  >
+                    <div className="flex flex-col p-2 gap-1">
+                      {[
+                        { value: 'password', label: '密码认证' },
+                        { value: 'key', label: '私钥认证' }
+                      ].map(item => (
+                        <div
+                          key={item.value}
+                          onClick={() => onChange(profile.id, { target: { name: 'authMode', value: item.value } })}
+                          className={cn(
+                            'relative flex cursor-pointer select-none items-center rounded-full px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground',
+                            (profile.authMode || 'password') === item.value && 'bg-accent'
+                          )}
+                        >
+                          <span className="ml-2">{item.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </MorphingMenu>
+                </div>
+              </div>
+
+              {profile.authMode === 'key' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor={`sftp-key-${profile.id}`} className="flex items-center gap-2">
+                      <FileKey className="h-4 w-4" />
+                      私钥文件路径
+                    </Label>
+                    <Input
+                      id={`sftp-key-${profile.id}`}
+                      name="privateKeyPath"
+                      value={profile.privateKeyPath || ''}
+                      onChange={(e) => onChange(profile.id, e)}
+                      placeholder="例如: C:\Users\you\.ssh\id_rsa 或 ~/.ssh/id_ed25519"
+                      className="rounded-full"
+                    />
+                    <p className="text-xs text-muted-foreground">私钥由本应用主进程读取，不会上传或展示内容。</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor={`sftp-pass-${profile.id}`} className="flex items-center gap-2">
+                      <Lock className="h-4 w-4" />
+                      私钥口令（可选）
+                    </Label>
+                    <Input
+                      id={`sftp-pass-${profile.id}`}
+                      name="passphrase"
+                      type="password"
+                      value={profile.passphrase || ''}
+                      onChange={(e) => onChange(profile.id, e)}
+                      placeholder={profile.credentialRef?.passphrase ? '已保存（加密），留空保持不变' : '私钥有口令时填写'}
+                      className="rounded-full"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor={`sftp-password-${profile.id}`} className="flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    密码
+                  </Label>
+                  <Input
+                    id={`sftp-password-${profile.id}`}
+                    name="password"
+                    type="password"
+                    value={profile.password || ''}
+                    onChange={(e) => onChange(profile.id, e)}
+                    placeholder={profile.credentialRef?.password ? '已保存（加密），留空保持不变' : 'SSH 登录密码'}
+                    className="rounded-full"
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor={`sftp-root-${profile.id}`} className="flex items-center gap-2">
+                    <FolderOpen className="h-4 w-4" />
+                    根目录 (rootPath)
+                  </Label>
+                  <Input
+                    id={`sftp-root-${profile.id}`}
+                    name="rootPath"
+                    value={profile.rootPath || '/'}
+                    onChange={(e) => onChange(profile.id, e)}
+                    placeholder="例如: /home/user 或 /，限定管理范围"
+                    className="rounded-full"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor={`sftp-timeout-${profile.id}`} className="flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    连接超时（秒）
+                  </Label>
+                  <Input
+                    id={`sftp-timeout-${profile.id}`}
+                    name="timeout"
+                    type="number"
+                    value={profile.timeout || 20}
+                    onChange={(e) => onChange(profile.id, e)}
+                    className="rounded-full"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Fingerprint className="h-4 w-4" />
+                  主机指纹
+                </Label>
+                <div className="flex items-center gap-2 rounded-full border border-input bg-background px-3 py-2 text-sm">
+                  <Fingerprint className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span className="truncate font-mono text-xs" title={profile.trustedFingerprint || ''}>
+                    {profile.trustedFingerprint || '尚未信任任何主机指纹，首次连接测试时会显示供核对'}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  首次连接请核对指纹后再信任；指纹变化时应用会阻止连接，防止中间人攻击。
+                </p>
+              </div>
+            </>
+          )}
+
+          {(profile.type === 'onedrive' || profile.type === 'google-drive') && (
+            <>
+              {profile.type === 'onedrive' && (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor={`od-client-${profile.id}`} className="flex items-center gap-2">
+                        <KeyRound className="h-4 w-4" />
+                        Client ID（应用程序 ID）
+                      </Label>
+                      <Input
+                        id={`od-client-${profile.id}`}
+                        name="clientId"
+                        value={profile.clientId || ''}
+                        onChange={(e) => onChange(profile.id, e)}
+                        placeholder="Azure 应用注册中的客户端 ID"
+                        className="rounded-full"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`od-secret-${profile.id}`} className="flex items-center gap-2">
+                        <Shield className="h-4 w-4" />
+                        Client Secret（可选）
+                      </Label>
+                      <Input
+                        id={`od-secret-${profile.id}`}
+                        name="clientSecret"
+                        type="password"
+                        value={profile.clientSecret || ''}
+                        onChange={(e) => onChange(profile.id, e)}
+                        placeholder={profile.credentialRef?.clientSecret ? '已保存（加密），留空保持不变' : '公共客户端 PKCE 可留空'}
+                        className="rounded-full"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <User className="h-4 w-4" />
+                        账号类型
+                      </Label>
+                      <MorphingMenu
+                        className="w-full h-10 z-30"
+                        triggerClassName="rounded-full border bg-background hover:bg-accent hover:text-accent-foreground"
+                        direction="top-left"
+                        collapsedRadius="20px"
+                        expandedRadius="20px"
+                        expandedWidth={260}
+                        trigger={
+                          <div className="flex w-full items-center justify-between px-3 text-sm font-medium">
+                            <span className="truncate">
+                              {[
+                                { value: 'consumers', label: '个人账号' },
+                                { value: 'organizations', label: '企业账号（单租户）' },
+                                { value: 'common', label: '任意组织账号' }
+                              ].find(t => t.value === (profile.tenantType || 'common'))?.label || '选择账号类型'}
+                            </span>
+                            <ChevronsUpDown className="h-4 w-4 opacity-50 ml-2" />
+                          </div>
+                        }
+                      >
+                        <div className="flex flex-col p-2 gap-1">
+                          {[
+                            { value: 'consumers', label: '个人账号' },
+                            { value: 'organizations', label: '企业账号（单租户）' },
+                            { value: 'common', label: '任意组织账号' }
+                          ].map(item => (
+                            <div
+                              key={item.value}
+                              onClick={() => onChange(profile.id, { target: { name: 'tenantType', value: item.value } })}
+                              className={cn(
+                                'relative flex cursor-pointer select-none items-center rounded-full px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground',
+                                (profile.tenantType || 'common') === item.value && 'bg-accent'
+                              )}
+                            >
+                              <span className="ml-2">{item.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </MorphingMenu>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <Cloud className="h-4 w-4" />
+                        资源类型
+                      </Label>
+                      <MorphingMenu
+                        className="w-full h-10 z-30"
+                        triggerClassName="rounded-full border bg-background hover:bg-accent hover:text-accent-foreground"
+                        direction="top-left"
+                        collapsedRadius="20px"
+                        expandedRadius="20px"
+                        expandedWidth={260}
+                        trigger={
+                          <div className="flex w-full items-center justify-between px-3 text-sm font-medium">
+                            <span className="truncate">
+                              {[
+                                { value: 'personal', label: '个人 OneDrive' },
+                                { value: 'business', label: '企业 OneDrive' },
+                                { value: 'sharepoint', label: 'SharePoint 文档库' }
+                              ].find(t => t.value === (profile.resourceKind || 'personal'))?.label || '选择资源类型'}
+                            </span>
+                            <ChevronsUpDown className="h-4 w-4 opacity-50 ml-2" />
+                          </div>
+                        }
+                      >
+                        <div className="flex flex-col p-2 gap-1">
+                          {[
+                            { value: 'personal', label: '个人 OneDrive' },
+                            { value: 'business', label: '企业 OneDrive' },
+                            { value: 'sharepoint', label: 'SharePoint 文档库' }
+                          ].map(item => (
+                            <div
+                              key={item.value}
+                              onClick={() => onChange(profile.id, { target: { name: 'resourceKind', value: item.value } })}
+                              className={cn(
+                                'relative flex cursor-pointer select-none items-center rounded-full px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground',
+                                (profile.resourceKind || 'personal') === item.value && 'bg-accent'
+                              )}
+                            >
+                              <span className="ml-2">{item.label}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </MorphingMenu>
+                    </div>
+                  </div>
+
+                  {(profile.resourceKind === 'sharepoint') && (
+                    <div className="space-y-2">
+                      <Label htmlFor={`od-site-${profile.id}`} className="flex items-center gap-2">
+                        <Container className="h-4 w-4" />
+                        Site ID（SharePoint 站点 ID）
+                      </Label>
+                      <Input
+                        id={`od-site-${profile.id}`}
+                        name="siteId"
+                        value={profile.siteId || ''}
+                        onChange={(e) => onChange(profile.id, e)}
+                        placeholder="例如: contoso.sharepoint.com,00000000-0000-0000-0000-000000000000,11111111-1111-1111-1111-111111111111"
+                        className="rounded-full"
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+
+              {profile.type === 'google-drive' && (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor={`gd-client-${profile.id}`} className="flex items-center gap-2">
+                        <KeyRound className="h-4 w-4" />
+                        OAuth Client ID
+                      </Label>
+                      <Input
+                        id={`gd-client-${profile.id}`}
+                        name="clientId"
+                        value={profile.clientId || ''}
+                        onChange={(e) => onChange(profile.id, e)}
+                        placeholder="Google Cloud OAuth 桌面应用客户端 ID"
+                        className="rounded-full"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`gd-secret-${profile.id}`} className="flex items-center gap-2">
+                        <Shield className="h-4 w-4" />
+                        OAuth Client Secret
+                      </Label>
+                      <Input
+                        id={`gd-secret-${profile.id}`}
+                        name="clientSecret"
+                        type="password"
+                        value={profile.clientSecret || ''}
+                        onChange={(e) => onChange(profile.id, e)}
+                        placeholder={profile.credentialRef?.clientSecret ? '已保存（加密），留空保持不变' : '桌面应用类型需要填写'}
+                        className="rounded-full"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor={`gd-root-${profile.id}`} className="flex items-center gap-2">
+                      <FolderOpen className="h-4 w-4" />
+                      根目录 ID（可选）
+                    </Label>
+                    <Input
+                      id={`gd-root-${profile.id}`}
+                      name="rootFolderId"
+                      value={profile.rootFolderId || ''}
+                      onChange={(e) => onChange(profile.id, e)}
+                      placeholder="留空管理整个我的云端硬盘"
+                      className="rounded-full"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <LogIn className="h-4 w-4" />
+                  账号授权
+                </Label>
+                <div className="flex items-center gap-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-full"
+                    disabled={authorizing}
+                    onClick={() => onAuthorize(profile.id)}
+                  >
+                    <LogIn className="mr-2 h-4 w-4" />
+                    {authorizing ? '等待浏览器授权...' : profile.accountEmail ? '重新登录' : '登录账号'}
+                  </Button>
+                  {authorizing && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="rounded-full"
+                      onClick={() => window.api.cancelOAuth()}
+                    >
+                      取消
+                    </Button>
+                  )}
+                  {profile.accountEmail && (
+                    <span className="text-sm text-muted-foreground truncate" title={profile.accountEmail}>
+                      已登录: {profile.accountEmail}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  点击后将在系统浏览器中完成授权（应用只会保存令牌的加密副本，不会展示或上传）。
+                  企业账号可能需要管理员批准；授权失败时请检查 Client ID 与重定向设置。
+                </p>
               </div>
             </>
           )}
@@ -1765,6 +2671,8 @@ export default function SettingsPage() {
   const [isTesting, setIsTesting] = useState({}); // Track by profile id
   const [isSaving, setIsSaving] = useState({}); // Track by profile id
   const [activeTab, setActiveTab] = useState('profiles'); // profiles | app
+  const [pendingTrust, setPendingTrust] = useState(null); // SFTP 主机指纹待信任 {profileId, fingerprint, changed}
+  const [isAuthorizing, setIsAuthorizing] = useState({}); // OAuth 授权中（按配置 ID）
   
   const tabOrder = ['profiles', 'app', 'release'];
   const activeTabIndex = Math.max(0, tabOrder.indexOf(activeTab));
@@ -1833,7 +2741,12 @@ export default function SettingsPage() {
       'gitee': GITEE_TEMPLATE,
       'gcs': GCS_TEMPLATE,
       'obs': OBS_TEMPLATE,
-      'qiniu': QINIU_TEMPLATE
+      'qiniu': QINIU_TEMPLATE,
+      's3': S3_TEMPLATE,
+      'webdav': WEBDAV_TEMPLATE,
+      'sftp': SFTP_TEMPLATE,
+      'onedrive': ONEDRIVE_TEMPLATE,
+      'google-drive': GOOGLE_DRIVE_TEMPLATE
     };
     const template = templates[type] || R2_TEMPLATE;
     const newProfile = {
@@ -1873,15 +2786,69 @@ export default function SettingsPage() {
 
     setIsTesting(prev => ({...prev, [profileId]: true}));
     const toastId = toast.loading(`正在测试配置 "${profileToTest.name}"...`);
-    
+
     const result = await window.api.testConnection(profileToTest);
 
     if (result.success) {
       toast.success(result.message, { id: toastId });
+    } else if (result.needsTrust || result.fingerprintChanged) {
+      // SFTP 主机指纹流程：展示指纹供用户核对后决定是否信任
+      toast.dismiss(toastId);
+      setPendingTrust({
+        profileId,
+        fingerprint: result.fingerprint,
+        changed: !!result.fingerprintChanged
+      });
     } else {
       toast.error(result.error, { id: toastId });
     }
     setIsTesting(prev => ({...prev, [profileId]: false}));
+  };
+
+  const handleTrustFingerprint = async () => {
+    if (!pendingTrust) return;
+    const { profileId, fingerprint } = pendingTrust;
+    const profileToTrust = profiles.find(p => p.id === profileId);
+    setPendingTrust(null);
+    if (!profileToTrust) return;
+
+    // 保存受信任指纹并自动重新测试
+    await handleSaveProfile(profileId, { ...profileToTrust, trustedFingerprint: fingerprint });
+    setTimeout(() => handleTestConnection(profileId), 300);
+  };
+
+  const handleAuthorize = async (profileId) => {
+    const profileToAuth = profiles.find(p => p.id === profileId);
+    if (!profileToAuth) return;
+
+    setIsAuthorizing(prev => ({...prev, [profileId]: true}));
+    const toastId = toast.loading(`等待浏览器完成授权（"${profileToAuth.name}"）...`);
+
+    try {
+      const result = await window.api.startOAuth({
+        profileId,
+        provider: profileToAuth.type,
+        clientId: profileToAuth.clientId,
+        clientSecret: profileToAuth.clientSecret,
+        tenantType: profileToAuth.tenantType,
+        resourceKind: profileToAuth.resourceKind
+      });
+
+      if (result.success) {
+        const updatedProfile = {
+          ...profileToAuth,
+          accountEmail: result.accountEmail || ''
+        };
+        await handleSaveProfile(profileId, updatedProfile);
+        toast.success(`授权成功${result.accountEmail ? `：${result.accountEmail}` : ''}`, { id: toastId });
+      } else {
+        toast.error(result.error || '授权失败', { id: toastId });
+      }
+    } catch (error) {
+      toast.error(error.message || '授权失败', { id: toastId });
+    } finally {
+      setIsAuthorizing(prev => ({...prev, [profileId]: false}));
+    }
   };
 
   const handleSaveProfile = async (profileId, updatedProfile = null) => {
@@ -1996,6 +2963,11 @@ export default function SettingsPage() {
                     { type: 'obs', label: '华为云 OBS', icon: HuaweiIcon },
                     { type: 'jdcloud', label: '京东云对象存储', icon: JDCloudIcon },
                     { type: 'qiniu', label: '七牛云 Kodo', icon: QiniuIcon },
+                    { type: 's3', label: 'S3 兼容存储（S3/MinIO/B2）', icon: S3Icon },
+                    { type: 'webdav', label: 'WebDAV（Nextcloud/NAS）', icon: WebDAVIcon },
+                    { type: 'sftp', label: 'SFTP（服务器/NAS）', icon: SFTPIcon },
+                    { type: 'onedrive', label: 'OneDrive / SharePoint', icon: OneDriveIcon },
+                    { type: 'google-drive', label: 'Google Drive', icon: GoogleDriveIcon },
                   ].map((item) => (
                     <div
                       key={item.type}
@@ -2040,6 +3012,8 @@ export default function SettingsPage() {
                           onSave={handleSaveProfile}
                           isTesting={isTesting[profile.id]}
                           isSaving={isSaving[profile.id]}
+                          onAuthorize={handleAuthorize}
+                          authorizing={isAuthorizing[profile.id]}
                         />
                       ))}
                   </div>
@@ -2059,6 +3033,45 @@ export default function SettingsPage() {
           <ReleaseNotesContent variant="embedded" />
         </TabsContent>
       </Tabs>
+
+      {/* SFTP 主机指纹核对对话框 */}
+      <AlertDialog open={!!pendingTrust} onOpenChange={(open) => !open && setPendingTrust(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingTrust?.changed ? '主机指纹已变化！' : '首次连接：请核对主机指纹'}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                {pendingTrust?.changed ? (
+                  <p>
+                    服务器的指纹与之前信任的不一致。这可能意味着服务器重新安装或更换了密钥，<br />
+                    <span className="font-semibold text-destructive">也可能是中间人攻击</span>。
+                    只有在你确认服务器合法（例如已知服务器重装过系统）时才应更新信任。
+                  </p>
+                ) : (
+                  <p>请核对下方指纹是否与你的服务器一致（可在服务器上执行
+                    <code className="mx-1 rounded bg-muted px-1 py-0.5 text-xs">ssh-keygen -lf /etc/ssh/ssh_host_*_key.pub</code>
+                    查看），确认无误后点击"信任并重试"。
+                  </p>
+                )}
+                {pendingTrust && (
+                  <div className="rounded-xl border border-input bg-muted/40 px-3 py-2">
+                    <p className="text-xs text-muted-foreground mb-1">SHA256 主机指纹</p>
+                    <p className="font-mono text-sm break-all">{pendingTrust.fingerprint}</p>
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消连接</AlertDialogCancel>
+            <AlertDialogAction onClick={handleTrustFingerprint}>
+              {pendingTrust?.changed ? '更新信任并重试' : '信任并重试'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

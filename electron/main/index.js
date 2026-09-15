@@ -24,12 +24,28 @@ import GCSAPI from './gcs-api.js';
 import ObsHuaweiAPI from './obs-huawei-api.js';
 import QiniuAPI from './qiniu-api.js';
 import JdCloudAPI from './jdcloud-api.js';
+import S3Api from './s3-api.js';
+import WebdavApi from './webdav-api.js';
+import SftpApi from './sftp-api.js';
+import OneDriveApi from './onedrive-api.js';
+import GoogleDriveApi from './google-drive-api.js';
 import { testProxyConnection } from './proxy-config.js';
+import {
+  NEW_STORAGE_TYPES,
+  resolveProfileSecrets,
+  stripAndStoreSecrets,
+  deleteSecretsForProfile,
+  isEncryptionAvailable,
+  saveSecret
+} from './secure-store.js';
+import { startOAuthFlow, cancelOAuthFlow, getDefaultScopes } from './oauth-manager.js';
 import { showSplash, hideSplash, destroySplash } from './splash-screen.js';
 import { getFestivalSplashImage, getFestivalLogo, initFestivalSplash, cleanupFestivalCache } from './festival-splash.js';
 
 
 const activeUploads = new Map();
+// 新增存储类型（通用 S3 / WebDAV / SFTP / OneDrive / Google Drive）
+const NEW_TYPES = new Set(NEW_STORAGE_TYPES);
 // Cache public URL and delete URL for providers that return them (SM.MS, LSKY)
 const objectUrlCache = new Map(); // key: provider+":"+objectKey -> url
 const objectDeleteUrlCache = new Map(); // key: provider+":"+objectKey -> deleteUrl
@@ -42,14 +58,19 @@ const apiInstances = new Map();
 
 /**
  * 获取API实例
+ * @param {string} type - 存储类型
+ * @param {object} [profileOverride] - 可选的指定配置（用于绑定配置 ID 的上传任务），
+ *                                     缺省时使用当前活动配置
  */
-function getAPIInstance(type) {
-  if (apiInstances.has(type)) {
-    return apiInstances.get(type);
-  }
-
-  const profile = getActiveProfile();
+function getAPIInstance(type, profileOverride = null) {
+  const profile = profileOverride || getActiveProfile();
   if (!profile) return null;
+
+  // 实例缓存按配置 ID + 类型隔离，账号切换不会复用错误实例
+  const cacheKey = `${profile.id || 'default'}:${type}`;
+  if (apiInstances.has(cacheKey)) {
+    return apiInstances.get(cacheKey);
+  }
 
   let apiInstance = null;
 
@@ -178,13 +199,109 @@ function getAPIInstance(type) {
         });
       }
       break;
+    case 's3':
+      try {
+        apiInstance = new S3Api({
+          id: profile.id,
+          preset: profile.preset,
+          endpoint: profile.endpoint,
+          region: profile.region,
+          bucket: profile.bucket,
+          accessKeyId: profile.accessKeyId,
+          secretAccessKey: profile.secretAccessKey,
+          sessionToken: profile.sessionToken,
+          forcePathStyle: profile.forcePathStyle,
+          publicDomain: profile.publicDomain,
+          rootPrefix: profile.rootPrefix,
+          linkMode: profile.linkMode
+        });
+      } catch (error) {
+        console.warn('[Main] S3 实例创建失败（配置可能未完成）:', error.message);
+      }
+      break;
+    case 'webdav':
+      try {
+        apiInstance = new WebdavApi({
+          id: profile.id,
+          baseUrl: profile.baseUrl,
+          username: profile.username,
+          password: profile.password,
+          rootPath: profile.rootPath,
+          timeout: profile.timeout,
+          caText: profile.caText
+        });
+      } catch (error) {
+        console.warn('[Main] WebDAV 实例创建失败（配置可能未完成）:', error.message);
+      }
+      break;
+    case 'sftp':
+      try {
+        apiInstance = new SftpApi({
+          id: profile.id,
+          host: profile.host,
+          port: profile.port,
+          username: profile.username,
+          authMode: profile.authMode,
+          password: profile.password,
+          privateKeyPath: profile.privateKeyPath,
+          passphrase: profile.passphrase,
+          rootPath: profile.rootPath,
+          timeout: profile.timeout,
+          trustedFingerprint: profile.trustedFingerprint
+        });
+      } catch (error) {
+        console.warn('[Main] SFTP 实例创建失败（配置可能未完成）:', error.message);
+      }
+      break;
+    case 'onedrive':
+      try {
+        apiInstance = new OneDriveApi({
+          id: profile.id,
+          clientId: profile.clientId,
+          clientSecret: profile.clientSecret,
+          tenantType: profile.tenantType,
+          resourceKind: profile.resourceKind,
+          driveId: profile.driveId,
+          siteId: profile.siteId,
+          oauthTokens: profile.oauthTokens
+        });
+      } catch (error) {
+        console.warn('[Main] OneDrive 实例创建失败（配置可能未完成）:', error.message);
+      }
+      break;
+    case 'google-drive':
+      try {
+        apiInstance = new GoogleDriveApi({
+          id: profile.id,
+          clientId: profile.clientId,
+          clientSecret: profile.clientSecret,
+          rootFolderId: profile.rootFolderId,
+          oauthTokens: profile.oauthTokens
+        });
+      } catch (error) {
+        console.warn('[Main] Google Drive 实例创建失败（配置可能未完成）:', error.message);
+      }
+      break;
   }
 
   if (apiInstance) {
-    apiInstances.set(type, apiInstance);
+    apiInstances.set(cacheKey, apiInstance);
   }
 
   return apiInstance;
+}
+
+/**
+ * 获取（新类型的）API 实例：机密字段从加密凭据存储并入配置后再构造。
+ */
+function getAPIInstanceWithSecrets(type, profileOverride = null) {
+  const profile = profileOverride || getActiveProfile();
+  if (!profile || !NEW_TYPES.has(type)) {
+    return getAPIInstance(type, profileOverride);
+  }
+
+  const { profile: merged } = resolveProfileSecrets(profile);
+  return getAPIInstance(type, merged);
 }
 
 /**
@@ -533,8 +650,15 @@ function addRecentActivity(type, message, status) {
   mainWindow?.webContents.send('activity-updated');
 }
 
-async function startUpload(filePath, key, checkpoint) {
-  const storage = await getStorageClient();
+async function startUpload(filePath, key, checkpoint, profileId = null) {
+  // 上传任务绑定创建时的配置 ID：切换活动账号不改变已排队任务的目标
+  const boundProfile = profileId
+    ? (store.get('profiles', []).find(p => p.id === profileId) || null)
+    : null;
+  if (profileId && !boundProfile) {
+    console.warn(`[Upload] 未找到绑定的配置 ${profileId}，回退到活动配置`);
+  }
+  const storage = await getStorageClient(boundProfile);
   if (!storage) {
     const errorMsg = '请先在设置中配置您的存储桶。';
     mainWindow.webContents.send('upload-progress', { key, error: errorMsg, filePath });
@@ -724,10 +848,30 @@ async function startUpload(filePath, key, checkpoint) {
       await qiniuAPI.uploadFile(filePath, key, onProgress);
       mainWindow.webContents.send('upload-progress', { key, percentage: 100, filePath });
       addRecentActivity('upload', `文件 ${key} 上传成功。`, 'success');
+    } else if (NEW_TYPES.has(storage.type)) {
+      const api = getAPIInstanceWithSecrets(storage.type, storage.profile);
+      if (!api) throw new Error('存储适配器实例创建失败（配置不完整或尚未授权）');
+
+      const onProgress = (percentage, loaded, total) => {
+        mainWindow.webContents.send('upload-progress', { key, percentage, filePath });
+      };
+
+      // 新类型支持真实取消（S3 abort 上传 / WebDAV 断开请求 / OneDrive、GDrive 取消会话）
+      activeUploads.set(key, {
+        abort: async () => {
+          if (api.abortUpload) {
+            api.abortUpload(key);
+          }
+        }
+      });
+
+      await api.uploadFile(filePath, key, onProgress);
+      mainWindow.webContents.send('upload-progress', { key, percentage: 100, filePath });
+      addRecentActivity('upload', `文件 ${key} 上传成功。`, 'success');
     }
 
   } catch (error) {
-    if (error.name === 'AbortError' || error.name === 'CancelError') {
+    if (error.name === 'AbortError' || error.name === 'CancelError' || error.kind === 'cancelled' || /操作已取消|Upload aborted/i.test(error.message || '')) {
       console.log(`Upload of ${key} was aborted/cancelled.`);
       mainWindow.webContents.send('upload-progress', { key, status: 'paused', error: '上传已暂停', filePath });
       addRecentActivity('upload', `文件 ${key} 上传已暂停。`, 'info');
@@ -1745,13 +1889,30 @@ ipcMain.handle('save-base64-image', async (event, directory, filename, base64Dat
 
 ipcMain.handle('save-profiles', (event, { profiles, activeProfileId }) => {
   try {
-    store.set('profiles', profiles);
+    // 新类型：机密字段写入加密凭据存储，config.json 只保留脱敏后的配置
+    const sanitizedProfiles = (profiles || []).map(p => {
+      if (NEW_TYPES.has(p.type)) {
+        return stripAndStoreSecrets(p);
+      }
+      return p;
+    });
+
+    // 清理已删除配置的凭据
+    const existingIds = new Set(sanitizedProfiles.map(p => p.id));
+    const storedProfiles = store.get('profiles', []);
+    for (const oldProfile of storedProfiles) {
+      if (oldProfile.id && !existingIds.has(oldProfile.id) && NEW_TYPES.has(oldProfile.type)) {
+        deleteSecretsForProfile(oldProfile.id);
+      }
+    }
+
+    store.set('profiles', sanitizedProfiles);
     store.set('activeProfileId', activeProfileId);
-    
+
     // Clear API instances cache when profiles change
     apiInstances.clear();
-    
-    return { success: true };
+
+    return { success: true, encryptionAvailable: isEncryptionAvailable() };
   } catch (error) {
     console.error('Failed to save profiles:', error);
     return { success: false, error: error.message };
@@ -1997,14 +2158,168 @@ ipcMain.handle('test-connection', async (event, profile) => {
       console.error('[Main] Qiniu connection test failed:', error);
       return { success: false, error: `七牛云连接失败: ${error.message}` };
     }
+  } else if (profile.type === 's3') {
+    if (!profile.bucket) {
+      return { success: false, error: '缺少桶名称。' };
+    }
+    try {
+      const { profile: merged } = resolveProfileSecrets(profile);
+      if (!merged.accessKeyId || !merged.secretAccessKey) {
+        return { success: false, error: '缺少访问密钥：请填写 Access Key ID 与 Secret Access Key。' };
+      }
+      const s3API = new S3Api({
+        id: merged.id,
+        preset: merged.preset,
+        endpoint: merged.endpoint,
+        region: merged.region,
+        bucket: merged.bucket,
+        accessKeyId: merged.accessKeyId,
+        secretAccessKey: merged.secretAccessKey,
+        sessionToken: merged.sessionToken,
+        forcePathStyle: merged.forcePathStyle,
+        publicDomain: merged.publicDomain,
+        rootPrefix: merged.rootPrefix,
+        linkMode: merged.linkMode
+      });
+      const result = await s3API.testConnection();
+      console.log('[Main] S3 connection test result:', result);
+      return result;
+    } catch (error) {
+      return { success: false, error: `S3 连接失败: ${error.message}` };
+    }
+  } else if (profile.type === 'webdav') {
+    if (!profile.baseUrl || !profile.username) {
+      const missing = [];
+      if (!profile.baseUrl) missing.push('服务地址');
+      if (!profile.username) missing.push('用户名');
+      return { success: false, error: `缺少 WebDAV 配置信息: ${missing.join(', ')}` };
+    }
+    try {
+      const { profile: merged } = resolveProfileSecrets(profile);
+      const webdavAPI = new WebdavApi({
+        id: merged.id,
+        baseUrl: merged.baseUrl,
+        username: merged.username,
+        password: merged.password,
+        rootPath: merged.rootPath,
+        timeout: merged.timeout,
+        caText: merged.caText
+      });
+      const result = await webdavAPI.testConnection();
+      console.log('[Main] WebDAV connection test result:', result);
+      return result;
+    } catch (error) {
+      return { success: false, error: `WebDAV 连接失败: ${error.message}` };
+    }
+  } else if (profile.type === 'sftp') {
+    if (!profile.host || !profile.username) {
+      const missing = [];
+      if (!profile.host) missing.push('主机地址');
+      if (!profile.username) missing.push('用户名');
+      return { success: false, error: `缺少 SFTP 配置信息: ${missing.join(', ')}` };
+    }
+    if (profile.authMode === 'key' && !profile.privateKeyPath) {
+      return { success: false, error: '缺少私钥文件路径。' };
+    }
+    try {
+      const { profile: merged } = resolveProfileSecrets(profile);
+      if (merged.authMode !== 'key' && !merged.password) {
+        return { success: false, error: '缺少密码。' };
+      }
+      const sftpAPI = new SftpApi({
+        id: merged.id,
+        host: merged.host,
+        port: merged.port,
+        username: merged.username,
+        authMode: merged.authMode,
+        password: merged.password,
+        privateKeyPath: merged.privateKeyPath,
+        passphrase: merged.passphrase,
+        rootPath: merged.rootPath,
+        timeout: merged.timeout,
+        trustedFingerprint: merged.trustedFingerprint
+      });
+      const result = await sftpAPI.testConnection();
+      console.log('[Main] SFTP connection test result:', result);
+      return result;
+    } catch (error) {
+      // 主机指纹未验证/已变化：把指纹带回给设置页展示
+      const result = { success: false, error: `SFTP 连接失败: ${error.message}`, kind: error.kind };
+      if (error.fingerprint) {
+        result.fingerprint = error.fingerprint;
+        result.needsTrust = error.kind === 'unverified';
+        result.fingerprintChanged = error.kind === 'changed';
+      }
+      return result;
+    }
+  } else if (profile.type === 'onedrive') {
+    if (!profile.clientId) {
+      return { success: false, error: '缺少 Client ID。' };
+    }
+    try {
+      const { profile: merged } = resolveProfileSecrets(profile);
+      const onedriveAPI = new OneDriveApi({
+        id: merged.id,
+        clientId: merged.clientId,
+        clientSecret: merged.clientSecret,
+        tenantType: merged.tenantType,
+        resourceKind: merged.resourceKind,
+        driveId: merged.driveId,
+        siteId: merged.siteId,
+        oauthTokens: merged.oauthTokens
+      });
+      const result = await onedriveAPI.testConnection();
+      console.log('[Main] OneDrive connection test result:', result);
+      return result;
+    } catch (error) {
+      return { success: false, error: `OneDrive 连接失败: ${error.message}`, kind: error.kind };
+    }
+  } else if (profile.type === 'google-drive') {
+    if (!profile.clientId) {
+      return { success: false, error: '缺少 OAuth Client ID。' };
+    }
+    try {
+      const { profile: merged } = resolveProfileSecrets(profile);
+      const gdriveAPI = new GoogleDriveApi({
+        id: merged.id,
+        clientId: merged.clientId,
+        clientSecret: merged.clientSecret,
+        rootFolderId: merged.rootFolderId,
+        oauthTokens: merged.oauthTokens
+      });
+      const result = await gdriveAPI.testConnection();
+      console.log('[Main] Google Drive connection test result:', result);
+      return result;
+    } catch (error) {
+      return { success: false, error: `Google Drive 连接失败: ${error.message}`, kind: error.kind };
+    }
   } else {
     return { success: false, error: '未知的配置类型。' };
   }
 });
 
-async function getStorageClient() {
-    const profile = getActiveProfile();
+async function getStorageClient(profileOverride = null) {
+    const profile = profileOverride || getActiveProfile();
     if (!profile) return null;
+
+    if (NEW_TYPES.has(profile.type)) {
+      // 新类型：配置校验在适配器构造时进行，这里只提供描述信息
+      const displayBucket = profile.type === 's3'
+        ? (profile.bucket || '')
+        : profile.type === 'webdav'
+          ? (profile.baseUrl || 'WebDAV')
+          : profile.type === 'sftp'
+            ? (profile.host ? `${profile.username}@${profile.host}` : 'SFTP')
+            : profile.type === 'onedrive'
+              ? 'OneDrive'
+              : 'Google Drive';
+      return {
+        client: null,
+        type: profile.type,
+        bucket: displayBucket,
+        profile
+      };
+    }
 
     if (profile.type === 'r2') {
         if (!profile.accountId || !profile.accessKeyId || !profile.secretAccessKey) return null;
@@ -2129,6 +2444,11 @@ ipcMain.handle('check-status', async () => {
       if (!qiniuAPI) throw new Error('七牛云 API实例创建失败');
       const result = await qiniuAPI.testConnection();
       return result;
+    } else if (NEW_TYPES.has(storage.type)) {
+      const api = getAPIInstanceWithSecrets(storage.type, storage.profile);
+      if (!api) throw new Error('存储适配器实例创建失败（配置不完整或尚未授权）');
+      const result = await api.testConnection();
+      return result;
     }
      return { success: true, message: '连接成功' };
    } catch (error) {
@@ -2148,12 +2468,15 @@ ipcMain.handle('get-bucket-stats', async () => {
     let totalCount = 0;
     let totalSize = 0;
     let continuationToken = undefined;
+    let unsupportedStats = false;
+    let statsTruncated = false;
+    let serverQuotaBytes = null;
 
     if (storage.type === 'r2') {
       const r2API = getAPIInstance('r2');
       if (!r2API) throw new Error('R2 API实例创建失败');
       const response = await r2API.getStorageStats();
-      
+
       if (response.success) {
         totalCount = response.data.totalCount;
         totalSize = response.data.totalSize;
@@ -2253,25 +2576,54 @@ ipcMain.handle('get-bucket-stats', async () => {
       const qiniuAPI = getAPIInstance('qiniu');
       if (!qiniuAPI) throw new Error('七牛云 API实例创建失败');
       const response = await qiniuAPI.getStorageStats();
-      
+
       console.log('[Main] Qiniu storage stats response:', response);
-      
+
       if (response.success) {
         totalCount = response.data.totalCount;
         totalSize = response.data.totalSize;
         console.log(`[Main] Qiniu stats: ${totalCount} files, ${totalSize} bytes`);
+      }
+    } else if (NEW_TYPES.has(storage.type)) {
+      const api = getAPIInstanceWithSecrets(storage.type, storage.profile);
+      if (!api) throw new Error('存储适配器实例创建失败（配置不完整或尚未授权）');
+      const response = await api.getStorageStats();
+
+      if (response.success) {
+        totalCount = response.data.totalCount;
+        totalSize = response.data.totalSize;
+        if (totalCount === null || totalCount === undefined) {
+          // 容量/数量无法准确获取时如实上报，由界面显示"暂不支持"
+          unsupportedStats = true;
+          totalCount = 0;
+        }
+        if (response.data.quotaTotal) {
+          serverQuotaBytes = response.data.quotaTotal;
+        }
+        if (response.data.truncated) {
+          statsTruncated = true;
+        }
       }
     }
     
     const quota = parseInt(activeProfile?.storageQuotaGB, 10);
     const quotaUnit = activeProfile?.storageQuotaUnit || 'GB';
 
-    return { success: true, data: { 
-      totalCount, 
-      totalSize, 
+    // 服务端返回配额时优先使用（OneDrive/Google Drive 等），否则回退到用户手填配额
+    let quotaBytes = (!isNaN(quota) && quota > 0 ? quota : 10) * (quotaUnit === 'MB' ? 1024 * 1024 : 1024 * 1024 * 1024);
+    if (serverQuotaBytes && serverQuotaBytes > 0) {
+      quotaBytes = serverQuotaBytes;
+    }
+
+    return { success: true, data: {
+      totalCount,
+      totalSize,
       bucketName: storage.bucket,
       storageQuotaGB: !isNaN(quota) && quota > 0 ? quota : 10,
-      storageQuotaUnit: quotaUnit
+      storageQuotaUnit: quotaUnit,
+      unsupportedStats,
+      truncated: statsTruncated,
+      serverQuotaBytes
     } };
   } catch (error) {
     console.error('Failed to get bucket stats:', error);
@@ -2524,8 +2876,22 @@ ipcMain.handle('list-objects', async (event, options) => {
       }
       folders = [];
       nextContinuationToken = null;
+    } else if (NEW_TYPES.has(storage.type)) {
+      const api = getAPIInstanceWithSecrets(storage.type, storage.profile);
+      if (!api) throw new Error('存储适配器实例创建失败（配置不完整或尚未授权）');
+      const response = await api.listFiles({
+        prefix: apiPrefix,
+        delimiter: apiDelimiter,
+        continuationToken: continuationToken
+      });
+
+      if (response.success) {
+        rawFiles = response.data.files || [];
+        folders = response.data.folders || [];
+        nextContinuationToken = response.data.nextContinuationToken;
+      }
     }
-    
+
     let filteredFiles = rawFiles;
     if (isSearch && prefix) {
       const lowerCasePrefix = prefix.toLowerCase();
@@ -2673,6 +3039,14 @@ ipcMain.handle('delete-object', async (_, key) => {
         // 删除文件
         await qiniuAPI.deleteFile(key);
       }
+    } else if (NEW_TYPES.has(storage.type)) {
+      const api = getAPIInstanceWithSecrets(storage.type, storage.profile);
+      if (!api) throw new Error('存储适配器实例创建失败（配置不完整或尚未授权）');
+      if (key.endsWith('/')) {
+        await api.deleteFolder(key);
+      } else {
+        await api.deleteFile(key);
+      }
     }
     addRecentActivity('delete', `删除了 ${key}`, 'success');
     return { success: true };
@@ -2779,6 +3153,12 @@ ipcMain.handle('delete-folder', async (event, prefix) => {
       if (allKeys.length > 0) {
         await jdcloudAPI.deleteFiles(allKeys);
       }
+    } else if (NEW_TYPES.has(type)) {
+      // 新类型：WebDAV/SFTP 的 DELETE 目录本身即递归删除；
+      // S3/OneDrive/GDrive 适配器的 deleteFolder 负责递归清理
+      const api = getAPIInstanceWithSecrets(type, storage.profile);
+      if (!api) throw new Error('存储适配器实例创建失败（配置不完整或尚未授权）');
+      await api.deleteFolder(prefix);
     }
 
     addRecentActivity('delete', `文件夹 "${prefix}" 已删除`, 'success');
@@ -2824,6 +3204,10 @@ ipcMain.handle('create-folder', async (event, folderName) => {
       const qiniuAPI = getAPIInstance('qiniu');
       if (!qiniuAPI) throw new Error('七牛云 API实例创建失败');
       await qiniuAPI.createFolder(folderName);
+    } else if (NEW_TYPES.has(type)) {
+      const api = getAPIInstanceWithSecrets(type, storage.profile);
+      if (!api) throw new Error('存储适配器实例创建失败（配置不完整或尚未授权）');
+      await api.createFolder(folderName);
     } else {
       return { success: false, error: '不支持的存储类型' };
     }
@@ -2959,6 +3343,19 @@ ipcMain.handle('get-object-content', async (event, bucket, key) => {
       } else {
         throw new Error(response.error);
       }
+    } else if (NEW_TYPES.has(type)) {
+      const api = getAPIInstanceWithSecrets(type, storage.profile);
+      if (!api) throw new Error('存储适配器实例创建失败（配置不完整或尚未授权）');
+      const response = await api.getFileContent(key, PREVIEW_FILE_SIZE_LIMIT);
+      if (response.success) {
+        if (response.data.tooLarge) {
+          fileTooLarge = true;
+        } else {
+          content = response.data.content;
+        }
+      } else {
+        throw new Error(response.error || '获取文件内容失败');
+      }
     }
 
     if (fileTooLarge) {
@@ -2996,8 +3393,8 @@ ipcMain.handle('show-open-dialog', async (_, options) => {
   }
 });
 
-ipcMain.handle('upload-file', async (_, { filePath, key, checkpoint }) => {
-  startUpload(filePath, key, checkpoint);
+ipcMain.handle('upload-file', async (_, { filePath, key, checkpoint, profileId }) => {
+  startUpload(filePath, key, checkpoint, profileId);
 });
 
 ipcMain.handle('pause-upload', async (_, key) => {
@@ -3007,8 +3404,8 @@ ipcMain.handle('pause-upload', async (_, key) => {
   }
 });
 
-ipcMain.handle('resume-upload', async (_, { filePath, key, checkpoint }) => {
-  startUpload(filePath, key, checkpoint);
+ipcMain.handle('resume-upload', async (_, { filePath, key, checkpoint, profileId }) => {
+  startUpload(filePath, key, checkpoint, profileId);
 });
 
 ipcMain.on('download-file', async (event, key) => {
@@ -3227,6 +3624,28 @@ ipcMain.on('download-file', async (event, key) => {
           type: 'progress', 
           data: { id: taskId, progress: 100, status: 'completed' } 
         });
+        addRecentActivity('download', `下载了 ${key}`);
+     } else if (NEW_TYPES.has(storage.type)) {
+        // 新类型统一下载：适配器内部流式写入并回报进度
+        const api = getAPIInstanceWithSecrets(storage.type, storage.profile);
+        if (!api) throw new Error('存储适配器实例创建失败（配置不完整或尚未授权）');
+
+        const onProgress = (progress, downloadedBytes, totalBytes, speed) => {
+          mainWindow.webContents.send('download-update', {
+            type: 'progress',
+            data: { id: taskId, progress, speed }
+          });
+        };
+
+        await api.downloadFile(key, filePath, onProgress);
+
+        const finalTasks = store.get('download-tasks', {});
+        if (finalTasks[taskId]) {
+          finalTasks[taskId].status = 'completed';
+          finalTasks[taskId].progress = 100;
+          store.set('download-tasks', finalTasks);
+        }
+        mainWindow.webContents.send('download-update', { type: 'progress', data: { id: taskId, progress: 100, status: 'completed' } });
         addRecentActivity('download', `下载了 ${key}`);
      } else if (storage.type === 'smms' || storage.type === 'lsky') {
         // 通用公网 URL 下载器
@@ -3523,12 +3942,69 @@ ipcMain.handle('get-theme', () => {
   return store.get('app-settings.theme', 'light');
 });
 
+// ============ 新增存储类型（P0-P2）：能力查询与 OAuth 管理 ============
+
+// 能力声明：渲染进程据此展示/隐藏操作（分享链接、预览、统计等），
+// 不支持的能力明确返回 false，不能伪造成功
+ipcMain.handle('get-provider-capabilities', async () => {
+  const profile = getActiveProfile();
+  if (!profile) {
+    return { success: false, error: '未找到活动的存储配置' };
+  }
+
+  if (NEW_TYPES.has(profile.type)) {
+    const defaults = {
+      publicLink: false, presignedLink: false, copyLink: false,
+      preview: false, move: false, share: false, stats: false, cancelUpload: false
+    };
+    const api = getAPIInstanceWithSecrets(profile.type, profile);
+    const capabilities = api ? { ...defaults, ...api.getCapabilities() } : defaults;
+    return { success: true, data: { type: profile.type, capabilities } };
+  }
+
+  // 现有类型保持既有行为
+  const legacyCaps = {
+    publicLink: true, presignedLink: true, copyLink: true,
+    preview: true, move: false, share: false, stats: true, cancelUpload: false
+  };
+  return { success: true, data: { type: profile.type, capabilities: legacyCaps } };
+});
+
+// 启动 OAuth 授权（OneDrive / Google Drive）：系统浏览器 + 本地回调 + PKCE。
+// 令牌仅保存在主进程加密存储，渲染进程只拿到账号展示信息。
+ipcMain.handle('start-oauth', async (event, params) => {
+  try {
+    const { profileId, provider, clientId, clientSecret, tenantType, resourceKind, scopes } = params || {};
+    if (!profileId) return { success: false, error: '缺少配置 ID' };
+    if (!clientId) return { success: false, error: '请先填写 Client ID' };
+
+    const result = await startOAuthFlow({
+      provider,
+      clientId,
+      clientSecret,
+      tenantType,
+      resourceKind,
+      scopes: scopes || getDefaultScopes(provider, { resourceKind })
+    });
+
+    saveSecret(`${profileId}:oauth-tokens`, JSON.stringify(result.tokens));
+    return { success: true, accountEmail: result.accountEmail };
+  } catch (error) {
+    console.error('[Main] OAuth 授权失败:', error.message);
+    return { success: false, error: error.message, code: error.code };
+  }
+});
+
+ipcMain.handle('cancel-oauth', async () => {
+  cancelOAuthFlow('用户取消了授权');
+  return { success: true };
+});
+
 ipcMain.handle('get-presigned-url', async (event, bucket, key) => {
   const storage = await getStorageClient();
   if (!storage) {
     return { success: false, error: '未找到有效的存储配置' };
   }
-
   try {
     let url = '';
     if (storage.type === 'r2') {
@@ -3568,6 +4044,15 @@ ipcMain.handle('get-presigned-url', async (event, bucket, key) => {
       const qiniuAPI = getAPIInstance('qiniu');
       if (!qiniuAPI) throw new Error('七牛云 API实例创建失败');
       url = await qiniuAPI.getPresignedUrl(key, 900);
+    } else if (storage.type === 's3') {
+      const s3API = getAPIInstanceWithSecrets('s3', storage.profile);
+      if (!s3API) throw new Error('S3 API实例创建失败');
+      url = await s3API.getPresignedUrl(key, 900);
+    } else if (storage.type === 'onedrive') {
+      // OneDrive：短期授权 URL（预览用），WebDAV/SFTP/Google Drive 无永久公开链接
+      const odAPI = getAPIInstanceWithSecrets('onedrive', storage.profile);
+      if (!odAPI) throw new Error('OneDrive API实例创建失败');
+      url = await odAPI.getPresignedUrl(key, 900);
     }
     return url;
   } catch (error) {
@@ -3652,6 +4137,14 @@ ipcMain.on('start-search', async (event, searchTerm) => {
         const qiniuAPI = getAPIInstance('qiniu');
         if (!qiniuAPI) throw new Error('七牛云 API实例创建失败');
         const searchResponse = await qiniuAPI.searchFiles(lowerCaseSearchTerm, { continuationToken });
+        response = {
+          Contents: searchResponse.data.files,
+          NextContinuationToken: null // 搜索已经处理了分页
+        };
+      } else if (NEW_TYPES.has(storage.type)) {
+        const api = getAPIInstanceWithSecrets(storage.type, storage.profile);
+        if (!api) throw new Error('存储适配器实例创建失败（配置不完整或尚未授权）');
+        const searchResponse = await api.searchFiles(lowerCaseSearchTerm, { continuationToken });
         response = {
           Contents: searchResponse.data.files,
           NextContinuationToken: null // 搜索已经处理了分页

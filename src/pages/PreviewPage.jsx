@@ -86,15 +86,22 @@ export default function PreviewPage() {
 
         const routedPublicUrl = new URLSearchParams(window.location.hash.split('?')[1]).get('publicUrl');
         const shareUrl = new URLSearchParams(window.location.hash.split('?')[1]).get('shareUrl');
-        const publicUrl = routedPublicUrl || await window.api.getPresignedUrl(bucket, `${filePath}${fileName}`);
-        
+        // 公开/预签名链接仅媒体类文件必需；文本等文件可直接通过主进程读取内容
+        let publicUrl = routedPublicUrl;
         if (!publicUrl) {
-          throw new Error('无法获取文件预览链接。');
+          try {
+            publicUrl = await window.api.getPresignedUrl(bucket, `${filePath}${fileName}`);
+          } catch (e) {
+            console.warn('获取预签名链接失败，将回退到内容读取:', e);
+          }
         }
-        
+
         setFile({ fileName, filePath, bucket, publicUrl, shareUrl });
-        
+
         if (isImage(fileName)) {
+          if (!publicUrl) {
+            throw new Error('该存储服务不支持公开链接，无法在线预览图片。请在设置中配置公开域名，或直接下载查看。');
+          }
           // 所有存储服务都使用直接URL加载，就像浏览器一样
           const img = new Image();
           img.onload = () => {
@@ -107,6 +114,9 @@ export default function PreviewPage() {
           }
           img.src = publicUrl;
         } else if (isVideo(fileName)) {
+          if (!publicUrl) {
+            throw new Error('该存储服务不支持公开链接，无法在线预览视频。请在设置中配置公开域名，或直接下载查看。');
+          }
           // 所有存储服务都使用直接URL加载，就像浏览器一样
           const video = document.createElement('video');
           // 更快拿到元数据以便尽快调整窗口尺寸

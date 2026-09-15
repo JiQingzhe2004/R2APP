@@ -6,12 +6,14 @@
 
 -   **现代化的用户界面**: 专业的设计，包含侧边栏，便于导航。
 -   **双主题支持**: 同时支持亮色和深色两种配色方案。
--   **多存储服务支持**: 支持 Cloudflare R2、阿里云 OSS、腾讯云 COS、京东云对象存储、华为云 OBS、七牛云 Kodo、SM.MS 图床、兰空图床等多种存储服务。
+-   **多存储服务支持**: 支持 Cloudflare R2、阿里云 OSS、腾讯云 COS、京东云对象存储、华为云 OBS、七牛云 Kodo、SM.MS 图床、兰空图床等存储服务；并新增通用 S3 兼容存储（Amazon S3 / MinIO / Backblaze B2）、WebDAV（Nextcloud / ownCloud / NAS）、SFTP、OneDrive / SharePoint 与 Google Drive 的接入实现。
 -   **文件管理**: 浏览、上传和删除您存储桶中的文件。
--   **安全配置**: 您的所有凭据都安全地存储在本地计算机上，绝不会上传到云端。
+-   **凭据加密**: 新增服务的密码、密钥与 OAuth 令牌通过系统加密能力（safeStorage）加密保存在独立的 `credentials.json` 中，配置文件不再包含明文秘密字段。
 -   **跨平台**: 可在 Windows、macOS 和 Linux 上运行。
 
 ## 🚀 开始使用
+
+存储服务扩展的实现状态与验收清单见 [存储服务对接实施状态](docs/STORAGE_INTEGRATION_STATUS.md)，设计依据见 [存储服务对接规划](docs/STORAGE_INTEGRATION_PLAN.md)。新增的 S3 / WebDAV / SFTP / OneDrive / Google Drive 已完成代码接入；其中 S3 与 WebDAV 已通过本地自动化冒烟测试，SFTP 与两类网盘需要真实服务与账号完成专项验收后才会标记为正式支持。
 
 请按照以下说明在您的本地计算机上设置并运行项目，以进行开发和测试。
 
@@ -101,6 +103,34 @@ npm run dev
 -   **兰空 Token**: 您的兰空图床 API Token，格式为 `Bearer 1|xxxxx`
 -   **策略ID** (可选): 指定上传策略的ID
 -   **相册ID** (可选): 指定上传到特定相册的ID
+
+#### S3 兼容存储配置（Amazon S3 / MinIO / Backblaze B2）
+-   **服务预设**: 选择 Amazon S3、MinIO、Backblaze B2 或自定义，预设仅帮助填写默认参数，可继续修改。
+-   **Endpoint**: 兼容服务必填的 API 地址（不是控制台或 CDN 地址）；AWS 可留空由区域解析。
+-   **Region**: 按服务文档填写，例如 AWS 的 `us-east-1`；不要沿用 R2 的 `auto`。
+-   **Bucket / Access Key / Secret Key**: 直接连接指定桶；密钥保存后会加密存储。
+-   **路径风格 (Path Style)**: MinIO 等服务需要勾选。
+-   **链接模式**: 临时预签名链接（默认，私有桶可用）或公开链接。
+-   **根前缀 (可选)**: 限定界面管理的对象前缀，例如 `photos/2026/`。
+
+#### WebDAV 配置（Nextcloud / ownCloud / NAS）
+-   **服务地址**: WebDAV 服务地址而非网页地址。Nextcloud 通常形如 `https://cloud.example.com/remote.php/dav/files/你的用户名/`，以实际部署为准；NAS 需先启用 WebDAV 服务。
+-   **用户名 / 密码**: Nextcloud 建议使用账号专用的应用密码。
+-   **受信任 CA (可选)**: 自签名证书的 NAS 粘贴 PEM 格式 CA 证书；应用始终校验 TLS，不提供关闭校验的开关。
+
+#### SFTP 配置
+-   **主机 / 端口 / 用户名**: 端口默认 22；服务器需已启用 SFTP 子系统。
+-   **认证方式**: 密码，或私钥文件路径（支持 `~` 展开，口令可填，私钥只在主进程读取）。
+-   **主机指纹**: 首次连接测试会展示服务器 SHA256 指纹，核对后信任保存；指纹变化时应用会阻止连接。
+
+#### OneDrive / SharePoint 配置
+-   **Client ID**: 在 Azure 应用注册中创建的桌面应用客户端 ID（公共客户端可使用 PKCE，无需 Secret）。
+-   **账号类型 / 资源类型**: 个人账号、企业账号或 SharePoint 文档库（SharePoint 需提供 Site ID）。
+-   **登录账号**: 填写 Client ID 后点击登录，在系统浏览器完成授权；企业租户可能需要管理员批准。
+
+#### Google Drive 配置
+-   **OAuth Client ID / Client Secret**: 在 Google Cloud 创建"桌面应用"类型 OAuth 客户端获得的凭据。
+-   **登录账号**: 点击登录完成浏览器授权；应用会管理"我的云端硬盘"中的文件，Google 文档下载时自动转换为 docx/xlsx/pptx/png。
 
 4.  点击 **保存设置**。
 5.  导航回 **文件管理** 视图即可查看您存储桶的内容。

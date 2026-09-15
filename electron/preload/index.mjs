@@ -147,6 +147,13 @@ export const api = {
   // Proxy configuration
   testProxyConnection: (proxyConfig) => ipcRenderer.invoke('test-proxy-connection', proxyConfig),
 
+  // ===== 新增存储类型（通用 S3 / WebDAV / SFTP / OneDrive / Google Drive）=====
+  // 能力查询：渲染进程据此展示/隐藏操作
+  getProviderCapabilities: () => ipcRenderer.invoke('get-provider-capabilities'),
+  // OAuth 授权（OneDrive / Google Drive）：令牌留在主进程加密存储
+  startOAuth: (params) => ipcRenderer.invoke('start-oauth', params),
+  cancelOAuth: () => ipcRenderer.invoke('cancel-oauth'),
+
   // Navigation from main
   onNavigate: (callback) => {
     const handler = (event, path) => callback(path);

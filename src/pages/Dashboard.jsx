@@ -317,8 +317,12 @@ export default function DashboardPage() {
     }
   };
 
-  const totalQuotaBytes = convertQuotaToBytes(stats.storageQuotaGB, stats.storageQuotaUnit);
-  const storageUsagePercent = totalQuotaBytes > 0 ? (stats.totalSize / totalQuotaBytes) * 100 : 0;
+  // 服务端返回配额（OneDrive/Google Drive 等）时优先使用
+  const totalQuotaBytes = stats.serverQuotaBytes && stats.serverQuotaBytes > 0
+    ? stats.serverQuotaBytes
+    : convertQuotaToBytes(stats.storageQuotaGB, stats.storageQuotaUnit);
+  const hasUsageData = stats.totalSize !== null && stats.totalSize !== undefined;
+  const storageUsagePercent = hasUsageData && totalQuotaBytes > 0 ? (stats.totalSize / totalQuotaBytes) * 100 : 0;
 
   const getStatusIcon = () => {
     if (r2Status.loading) return <RefreshCw className="h-5 w-5 text-muted-foreground animate-spin" />;
@@ -375,8 +379,14 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalCount}</div>
-            <p className="text-xs text-muted-foreground">当前存储桶中的对象总数</p>
+            <div className="text-2xl font-bold">{stats.unsupportedStats ? '暂不支持' : stats.totalCount}</div>
+            <p className="text-xs text-muted-foreground">
+              {stats.unsupportedStats
+                ? '该服务无法准确统计文件总数'
+                : stats.truncated
+                  ? '当前存储中的对象总数（遍历已达上限，为部分结果）'
+                  : '当前存储桶中的对象总数'}
+            </p>
           </CardContent>
         </Card>
         <Card className="rounded-[24px]">
@@ -387,8 +397,10 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatBytes(stats.totalSize)}</div>
-            <p className="text-xs text-muted-foreground">当前存储桶的总大小</p>
+            <div className="text-2xl font-bold">{hasUsageData ? formatBytes(stats.totalSize) : '暂不支持'}</div>
+            <p className="text-xs text-muted-foreground">
+              {stats.truncated && hasUsageData ? '当前存储的总大小（遍历已达上限，为部分结果）' : '当前存储桶的总大小'}
+            </p>
           </CardContent>
         </Card>
         <Card className="rounded-[24px]">
@@ -399,7 +411,7 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{storageUsagePercent.toFixed(1)}%</div>
+            <div className="text-2xl font-bold">{hasUsageData ? `${storageUsagePercent.toFixed(1)}%` : '—'}</div>
             <p className="text-xs text-muted-foreground">存储空间使用百分比</p>
           </CardContent>
         </Card>

@@ -439,6 +439,7 @@ export default function FilesPage() {
   const [sortField, setSortField] = useState('date'); // 'date' | 'size' | 'name'
   const [sortOrder, setSortOrder] = useState('desc'); // 'asc' | 'desc'
   const [hasAnyProfiles, setHasAnyProfiles] = useState(false); // 新增：检查是否有任何配置
+  const [capabilities, setCapabilities] = useState(null); // 当前服务能力声明（分享链接/预览等）
   const { addNotification } = useNotifications();
   const { addUploads } = useUploads();
   const { deleteState, startDelete, endDelete } = useDeleteState();
@@ -454,7 +455,8 @@ export default function FilesPage() {
       });
 
       if (newUploads.length > 0) {
-        addUploads(newUploads);
+        // 任务绑定当前配置 ID：切换账号不改变已排队任务的目标
+        addUploads(newUploads, activeProfileId);
         toast.info(`${newUploads.length} 个文件已加入上传队列。`);
         navigate('/uploads');
       }
@@ -538,6 +540,17 @@ export default function FilesPage() {
       setSearchTerm('');
       setFiles([]);
       setNextToken(null);
+      // 拉取当前服务的能力声明（是否支持公开链接/预览等）
+      try {
+        const capsResult = await window.api.getProviderCapabilities();
+        if (capsResult?.success) {
+          setCapabilities(capsResult.data.capabilities);
+        } else {
+          setCapabilities(null);
+        }
+      } catch {
+        setCapabilities(null);
+      }
       fetchFiles('', { isSearch: false });
     };
 
@@ -921,7 +934,7 @@ export default function FilesPage() {
               const result = await window.api.getSetting('open-behavior');
               behavior = (result && result.success && result.value) ? result.value : 'preview';
             } catch {}
-            if (behavior === 'download') {
+            if (behavior === 'download' || capabilities && capabilities.preview === false) {
               handleDownload(key);
             } else {
               const resolvedBucket = settings?.bucketName || settings?.bucket || bucket;
@@ -965,29 +978,35 @@ export default function FilesPage() {
             </div>
             {!isDir && (
               <div className="mt-4 flex items-center gap-2">
-                  <Input 
-                    readOnly 
-                    value={publicUrl || '暂无公开链接（请配置自定义域名）'} 
-                    className={`flex-1 rounded-full ${publicUrl ? 'bg-muted' : 'bg-muted text-muted-foreground italic'}`}
-                  />
+                  {capabilities?.copyLink !== false && (
+                    <>
+                      <Input
+                        readOnly
+                        value={publicUrl || '暂无公开链接（请配置自定义域名）'}
+                        className={`flex-1 rounded-full ${publicUrl ? 'bg-muted' : 'bg-muted text-muted-foreground italic'}`}
+                      />
+                      <TooltipProvider delayDuration={0}>
+                        <FileQrMenu publicUrl={publicUrl} variant="outline" />
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="rounded-full"
+                              onClick={() => handleCopyUrl(publicUrl)}
+                              disabled={!publicUrl}
+                            >
+                              <Copy className="h-4 w-4"/>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{publicUrl ? '复制链接' : '无可用链接'}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </>
+                  )}
                   <TooltipProvider delayDuration={0}>
-                    <FileQrMenu publicUrl={publicUrl} variant="outline" />
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="icon" 
-                          className="rounded-full"
-                          onClick={() => handleCopyUrl(publicUrl)}
-                          disabled={!publicUrl}
-                        >
-                          <Copy className="h-4 w-4"/>
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>{publicUrl ? '复制链接' : '无可用链接'}</p>
-                      </TooltipContent>
-                    </Tooltip>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button variant="outline" size="icon" className="rounded-full" onClick={() => handleDownload(key)} disabled={downloading[key]}>
@@ -1067,7 +1086,7 @@ export default function FilesPage() {
                           const result = await window.api.getSetting('open-behavior');
                           behavior = (result && result.success && result.value) ? result.value : 'preview';
                         } catch {}
-                        if (behavior === 'download') {
+                        if (behavior === 'download' || (capabilities && capabilities.preview === false)) {
                           handleDownload(key);
                         } else {
                           const resolvedBucket = settings?.bucketName || settings?.bucket || bucket;
@@ -1106,22 +1125,26 @@ export default function FilesPage() {
                                 {!isDir && (
                                   <div className="flex items-center justify-end gap-1">
                                     <TooltipProvider delayDuration={0}>
-                                    <FileQrMenu publicUrl={publicUrl} variant="ghost" />
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="rounded-full"
-                                            onClick={(e) => { e.stopPropagation(); handleCopyUrl(publicUrl); }}
-                                          >
-                                            <Copy className="h-4 w-4"/>
-                                          </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>
-                                          <p>复制链接</p>
-                                        </TooltipContent>
-                                      </Tooltip>
+                                    {capabilities?.copyLink !== false && (
+                                      <>
+                                        <FileQrMenu publicUrl={publicUrl} variant="ghost" />
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="rounded-full"
+                                              onClick={(e) => { e.stopPropagation(); handleCopyUrl(publicUrl); }}
+                                            >
+                                              <Copy className="h-4 w-4"/>
+                                            </Button>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>复制链接</p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </>
+                                    )}
                                       <Tooltip>
                                         <TooltipTrigger asChild>
                                           <Button variant="ghost" size="icon" className="rounded-full" onClick={(e) => { e.stopPropagation(); handleDownload(key);}} disabled={downloading[key]}><Download className="h-4 w-4"/></Button>

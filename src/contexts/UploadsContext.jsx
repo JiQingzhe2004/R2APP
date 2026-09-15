@@ -117,15 +117,17 @@ export const UploadsProvider = ({ children }) => {
     };
   }, []);
   
-  const addUploads = (newUploadsData) => {
+  const addUploads = (newUploadsData, profileId = null) => {
     const newUploads = newUploadsData
       .map(uploadData => ({
         id: uuidv4(),
         path: uploadData.path,
         key: uploadData.key,
+        // 任务绑定创建时的配置 ID：切换活动账号不改变已排队任务的目标
+        profileId: profileId || uploadData.profileId || null,
         status: 'pending',
         progress: 0,
-        resumed_from: 0, 
+        resumed_from: 0,
         checkpoint: null, // Add checkpoint for OSS
       }))
       .filter(newUpload => !uploads.some(existing => existing.path === newUpload.path));
@@ -138,10 +140,10 @@ export const UploadsProvider = ({ children }) => {
   const startAllUploads = async () => {
     setIsUploading(true);
     const pendingUploads = uploads.filter(u => u.status === 'pending');
-    
+
     for (const upload of pendingUploads) {
       setUploads(prev => prev.map(u => u.id === upload.id ? { ...u, status: 'uploading' } : u));
-      await window.api.uploadFile({ filePath: upload.path, key: upload.key, checkpoint: upload.checkpoint });
+      await window.api.uploadFile({ filePath: upload.path, key: upload.key, checkpoint: upload.checkpoint, profileId: upload.profileId });
     }
 
     setIsUploading(false);
@@ -151,7 +153,7 @@ export const UploadsProvider = ({ children }) => {
     const upload = uploads.find(u => u.id === id);
     if (upload && upload.status === 'pending') {
       setUploads(prev => prev.map(u => u.id === id ? { ...u, status: 'uploading' } : u));
-      await window.api.uploadFile({ filePath: upload.path, key: upload.key, checkpoint: upload.checkpoint });
+      await window.api.uploadFile({ filePath: upload.path, key: upload.key, checkpoint: upload.checkpoint, profileId: upload.profileId });
     }
   };
   
@@ -168,7 +170,7 @@ export const UploadsProvider = ({ children }) => {
     const upload = uploads.find(u => u.id === id);
     if (upload && (upload.status === 'paused' || upload.status === 'error')) {
       setUploads(prev => prev.map(u => u.id === id ? { ...u, status: 'uploading', error: null } : u));
-      await window.api.resumeUpload({ filePath: upload.path, key: upload.key, checkpoint: upload.checkpoint });
+      await window.api.resumeUpload({ filePath: upload.path, key: upload.key, checkpoint: upload.checkpoint, profileId: upload.profileId });
     }
   };
 

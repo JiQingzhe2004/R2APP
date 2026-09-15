@@ -1,6 +1,6 @@
 {
   "name": "CS-Explorer",
-  "version": "5.1.8",
+  "version": "5.2.0",
   "description": "一个用于管理在线云存储的现代化桌面应用。",
   "main": "out/main/index.js",
   "author": "吉庆喆",
@@ -65,6 +65,7 @@
     "react-router-dom": "^7.10.1",
     "react-syntax-highlighter": "^15.6.6",
     "sonner": "^2.0.7",
+    "ssh2": "^1.17.0",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
@@ -92,7 +93,10 @@
   "build": {
     "appId": "com.r2.explorer",
     "productName": "CS-Explorer",
-    "electronLanguages": ["zh-CN", "en"],
+    "electronLanguages": [
+      "zh-CN",
+      "en"
+    ],
     "compression": "maximum",
     "asar": true,
     "directories": {
@@ -157,11 +161,17 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "extraResources": [
